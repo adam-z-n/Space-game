@@ -31,6 +31,11 @@ with Capacitor for the iOS and Android app stores later using the same code.
 
 Not yet: colonies, economy, research, ship design, combat. Those are later milestones.
 
+## Play it
+
+The latest `main` is published at **https://adam-z-n.github.io/Space-game/**. Open it on a phone and use
+"Add to Home Screen" for a full-screen app. Saves live in that browser only; use Menu → Export save file to keep one.
+
 ## Running it
 
 Requires Node 20 or newer.
