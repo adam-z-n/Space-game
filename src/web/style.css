@@ -167,10 +167,9 @@ svg.map {
   top: 0;
   left: 0;
   right: 0;
+  flex-direction: column;
   padding: calc(8px + var(--safe-top)) calc(12px + var(--safe-right)) 8px calc(12px + var(--safe-left));
   display: flex;
-  align-items: center;
-  gap: 8px;
   background: linear-gradient(var(--bg) 65%, transparent);
   padding-bottom: 20px;
   pointer-events: none;
@@ -283,7 +282,7 @@ svg.map {
 
 .menu {
   position: absolute;
-  top: calc(60px + var(--safe-top));
+  top: calc(104px + var(--safe-top));
   right: calc(12px + var(--safe-right));
   background: var(--panel-solid);
   border: 1px solid var(--line);
@@ -330,10 +329,10 @@ svg.map {
 
 .sheet.panel {
   position: absolute;
-  top: calc(64px + var(--safe-top));
+  top: calc(104px + var(--safe-top));
   left: calc(12px + var(--safe-left));
   right: calc(12px + var(--safe-right));
-  max-height: calc(100% - 200px - var(--safe-top) - var(--safe-bottom));
+  max-height: calc(100% - 190px - var(--safe-top) - var(--safe-bottom));
   max-width: 480px;
   margin-left: auto;
   z-index: 4;
@@ -387,4 +386,155 @@ button.attention {
 
 .topbar button {
   min-width: var(--touch);
+}
+
+.topbar-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.resources {
+  display: flex;
+  gap: 6px;
+  margin-top: 6px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.resources .chip {
+  min-height: 32px;
+  padding: 0 10px;
+  border-radius: 16px;
+  font-size: 13px;
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: #111827cc;
+}
+
+.chip .glyph {
+  opacity: 0.85;
+}
+
+.chip.ind .glyph { color: #ffb74d; }
+.chip.res .glyph { color: #4fc3f7; }
+.chip.food .glyph { color: #81c784; }
+.chip.cr .glyph { color: #fdd835; }
+
+.chip.warn {
+  border-color: #fdd835;
+  color: #fdd835;
+}
+
+.warn-text {
+  color: #fdd835;
+}
+
+.sheet.panel.tall {
+  max-height: calc(100% - 190px - var(--safe-top) - var(--safe-bottom));
+}
+
+.sheet h3 {
+  margin: 14px 0 4px;
+  font-size: 14px;
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.small {
+  font-size: 12px;
+}
+
+.sheet li .grow {
+  flex: 1;
+  min-width: 0;
+}
+
+.sheet li.on {
+  background: #4fc3f71a;
+}
+
+.row-actions {
+  display: flex;
+  gap: 4px;
+}
+
+.row-actions button {
+  min-width: var(--touch);
+  padding: 0 8px;
+}
+
+.segmented {
+  display: flex;
+  gap: 4px;
+  margin: 6px 0 10px;
+}
+
+.segmented button {
+  flex: 1;
+  padding: 0 4px;
+  font-size: 13px;
+}
+
+.segmented button.on {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #04121c;
+  font-weight: 600;
+}
+
+.stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+}
+
+.stat {
+  background: #ffffff08;
+  border-radius: 8px;
+  padding: 6px;
+  text-align: center;
+}
+
+.stat-value {
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.bar {
+  height: 4px;
+  background: #ffffff14;
+  border-radius: 2px;
+  margin: 4px 0;
+  overflow: hidden;
+}
+
+.bar-fill {
+  height: 100%;
+  background: var(--accent);
+}
+
+.current-research {
+  padding: 4px 0 6px;
+}
+
+.column {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 6px 0;
+}
+
+button.small-button {
+  min-height: 36px;
+  font-size: 13px;
+  padding: 0 10px;
+  white-space: nowrap;
+}
+
+.sheet > button {
+  width: 100%;
+  margin-top: 6px;
 }

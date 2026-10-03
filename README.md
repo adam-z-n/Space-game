@@ -5,7 +5,20 @@ A turn-based space empire game for phones. See [docs/GAME_DESIGN.md](docs/GAME_D
 The game is built web-first in TypeScript: it runs as a mobile web app for playtesting, and will be wrapped
 with Capacitor for the iOS and Android app stores later using the same code.
 
-## Status: Milestone 2
+## Status: Milestone 3
+
+**Milestone 3: colonies, economy, research**
+
+- Colonies with population, growth, and a focus (balanced, industry, research, food) that assigns workers automatically
+- Four resources: industry (builds things at each colony), research (empire-wide), food (shared stock; shortages
+  cause starvation), credits (taxes minus upkeep; debt cuts output)
+- Build queues per colony with turn forecasts; buy the current build with credits
+- Colony ships settle planets above a habitability threshold (techs lower it)
+- A 16-tech tree in six fields; techs add bonuses or unlock buildings, all defined in the content pack
+- Rival colonies are seen through sensors, with last-known sightings like fleets
+- Resource bar, colony and research screens, empire finances, and a "to do" queue covering research,
+  empty build queues, colony ships and idle fleets
+- The placeholder AI researches, builds, buys and expands, so batch runs report colonies, population and techs
 
 **Milestone 2: map and orders**
 
@@ -29,7 +42,7 @@ with Capacitor for the iOS and Android app stores later using the same code.
 - Headless tests and a batch simulation runner
 - A preview web app with autosave and save export/import
 
-Not yet: colonies, economy, research, ship design, combat. Those are later milestones.
+Not yet: ship design, supply, combat, defenses, invasion. Those are later milestones.
 
 ## Play it
 
@@ -56,11 +69,12 @@ npm run build      # production web build in dist/
 | Path | What it is |
 | --- | --- |
 | `src/core/` | The simulation: state, RNG, galaxy generation, commands, turn resolution, fog of war, AI, saves. No UI or platform code. |
+| `src/core/economy.ts` | Colony output, production, research, food, credits and growth. The UI's forecasts call the same functions. |
 | `src/core/view.ts` | What one empire may know. The UI renders only this, so fog of war can't leak. |
 | `src/content/` | Content pack schema and loader. |
 | `content/default/pack.json` | The placeholder content pack (stars, planets, names, empires, starting fleets). |
 | `src/platform/` | Save storage and app lifecycle. The only code that changes for the native app. |
-| `src/web/` | The web UI: galaxy map and HUD. |
+| `src/web/` | The web UI: galaxy map, HUD, and colony/research/empire screens. |
 | `tests/` | Unit tests. |
 | `scripts/sim.ts` | Headless batch runner. |
 
@@ -79,5 +93,6 @@ These keep games replayable and multiplayer-ready:
 
 - Engine: TypeScript, web-first, Capacitor for native builds later.
 - Galaxy sizes: about 24 / 48 / 80 systems (tunable in the content pack).
-- Resources (for M3): industry, research, food, credits.
+- Resources: industry, research, food, credits.
+- Colony management uses focus presets rather than per-worker sliders, to keep it one-thumb friendly.
 - First theme: undecided; a generic placeholder pack is used for now.

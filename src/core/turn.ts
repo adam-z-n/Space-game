@@ -1,6 +1,7 @@
 import type { ContentPack } from "../content/schema";
 import { laneLength } from "./graph";
 import { updateSightings } from "./vision";
+import { resolveEconomy } from "./economy";
 import type { EmpireId, GameEvent, GameState, SystemId } from "./state";
 
 /**
@@ -55,8 +56,8 @@ function resolveMovement(state: GameState, events: GameEvent[]): void {
   }
 }
 
-// Later milestones fill these in (M3 economy, M4 supply and combat, M6 invasions).
+// Later milestones fill these in (M4 supply and combat, M6 invasions).
 function resolveSupply(_state: GameState, _pack: ContentPack, _events: GameEvent[]): void {}
 function resolveCombat(_state: GameState, _pack: ContentPack, _events: GameEvent[]): void {}
 function resolveInvasions(_state: GameState, _pack: ContentPack, _events: GameEvent[]): void {}
-function resolveEconomy(_state: GameState, _pack: ContentPack, _events: GameEvent[]): void {}
+

@@ -24,7 +24,8 @@ function lineState(): GameState {
     { a: 2, b: 3, length: 100 },
   ];
   state.empires = state.empires.map((e) => ({ ...e, homeSystemId: 0, explored: [0] }));
-  state.fleets = [{ id: 500, empireId: 0, name: "Test", speed: 60, sensorRange: 0, systemId: 0, route: [], progress: 0, holding: false }];
+  state.fleets = [{ id: 500, empireId: 0, name: "Test", templateId: "scout", speed: 60, sensorRange: 0, systemId: 0, route: [], progress: 0, holding: false }];
+  state.colonies = [];
   return state;
 }
 

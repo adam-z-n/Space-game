@@ -5,17 +5,21 @@ import type { BodyKind } from "../content/schema";
  * so it can be cloned, saved, hashed, and sent over a network unchanged.
  */
 
-export const STATE_VERSION = 2;
+export const STATE_VERSION = 3;
 
 export type SystemId = number;
 export type EmpireId = number;
 export type FleetId = number;
+export type ColonyId = number;
+export type BodyId = number;
 
 export interface GameSettings {
   seed: string;
   galaxySize: string;
   /** Number of AI empires (2-5). */
   aiCount: number;
+  /** AI also plays empire 0; for batch testing and spectating. */
+  allAI?: boolean;
 }
 
 export interface Body {
@@ -56,11 +60,60 @@ export interface Empire {
   homeSystemId: SystemId;
   /** Systems this empire has visited, ascending. Their bodies are known. */
   explored: SystemId[];
-  /** Distance within which the home system sees fleets. */
-  homeSensorRange: number;
+  /** Sensor ranges of the capital and other colonies (tech bonuses included). */
+  capitalSensorRange: number;
+  colonySensorRange: number;
   /** Last-known positions of other empires' fleets, by fleet id. */
   sightings: FleetSighting[];
+  /** Last-known colonies of other empires, by colony id. */
+  colonySightings: ColonySighting[];
+  /** Treasury. Negative means in debt. */
+  credits: number;
+  /** Stored food, shared by all colonies. */
+  food: number;
+  /** Researched tech ids, in the order completed. */
+  techs: string[];
+  /** Tech being researched, or null. Points bank up while nothing is chosen. */
+  research: { current: string | null; progress: number };
+  /** Counts ships built per template, for naming. */
+  shipsBuilt: Record<string, number>;
   eliminated: boolean;
+}
+
+export const FOCUSES = ["balanced", "industry", "research", "food"] as const;
+export type Focus = (typeof FOCUSES)[number];
+
+export interface QueueItem {
+  kind: "building" | "ship";
+  /** Building or ship template id. */
+  id: string;
+}
+
+export interface Colony {
+  id: ColonyId;
+  empireId: EmpireId;
+  systemId: SystemId;
+  bodyId: BodyId;
+  name: string;
+  capital: boolean;
+  population: number;
+  /** Points toward the next population; see economy.growthThreshold. */
+  growth: number;
+  focus: Focus;
+  buildings: string[];
+  queue: QueueItem[];
+  /** Industry invested in queue[0]. */
+  progress: number;
+}
+
+export interface ColonySighting {
+  colonyId: ColonyId;
+  empireId: EmpireId;
+  systemId: SystemId;
+  bodyId: BodyId;
+  name: string;
+  population: number;
+  turn: number;
 }
 
 /** Where a fleet is: in a system, or `progress` distance along the lane toward `nextSystemId`. */
@@ -82,7 +135,9 @@ export interface Fleet {
   id: FleetId;
   empireId: EmpireId;
   name: string;
-  /** Distance units per turn. */
+  /** Ship template. Milestone 4 replaces single-ship fleets with designs and stacks. */
+  templateId: string;
+  /** Distance units per turn, tech bonuses included. */
   speed: number;
   /** System the fleet is at, or the one it departed from when in transit. */
   systemId: SystemId;
@@ -100,7 +155,15 @@ export type GameEvent =
   | { type: "fleetArrived"; turn: number; empireId: EmpireId; fleetId: FleetId; systemId: SystemId }
   | { type: "systemExplored"; turn: number; empireId: EmpireId; systemId: SystemId }
   /** `empireId` spotted a fleet of `ownerId` that was not in sensor range last turn. */
-  | { type: "fleetSighted"; turn: number; empireId: EmpireId; ownerId: EmpireId; fleetId: FleetId; systemId: SystemId };
+  | { type: "fleetSighted"; turn: number; empireId: EmpireId; ownerId: EmpireId; fleetId: FleetId; systemId: SystemId }
+  | { type: "colonySighted"; turn: number; empireId: EmpireId; ownerId: EmpireId; colonyId: ColonyId; systemId: SystemId }
+  | { type: "colonyFounded"; turn: number; empireId: EmpireId; colonyId: ColonyId; systemId: SystemId }
+  | { type: "buildingCompleted"; turn: number; empireId: EmpireId; colonyId: ColonyId; systemId: SystemId; buildingId: string }
+  | { type: "shipCompleted"; turn: number; empireId: EmpireId; colonyId: ColonyId; systemId: SystemId; fleetId: FleetId }
+  | { type: "techResearched"; turn: number; empireId: EmpireId; techId: string }
+  | { type: "populationGrew"; turn: number; empireId: EmpireId; colonyId: ColonyId; systemId: SystemId; population: number }
+  | { type: "starvation"; turn: number; empireId: EmpireId }
+  | { type: "inDebt"; turn: number; empireId: EmpireId; credits: number };
 
 export interface GameState {
   version: number;
@@ -112,6 +175,7 @@ export interface GameState {
   galaxy: Galaxy;
   empires: Empire[];
   fleets: Fleet[];
+  colonies: Colony[];
   nextId: number;
   /** Events produced by the most recent turn resolution (the turn report). */
   lastTurnEvents: GameEvent[];
@@ -131,6 +195,14 @@ export function getEmpire(state: GameState, id: EmpireId): Empire {
 
 export function findFleet(state: GameState, id: FleetId): Fleet | undefined {
   return state.fleets.find((f) => f.id === id);
+}
+
+export function findColony(state: GameState, id: ColonyId): Colony | undefined {
+  return state.colonies.find((c) => c.id === id);
+}
+
+export function colonyOnBody(state: GameState, bodyId: BodyId): Colony | undefined {
+  return state.colonies.find((c) => c.bodyId === bodyId);
 }
 
 export function isInTransit(fleet: Fleet): boolean {

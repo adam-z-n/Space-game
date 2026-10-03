@@ -26,8 +26,12 @@ interface SensorSource extends Point {
 
 export function sensorSources(state: GameState, empireId: EmpireId): SensorSource[] {
   const empire = state.empires[empireId]!;
-  const home = state.galaxy.systems[empire.homeSystemId]!;
-  const sources: SensorSource[] = [{ x: home.x, y: home.y, range: empire.homeSensorRange }];
+  const sources: SensorSource[] = [];
+  for (const colony of state.colonies) {
+    if (colony.empireId !== empireId) continue;
+    const system = state.galaxy.systems[colony.systemId]!;
+    sources.push({ x: system.x, y: system.y, range: colony.capital ? empire.capitalSensorRange : empire.colonySensorRange });
+  }
   for (const fleet of state.fleets) {
     if (fleet.empireId === empireId) sources.push({ ...positionPoint(state, fleetPosition(fleet)), range: fleet.sensorRange });
   }
@@ -66,5 +70,29 @@ export function updateSightings(state: GameState, events: GameEvent[] | null, ev
       if (sighting.turn !== state.turn && inSensorRange(sources, positionPoint(state, sighting))) byId.delete(id);
     }
     empire.sightings = [...byId.values()].sort((a: FleetSighting, b: FleetSighting) => a.fleetId - b.fleetId);
+
+    // Colonies: same idea, keyed by colony id.
+    const colonies = new Map(empire.colonySightings.map((c) => [c.colonyId, c]));
+    for (const colony of state.colonies) {
+      if (colony.empireId === empire.id) continue;
+      const system = state.galaxy.systems[colony.systemId]!;
+      if (!inSensorRange(sources, system)) continue;
+      if (events && !colonies.has(colony.id)) {
+        events.push({ type: "colonySighted", turn: eventTurn, empireId: empire.id, ownerId: colony.empireId, colonyId: colony.id, systemId: colony.systemId });
+      }
+      colonies.set(colony.id, {
+        colonyId: colony.id,
+        empireId: colony.empireId,
+        systemId: colony.systemId,
+        bodyId: colony.bodyId,
+        name: colony.name,
+        population: colony.population,
+        turn: state.turn,
+      });
+    }
+    for (const [id, sighting] of colonies) {
+      if (sighting.turn !== state.turn && inSensorRange(sources, state.galaxy.systems[sighting.systemId]!)) colonies.delete(id);
+    }
+    empire.colonySightings = [...colonies.values()].sort((a, b) => a.colonyId - b.colonyId);
   }
 }

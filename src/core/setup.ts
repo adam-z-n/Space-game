@@ -2,7 +2,8 @@ import type { ContentPack } from "../content/schema";
 import { generateGalaxy, installHomeworld, pickHomeSystems } from "./galaxy";
 import { Rng } from "./rng";
 import { updateSightings } from "./vision";
-import { STATE_VERSION, type Empire, type Fleet, type GameSettings, type GameState } from "./state";
+import { newColony, newFleet } from "./economy";
+import { STATE_VERSION, type Empire, type GameSettings, type GameState } from "./state";
 
 export const MIN_AI = 2;
 export const MAX_AI = 5;
@@ -34,34 +35,29 @@ export function createInitialState(settings: GameSettings, pack: ContentPack): G
   const templates = [playerTemplate!, ...rng.fork("empires").shuffle(others)];
 
   const empires: Empire[] = [];
-  const fleets: Fleet[] = [];
+  const homeworldIds: number[] = [];
   for (let i = 0; i < empireCount; i++) {
     const home = homes[i]!;
+    homeworldIds.push(nextId);
     installHomeworld(galaxy.systems[home]!, pack, nextId++);
     empires.push({
       id: i,
       name: templates[i]!.name,
       color: templates[i]!.color,
-      isAI: i !== 0,
+      isAI: i !== 0 || settings.allAI === true,
       homeSystemId: home,
       explored: [home],
-      homeSensorRange: pack.start.homeSensorRange,
+      capitalSensorRange: pack.economy.capitalSensorRange,
+      colonySensorRange: pack.economy.colonySensorRange,
       sightings: [],
+      colonySightings: [],
+      credits: pack.economy.startingCredits,
+      food: pack.economy.startingFood,
+      techs: [],
+      research: { current: null, progress: 0 },
+      shipsBuilt: {},
       eliminated: false,
     });
-    for (const template of pack.start.fleets) {
-      fleets.push({
-        id: nextId++,
-        empireId: i,
-        name: template.name,
-        speed: template.speed,
-        sensorRange: template.sensorRange,
-        systemId: home,
-        route: [],
-        progress: 0,
-        holding: false,
-      });
-    }
   }
 
   const state: GameState = {
@@ -72,10 +68,18 @@ export function createInitialState(settings: GameSettings, pack: ContentPack): G
     rngState: rng.fork("turns").state,
     galaxy,
     empires,
-    fleets,
+    fleets: [],
+    colonies: [],
     nextId,
     lastTurnEvents: [],
   };
+
+  for (const empire of empires) {
+    const capital = newColony(state, empire, empire.homeSystemId, homeworldIds[empire.id]!, pack.economy.capitalPopulation, true);
+    capital.buildings = [...pack.start.capitalBuildings];
+    state.colonies.push(capital);
+    for (const start of pack.start.fleets) state.fleets.push(newFleet(state, pack, empire, start.template, empire.homeSystemId));
+  }
   updateSightings(state, null, state.turn);
   return state;
 }

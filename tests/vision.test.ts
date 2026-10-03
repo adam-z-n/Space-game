@@ -1,13 +1,12 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import {
-  Game,
   applyCommand,
   attentionItems,
   createInitialState,
   deserializeSave,
   empireView,
   planMove,
-  serializeSave,
   type Command,
   type GameState,
 } from "../src/core";
@@ -17,7 +16,7 @@ const pack = defaultPack();
 
 /**
  * A line galaxy 0 - 1 - 2 - 3 - 4, lanes 100 long, systems 100 apart.
- * Empire 0 at system 0 (home sensor 50), empire 1 at system 4 (home sensor 50).
+ * Empire 0 based at system 0, empire 1 at system 4, no colonies.
  * Each has one fleet at home with sensor range 120 and speed 100.
  */
 function lineState(): GameState {
@@ -28,12 +27,13 @@ function lineState(): GameState {
     ...e,
     homeSystemId: i * 4,
     explored: [i * 4],
-    homeSensorRange: 50,
     sightings: [],
   }));
+  // No colonies: only the fleets' own sensors matter here.
+  state.colonies = [];
   state.fleets = [
-    { id: 100, empireId: 0, name: "Blue", speed: 100, sensorRange: 120, systemId: 0, route: [], progress: 0, holding: false },
-    { id: 200, empireId: 1, name: "Red", speed: 100, sensorRange: 120, systemId: 4, route: [], progress: 0, holding: false },
+    { id: 100, empireId: 0, name: "Blue", templateId: "scout", speed: 100, sensorRange: 120, systemId: 0, route: [], progress: 0, holding: false },
+    { id: 200, empireId: 1, name: "Red", templateId: "scout", speed: 100, sensorRange: 120, systemId: 4, route: [], progress: 0, holding: false },
   ];
   return state;
 }
@@ -90,7 +90,7 @@ describe("fog of war", () => {
     const view = empireView(lineState(), 0);
     expect(view.systems[0]!.bodies).not.toBeNull();
     expect(view.systems[2]!.bodies).toBeNull();
-    expect(view.systems[4]!.homeOf).toBeNull();
+    expect(view.systems[4]!.colonies).toEqual([]);
   });
 
   it("never exposes another empire's orders", () => {
@@ -109,14 +109,15 @@ describe("orders", () => {
 
   it("holding removes an idle fleet from the attention queue until it moves again", () => {
     let s = lineState();
-    expect(attentionItems(s, 0)).toEqual([{ type: "idleFleet", fleetId: 100, systemId: 0 }]);
+    const idle = (st: GameState) => attentionItems(st, pack, 0).filter((i) => i.type === "idleFleet");
+    expect(idle(s)).toEqual([{ type: "idleFleet", fleetId: 100, systemId: 0 }]);
     s = run(s, { type: "setHold", empireId: 0, fleetId: 100, hold: true });
-    expect(attentionItems(s, 0)).toEqual([]);
+    expect(idle(s)).toEqual([]);
     s = run(s, move(0, 100, 1));
     expect(s.fleets[0]!.holding).toBe(false);
-    expect(attentionItems(s, 0)).toEqual([]); // moving
+    expect(idle(s)).toEqual([]); // moving
     s = run(s, end);
-    expect(attentionItems(s, 0)).toHaveLength(1); // arrived, idle again
+    expect(idle(s)).toHaveLength(1); // arrived, idle again
   });
 
   it("refuses to hold a moving fleet", () => {
@@ -126,22 +127,21 @@ describe("orders", () => {
 });
 
 describe("save migration", () => {
-  it("loads a version 1 save", () => {
-    const game = Game.create({ seed: "old", galaxySize: "small", aiCount: 2 }, pack);
-    game.endTurn();
-    const save = JSON.parse(serializeSave(game));
-    save.state.version = 1;
-    for (const e of save.state.empires) {
-      delete e.homeSensorRange;
-      delete e.sightings;
+  it("loads a real Milestone 2 save and keeps playing", () => {
+    const json = readFileSync(new URL("./fixtures/save-v2-m2.json", import.meta.url), "utf8");
+    const loaded = deserializeSave(json, pack);
+    const state = loaded.state;
+    expect(state.version).toBe(3);
+    expect(state.turn).toBe(7);
+    // Every empire gets its capital on its homeworld; fleets map to ship templates.
+    for (const empire of state.empires) {
+      const capital = state.colonies.find((c) => c.empireId === empire.id && c.capital)!;
+      expect(capital.systemId).toBe(empire.homeSystemId);
+      expect(capital.buildings).toEqual(["capitol"]);
     }
-    for (const f of save.state.fleets) {
-      delete f.sensorRange;
-      delete f.holding;
-    }
-    const loaded = deserializeSave(JSON.stringify(save), pack);
-    expect(loaded.state.version).toBe(2);
-    expect(loaded.state.fleets.every((f) => f.sensorRange > 0 && f.holding === false)).toBe(true);
-    loaded.endTurn();
+    expect(new Set(state.fleets.map((f) => f.templateId))).toEqual(new Set(["scout", "frigate"]));
+    expect(state.fleets.every((f) => f.speed > 0 && f.sensorRange > 0)).toBe(true);
+    for (let i = 0; i < 5; i++) loaded.endTurn();
+    expect(loaded.state.turn).toBe(12);
   });
 });
