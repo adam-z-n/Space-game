@@ -1,17 +1,18 @@
-import type { BodyKind } from "../content/schema";
+import type { BodyKind, Formation } from "../content/schema";
 
 /**
  * The complete game state. Plain JSON data only (no classes, Maps, or functions),
  * so it can be cloned, saved, hashed, and sent over a network unchanged.
  */
 
-export const STATE_VERSION = 3;
+export const STATE_VERSION = 4;
 
 export type SystemId = number;
 export type EmpireId = number;
 export type FleetId = number;
 export type ColonyId = number;
 export type BodyId = number;
+export type ShipId = number;
 
 export interface GameSettings {
   seed: string;
@@ -75,8 +76,10 @@ export interface Empire {
   techs: string[];
   /** Tech being researched, or null. Points bank up while nothing is chosen. */
   research: { current: string | null; progress: number };
-  /** Counts ships built per template, for naming. */
+  /** Counts fleets created per design, for naming. */
   shipsBuilt: Record<string, number>;
+  /** Ship designs: the content pack's starting designs plus the player's own. */
+  designs: ShipDesign[];
   eliminated: boolean;
 }
 
@@ -104,6 +107,8 @@ export interface Colony {
   queue: QueueItem[];
   /** Industry invested in queue[0]. */
   progress: number;
+  /** An enemy warship sits in orbit with no defender: no supply projection and no trade income. */
+  blockaded: boolean;
 }
 
 export interface ColonySighting {
@@ -127,17 +132,55 @@ export interface FleetSighting extends FleetPosition {
   fleetId: FleetId;
   empireId: EmpireId;
   name: string;
+  ships: number;
+  /** Rough combat strength as observed (see fleetStrength). */
+  strength: number;
+  armed: boolean;
   /** Turn this was observed. Equal to the current turn while the fleet is in sensor range. */
   turn: number;
+}
+
+export interface ShipDesign {
+  id: string;
+  name: string;
+  hull: string;
+  components: string[];
+  formation: Formation;
+  /** Hidden from build lists; existing ships keep working. */
+  obsolete: boolean;
+}
+
+export interface Ship {
+  id: ShipId;
+  designId: string;
+  hp: number;
+}
+
+export const STANCES = ["aggressive", "balanced", "cautious"] as const;
+export type Stance = (typeof STANCES)[number];
+export const TARGET_PRIORITIES = ["warships", "transports", "any"] as const;
+export type TargetPriority = (typeof TARGET_PRIORITIES)[number];
+export const MISSIONS = ["engage", "evade"] as const;
+export type Mission = (typeof MISSIONS)[number];
+
+export interface FleetOrders {
+  /** engage: fight hostiles it meets. evade: try to slip away after the first round. */
+  mission: Mission;
+  stance: Stance;
+  targetPriority: TargetPriority;
+  /** Withdraw once this percent of the fleet's starting hit points is lost (100 = never). */
+  retreatPercent: number;
 }
 
 export interface Fleet {
   id: FleetId;
   empireId: EmpireId;
   name: string;
-  /** Ship template. Milestone 4 replaces single-ship fleets with designs and stacks. */
-  templateId: string;
-  /** Distance units per turn, tech bonuses included. */
+  ships: Ship[];
+  orders: FleetOrders;
+  /** Turns of onboard supply left; refilled inside supply range. */
+  supply: number;
+  /** Cached from ships and techs (see refreshFleetStats); slowest ship, out-of-supply penalty included. */
   speed: number;
   /** System the fleet is at, or the one it departed from when in transit. */
   systemId: SystemId;
@@ -145,7 +188,7 @@ export interface Fleet {
   route: SystemId[];
   /** Distance travelled along the lane toward route[0]. 0 means "in system". */
   progress: number;
-  /** Distance within which this fleet sees other fleets. */
+  /** Cached: best sensor range among its ships. */
   sensorRange: number;
   /** Player told this fleet to stay put; idle holding fleets don't need attention. */
   holding: boolean;
@@ -163,7 +206,40 @@ export type GameEvent =
   | { type: "techResearched"; turn: number; empireId: EmpireId; techId: string }
   | { type: "populationGrew"; turn: number; empireId: EmpireId; colonyId: ColonyId; systemId: SystemId; population: number }
   | { type: "starvation"; turn: number; empireId: EmpireId }
-  | { type: "inDebt"; turn: number; empireId: EmpireId; credits: number };
+  | { type: "inDebt"; turn: number; empireId: EmpireId; credits: number }
+  | { type: "battle"; turn: number; empireId: EmpireId; systemId: SystemId; battleId: number; outcome: "won" | "lost" | "draw" }
+  | { type: "outOfSupply"; turn: number; empireId: EmpireId; fleetId: FleetId; systemId: SystemId }
+  | { type: "attrition"; turn: number; empireId: EmpireId; fleetId: FleetId; systemId: SystemId; shipsLost: number }
+  | { type: "fleetIntercepted"; turn: number; empireId: EmpireId; fleetId: FleetId; systemId: SystemId }
+  | { type: "blockaded"; turn: number; empireId: EmpireId; colonyId: ColonyId; systemId: SystemId };
+
+export interface BattleShip {
+  shipId: ShipId;
+  fleetId: FleetId;
+  empireId: EmpireId;
+  designName: string;
+  hp: number;
+  maxHp: number;
+}
+
+export interface BattleShot {
+  attacker: ShipId;
+  target: ShipId;
+  /** 0 on a miss. */
+  damage: number;
+  destroyed: boolean;
+}
+
+export interface BattleReport {
+  id: number;
+  turn: number;
+  systemId: SystemId;
+  empires: EmpireId[];
+  ships: BattleShip[];
+  rounds: { shots: BattleShot[]; retreated: FleetId[] }[];
+  /** Per empire: ships lost and fleets that withdrew. */
+  results: { empireId: EmpireId; shipsLost: number; retreated: FleetId[]; damageDealt: number }[];
+}
 
 export interface GameState {
   version: number;
@@ -179,6 +255,8 @@ export interface GameState {
   nextId: number;
   /** Events produced by the most recent turn resolution (the turn report). */
   lastTurnEvents: GameEvent[];
+  /** Battles fought in the most recent turn resolution, for reports and replay. */
+  lastBattles: BattleReport[];
 }
 
 export function getSystem(state: GameState, id: SystemId): StarSystem {

@@ -6,6 +6,7 @@ import {
   colonyOutput,
   empireEconomy,
   findColony,
+  getDesign,
   getTech,
   itemCost,
   itemName,
@@ -17,6 +18,7 @@ import {
   type Game,
 } from "../core";
 import { bar, button, h, signed, turnsText } from "./dom";
+import { designSummary } from "./shipPanels";
 
 /** What the economy screens need from the game screen. */
 export interface PanelContext {
@@ -121,11 +123,11 @@ export function colonyPanel(ctx: PanelContext, colonyId: ColonyId): HTMLElement 
   const forecast = queueForecast(game.state, pack, colony);
   const queue = h("ul");
   colony.queue.forEach((item, i) => {
-    const cost = itemCost(pack, item);
+    const cost = itemCost(pack, empire, item);
     const controls = h("span", { className: "row-actions" });
     if (i > 0) controls.append(button("↑", () => ctx.issue({ type: "prioritizeBuild", empireId: game.playerId, colonyId, index: i }), { ariaLabel: "Build next" }));
     controls.append(button("✕", () => ctx.issue({ type: "dequeueBuild", empireId: game.playerId, colonyId, index: i }), { ariaLabel: "Remove" }));
-    const label = h("span", { className: "grow" }, h("div", { textContent: itemName(pack, item) }), h("div", { className: "muted small", textContent: `${turnsText(forecast[i]!)} · ${cost} ⚙` }));
+    const label = h("span", { className: "grow" }, h("div", { textContent: itemName(pack, empire, item) }), h("div", { className: "muted small", textContent: `${turnsText(forecast[i]!)} · ${cost} ⚙` }));
     if (i === 0) label.append(bar(colony.progress / cost));
     queue.append(h("li", {}, label, controls));
   });
@@ -134,7 +136,7 @@ export function colonyPanel(ctx: PanelContext, colonyId: ColonyId): HTMLElement 
     queue.append(h("li", {}, h("span", { className: "muted", textContent: `Nothing queued: industry is sold for ${idle} credits a turn.` })));
   }
 
-  const cost = buyCost(pack, colony);
+  const cost = buyCost(pack, empire, colony);
   const buy =
     cost === null
       ? null
@@ -146,13 +148,13 @@ export function colonyPanel(ctx: PanelContext, colonyId: ColonyId): HTMLElement 
   // What can be added.
   const options = h("ul");
   for (const item of buildOptions(pack, empire, colony)) {
-    const itemCostValue = itemCost(pack, item);
-    const description = item.kind === "building" ? pack.buildings.find((b) => b.id === item.id)!.description : pack.shipTemplates.find((t) => t.id === item.id)!.description;
+    const itemCostValue = itemCost(pack, empire, item);
+    const description = item.kind === "building" ? pack.buildings.find((b) => b.id === item.id)!.description : designSummary(pack, empire, getDesign(empire, item.id));
     const alone = out.industry > 0 ? Math.ceil(itemCostValue / out.industry) : Infinity;
     const li = h(
       "li",
       { className: "tappable" },
-      h("span", { className: "grow" }, h("div", { textContent: `${item.kind === "ship" ? "Ship: " : ""}${itemName(pack, item)}` }), h("div", { className: "muted small", textContent: description })),
+      h("span", { className: "grow" }, h("div", { textContent: `${item.kind === "ship" ? "Ship: " : ""}${itemName(pack, empire, item)}` }), h("div", { className: "muted small", textContent: description })),
       h("span", { textContent: `${itemCostValue} ⚙ · ${turnsText(alone)}` }),
     );
     li.onclick = () => ctx.issue({ type: "queueBuild", empireId: game.playerId, colonyId, item });

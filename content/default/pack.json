@@ -319,13 +319,20 @@
     ],
     "fleets": [
       {
-        "template": "scout"
+        "ships": [
+          "scout"
+        ]
       },
       {
-        "template": "frigate"
+        "ships": [
+          "frigate",
+          "frigate"
+        ]
       },
       {
-        "template": "colony_ship"
+        "ships": [
+          "colony_ship"
+        ]
       }
     ]
   },
@@ -349,7 +356,9 @@
     "debtPenaltyPercent": 50,
     "buyCreditsPerIndustry": 2,
     "taxPercentPerPop": 50,
-    "colonyBaseIndustry": 2
+    "colonyBaseIndustry": 2,
+    "colonySupplyRange": 250,
+    "capitalSupplyRange": 400
   },
   "researchFields": [
     {
@@ -375,6 +384,14 @@
     {
       "id": "logistics",
       "name": "Logistics"
+    },
+    {
+      "id": "weapons",
+      "name": "Weapons"
+    },
+    {
+      "id": "defense",
+      "name": "Defense"
     }
   ],
   "techs": [
@@ -571,6 +588,112 @@
         "creditsPercent": 20
       },
       "description": "+20% credits. Unlocks Trade Hubs."
+    },
+    {
+      "id": "heavy_lasers",
+      "name": "Heavy Lasers",
+      "field": "weapons",
+      "cost": 80,
+      "requires": [],
+      "effects": {},
+      "description": "Unlocks the Heavy Laser."
+    },
+    {
+      "id": "guided_torpedoes",
+      "name": "Guided Torpedoes",
+      "field": "weapons",
+      "cost": 200,
+      "requires": [
+        "heavy_lasers"
+      ],
+      "effects": {},
+      "description": "Unlocks Torpedoes."
+    },
+    {
+      "id": "weapon_calibration",
+      "name": "Weapon Calibration",
+      "field": "weapons",
+      "cost": 320,
+      "requires": [
+        "guided_torpedoes"
+      ],
+      "effects": {
+        "damagePercent": 15
+      },
+      "description": "+15% weapon damage."
+    },
+    {
+      "id": "composite_armor",
+      "name": "Composite Armor",
+      "field": "defense",
+      "cost": 70,
+      "requires": [],
+      "effects": {},
+      "description": "Unlocks Composite Armor."
+    },
+    {
+      "id": "deflector_shields",
+      "name": "Deflector Shields",
+      "field": "defense",
+      "cost": 90,
+      "requires": [],
+      "effects": {},
+      "description": "Unlocks Deflector Shields."
+    },
+    {
+      "id": "hardened_shields",
+      "name": "Hardened Shields",
+      "field": "defense",
+      "cost": 240,
+      "requires": [
+        "deflector_shields"
+      ],
+      "effects": {},
+      "description": "Unlocks Hardened Shields."
+    },
+    {
+      "id": "cruiser_hulls",
+      "name": "Cruiser Hulls",
+      "field": "engineering",
+      "cost": 90,
+      "requires": [],
+      "effects": {},
+      "description": "Unlocks the Cruiser hull."
+    },
+    {
+      "id": "capital_ships",
+      "name": "Capital Ships",
+      "field": "engineering",
+      "cost": 280,
+      "requires": [
+        "cruiser_hulls"
+      ],
+      "effects": {},
+      "description": "Unlocks the Battleship hull."
+    },
+    {
+      "id": "extended_tanks",
+      "name": "Extended Tanks",
+      "field": "logistics",
+      "cost": 60,
+      "requires": [],
+      "effects": {
+        "endurance": 3
+      },
+      "description": "+3 turns of supply for every ship."
+    },
+    {
+      "id": "supply_lines",
+      "name": "Supply Lines",
+      "field": "logistics",
+      "cost": 120,
+      "requires": [
+        "colonial_administration"
+      ],
+      "effects": {
+        "supplyRange": 150
+      },
+      "description": "+150 supply range for every colony."
     }
   ],
   "buildings": [
@@ -683,39 +806,245 @@
       "buildable": true
     }
   ],
-  "shipTemplates": [
-    {
-      "id": "scout",
-      "name": "Scout",
-      "role": "recon",
-      "description": "Fast, long sensors, unarmed.",
-      "cost": 15,
-      "upkeep": 0,
-      "speed": 140,
-      "sensorRange": 260,
-      "colonize": false
+  "combat": {
+    "rounds": 4,
+    "stanceDamage": {
+      "aggressive": 125,
+      "balanced": 100,
+      "cautious": 75
     },
+    "stanceDefense": {
+      "aggressive": 115,
+      "balanced": 100,
+      "cautious": 80
+    },
+    "formationWeight": {
+      "front": 6,
+      "screen": 3,
+      "support": 1
+    },
+    "outOfSupplyDamagePercent": 50,
+    "outOfSupplySpeedPercent": 33,
+    "attritionPercent": 10,
+    "repairPercent": 10,
+    "dockRepairPercent": 25
+  },
+  "hulls": [
     {
-      "id": "colony_ship",
-      "name": "Colony Ship",
-      "role": "transport",
-      "description": "Founds a colony on a habitable planet.",
-      "cost": 50,
-      "upkeep": 1,
-      "speed": 90,
-      "sensorRange": 100,
-      "colonize": true
+      "id": "corvette",
+      "name": "Corvette",
+      "description": "Small and quick. Hard to hit.",
+      "slots": 2,
+      "structure": 10,
+      "cost": 8,
+      "upkeep": 0,
+      "speed": 130,
+      "sensorRange": 160,
+      "evasion": 25,
+      "endurance": 6
     },
     {
       "id": "frigate",
       "name": "Frigate",
-      "role": "combat",
-      "description": "Light warship. Combat arrives in Milestone 4.",
-      "cost": 35,
+      "description": "Light warship hull.",
+      "slots": 3,
+      "structure": 18,
+      "cost": 14,
       "upkeep": 1,
       "speed": 100,
-      "sensorRange": 160,
-      "colonize": false
+      "sensorRange": 150,
+      "evasion": 15,
+      "endurance": 6
+    },
+    {
+      "id": "transport",
+      "name": "Transport",
+      "description": "Roomy, slow, unarmored.",
+      "slots": 2,
+      "structure": 14,
+      "cost": 12,
+      "upkeep": 1,
+      "speed": 90,
+      "sensorRange": 100,
+      "evasion": 0,
+      "endurance": 8
+    },
+    {
+      "id": "cruiser",
+      "name": "Cruiser",
+      "description": "Balanced line warship.",
+      "slots": 5,
+      "structure": 40,
+      "cost": 30,
+      "upkeep": 2,
+      "speed": 90,
+      "sensorRange": 180,
+      "evasion": 8,
+      "endurance": 8,
+      "requires": "cruiser_hulls"
+    },
+    {
+      "id": "battleship",
+      "name": "Battleship",
+      "description": "Heavy capital ship.",
+      "slots": 8,
+      "structure": 90,
+      "cost": 70,
+      "upkeep": 4,
+      "speed": 80,
+      "sensorRange": 200,
+      "evasion": 0,
+      "endurance": 10,
+      "requires": "capital_ships"
+    }
+  ],
+  "components": [
+    {
+      "id": "laser",
+      "name": "Laser",
+      "kind": "weapon",
+      "description": "3 damage, 75% accuracy.",
+      "cost": 4,
+      "damage": 3,
+      "accuracy": 75
+    },
+    {
+      "id": "mass_driver",
+      "name": "Mass Driver",
+      "kind": "weapon",
+      "description": "5 damage, 55% accuracy.",
+      "cost": 4,
+      "damage": 5,
+      "accuracy": 55
+    },
+    {
+      "id": "heavy_laser",
+      "name": "Heavy Laser",
+      "kind": "weapon",
+      "description": "6 damage, 75% accuracy.",
+      "cost": 8,
+      "damage": 6,
+      "accuracy": 75,
+      "requires": "heavy_lasers"
+    },
+    {
+      "id": "torpedo",
+      "name": "Torpedo",
+      "kind": "weapon",
+      "description": "12 damage, 50% accuracy.",
+      "cost": 10,
+      "damage": 12,
+      "accuracy": 50,
+      "requires": "guided_torpedoes"
+    },
+    {
+      "id": "armor_plating",
+      "name": "Armor Plating",
+      "kind": "armor",
+      "description": "+8 hit points.",
+      "cost": 3,
+      "hp": 8
+    },
+    {
+      "id": "composite_armor",
+      "name": "Composite Armor",
+      "kind": "armor",
+      "description": "+18 hit points.",
+      "cost": 6,
+      "hp": 18,
+      "requires": "composite_armor"
+    },
+    {
+      "id": "deflector",
+      "name": "Deflector Shield",
+      "kind": "shield",
+      "description": "Blocks 1 damage per hit.",
+      "cost": 5,
+      "shield": 1,
+      "requires": "deflector_shields"
+    },
+    {
+      "id": "hardened_shield",
+      "name": "Hardened Shield",
+      "kind": "shield",
+      "description": "Blocks 3 damage per hit.",
+      "cost": 10,
+      "shield": 3,
+      "requires": "hardened_shields"
+    },
+    {
+      "id": "afterburner",
+      "name": "Afterburner",
+      "kind": "engine",
+      "description": "+25 speed.",
+      "cost": 3,
+      "speed": 25
+    },
+    {
+      "id": "sensor_array",
+      "name": "Sensor Array",
+      "kind": "sensor",
+      "description": "+120 sensor range.",
+      "cost": 3,
+      "sensorRange": 120
+    },
+    {
+      "id": "colony_module",
+      "name": "Colony Module",
+      "kind": "colony",
+      "description": "Founds a colony; the ship is used up.",
+      "cost": 36
+    },
+    {
+      "id": "fuel_tank",
+      "name": "Fuel Tank",
+      "kind": "fuel",
+      "description": "+4 turns of supply for the whole fleet.",
+      "cost": 4,
+      "fuel": 4
+    }
+  ],
+  "startingDesigns": [
+    {
+      "id": "scout",
+      "name": "Scout",
+      "hull": "corvette",
+      "components": [
+        "sensor_array",
+        "afterburner"
+      ],
+      "formation": "screen"
+    },
+    {
+      "id": "frigate",
+      "name": "Frigate",
+      "hull": "frigate",
+      "components": [
+        "laser",
+        "laser",
+        "armor_plating"
+      ],
+      "formation": "front"
+    },
+    {
+      "id": "colony_ship",
+      "name": "Colony Ship",
+      "hull": "transport",
+      "components": [
+        "colony_module",
+        "armor_plating"
+      ],
+      "formation": "support"
+    },
+    {
+      "id": "tanker",
+      "name": "Tanker",
+      "hull": "transport",
+      "components": [
+        "fuel_tank",
+        "fuel_tank"
+      ],
+      "formation": "support"
     }
   ]
 }

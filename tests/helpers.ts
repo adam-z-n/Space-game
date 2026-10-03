@@ -1,0 +1,39 @@
+import raw from "../content/default/pack.json";
+import { loadContentPack, type Fleet, type GameState } from "../src/core";
+
+/**
+ * The default pack plus unarmed test hulls with round-number speeds and huge
+ * endurance, so movement and vision tests aren't affected by supply or combat.
+ */
+export const testPack = loadContentPack({
+  ...raw,
+  hulls: [
+    ...raw.hulls,
+    { id: "test60", name: "Test 60", description: "", slots: 2, structure: 10, cost: 1, upkeep: 0, speed: 60, sensorRange: 0, evasion: 0, endurance: 99 },
+    { id: "test100", name: "Test 100", description: "", slots: 2, structure: 10, cost: 1, upkeep: 0, speed: 100, sensorRange: 120, evasion: 0, endurance: 99 },
+  ],
+});
+
+/** Give every empire the test designs and return a one-ship fleet of `hull`. */
+export function testFleet(state: GameState, opts: { id: number; empireId: number; systemId: number; hull: "test60" | "test100"; name?: string }): Fleet {
+  for (const empire of state.empires) {
+    for (const hull of ["test60", "test100"]) {
+      if (!empire.designs.some((d) => d.id === hull)) empire.designs.push({ id: hull, name: hull, hull, components: [], formation: "support", obsolete: false });
+    }
+  }
+  const speed = opts.hull === "test60" ? 60 : 100;
+  return {
+    id: opts.id,
+    empireId: opts.empireId,
+    name: opts.name ?? `Test ${opts.id}`,
+    ships: [{ id: opts.id * 10, designId: opts.hull, hp: 10 }],
+    orders: { mission: "evade", stance: "cautious", targetPriority: "any", retreatPercent: 25 },
+    supply: 99,
+    speed,
+    sensorRange: opts.hull === "test60" ? 0 : 120,
+    systemId: opts.systemId,
+    route: [],
+    progress: 0,
+    holding: false,
+  };
+}

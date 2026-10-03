@@ -2,6 +2,9 @@ import type { ContentPack } from "../content/schema";
 import { laneLength } from "./graph";
 import { updateSightings } from "./vision";
 import { resolveEconomy } from "./economy";
+import { resolveCombat } from "./combat";
+import { fleetArmed } from "./ships";
+import { resolveSupply, updateBlockades } from "./supply";
 import type { EmpireId, GameEvent, GameState, SystemId } from "./state";
 
 /**
@@ -11,14 +14,16 @@ import type { EmpireId, GameEvent, GameState, SystemId } from "./state";
  */
 export function resolveTurn(state: GameState, pack: ContentPack): void {
   const events: GameEvent[] = [];
-  resolveMovement(state, events);
+  resolveMovement(state, pack, events);
   resolveSupply(state, pack, events);
   resolveCombat(state, pack, events);
   resolveInvasions(state, pack, events);
+  // Blockades are settled by combat: re-check before the economy runs.
+  updateBlockades(state, pack, null);
   resolveEconomy(state, pack, events);
   const resolved = state.turn;
   state.turn += 1;
-  updateSightings(state, events, resolved);
+  updateSightings(state, pack, events, resolved);
   state.lastTurnEvents = events;
 }
 
@@ -30,8 +35,17 @@ function markExplored(state: GameState, empireId: EmpireId, systemId: SystemId, 
   events.push({ type: "systemExplored", turn: state.turn, empireId, systemId });
 }
 
-/** Fleets spend `speed` distance per turn along their route, passing through systems as they go. */
-function resolveMovement(state: GameState, events: GameEvent[]): void {
+/**
+ * Fleets spend `speed` distance per turn along their route, passing through systems as they go.
+ * A system guarded at the start of the turn by an armed hostile fleet on engage orders stops
+ * any fleet entering it: chokepoints can be held.
+ */
+function resolveMovement(state: GameState, pack: ContentPack, events: GameEvent[]): void {
+  const guards = new Map<SystemId, Set<EmpireId>>();
+  for (const fleet of state.fleets) {
+    if (fleet.progress > 0 || fleet.route.length > 0 || fleet.orders.mission !== "engage" || !fleetArmed(pack, state, fleet)) continue;
+    guards.set(fleet.systemId, (guards.get(fleet.systemId) ?? new Set()).add(fleet.empireId));
+  }
   const fleets = state.fleets.slice().sort((a, b) => a.id - b.id);
   for (const fleet of fleets) {
     if (fleet.route.length === 0) continue;
@@ -48,6 +62,11 @@ function resolveMovement(state: GameState, events: GameEvent[]): void {
         fleet.route.shift();
         fleet.progress = 0;
         markExplored(state, fleet.empireId, next, events);
+        const guarded = [...(guards.get(next) ?? [])].some((e) => e !== fleet.empireId);
+        if (guarded && fleet.route.length > 0) {
+          events.push({ type: "fleetIntercepted", turn: state.turn, empireId: fleet.empireId, fleetId: fleet.id, systemId: next });
+          budget = 0;
+        }
       }
     }
     if (fleet.route.length === 0) {
@@ -56,8 +75,6 @@ function resolveMovement(state: GameState, events: GameEvent[]): void {
   }
 }
 
-// Later milestones fill these in (M4 supply and combat, M6 invasions).
-function resolveSupply(_state: GameState, _pack: ContentPack, _events: GameEvent[]): void {}
-function resolveCombat(_state: GameState, _pack: ContentPack, _events: GameEvent[]): void {}
+// Milestone 6 fills this in.
 function resolveInvasions(_state: GameState, _pack: ContentPack, _events: GameEvent[]): void {}
 

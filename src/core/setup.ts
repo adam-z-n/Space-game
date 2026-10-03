@@ -2,7 +2,8 @@ import type { ContentPack } from "../content/schema";
 import { generateGalaxy, installHomeworld, pickHomeSystems } from "./galaxy";
 import { Rng } from "./rng";
 import { updateSightings } from "./vision";
-import { newColony, newFleet } from "./economy";
+import { newColony } from "./economy";
+import { newFleet, startingDesigns } from "./ships";
 import { STATE_VERSION, type Empire, type GameSettings, type GameState } from "./state";
 
 export const MIN_AI = 2;
@@ -56,6 +57,7 @@ export function createInitialState(settings: GameSettings, pack: ContentPack): G
       techs: [],
       research: { current: null, progress: 0 },
       shipsBuilt: {},
+      designs: startingDesigns(pack),
       eliminated: false,
     });
   }
@@ -72,14 +74,15 @@ export function createInitialState(settings: GameSettings, pack: ContentPack): G
     colonies: [],
     nextId,
     lastTurnEvents: [],
+    lastBattles: [],
   };
 
   for (const empire of empires) {
     const capital = newColony(state, empire, empire.homeSystemId, homeworldIds[empire.id]!, pack.economy.capitalPopulation, true);
     capital.buildings = [...pack.start.capitalBuildings];
     state.colonies.push(capital);
-    for (const start of pack.start.fleets) state.fleets.push(newFleet(state, pack, empire, start.template, empire.homeSystemId));
+    for (const start of pack.start.fleets) state.fleets.push(newFleet(state, pack, empire, start.ships, empire.homeSystemId));
   }
-  updateSightings(state, null, state.turn);
+  updateSightings(state, pack, null, state.turn);
   return state;
 }

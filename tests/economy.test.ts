@@ -41,7 +41,7 @@ describe("starting position", () => {
     for (const empire of s.empires) {
       const cap = capital(s, empire.id);
       expect(cap).toMatchObject({ systemId: empire.homeSystemId, population: pack.economy.capitalPopulation, buildings: ["capitol"] });
-      expect(s.fleets.filter((f) => f.empireId === empire.id).map((f) => f.templateId)).toEqual(["scout", "frigate", "colony_ship"]);
+      expect(s.fleets.filter((f) => f.empireId === empire.id).map((f) => f.ships.map((x) => x.designId))).toEqual([["scout"], ["frigate", "frigate"], ["colony_ship"]]);
       expect(empire.credits).toBe(pack.economy.startingCredits);
     }
   });
@@ -92,11 +92,11 @@ describe("production", () => {
     const cap = capital(s);
     s = run(s, { type: "queueBuild", empireId: 0, colonyId: cap.id, item: { kind: "ship", id: "scout" } });
     s = run(s, { type: "queueBuild", empireId: 0, colonyId: cap.id, item: { kind: "building", id: "factory" } });
-    expect(queueForecast(s, pack, capital(s))).toEqual([2, 5]); // 10 industry: scout 15, then factory 30 (45 total)
+    expect(queueForecast(s, pack, capital(s))).toEqual([2, 5]); // 10 industry: scout 14, then factory 30 (44 total)
     s = run(s, end, end);
     expect(s.lastTurnEvents).toContainEqual(expect.objectContaining({ type: "shipCompleted", empireId: 0 }));
-    expect(s.fleets.filter((f) => f.empireId === 0 && f.templateId === "scout").map((f) => f.name)).toEqual(["Scout 1", "Scout 2"]);
-    expect(capital(s).progress).toBe(5); // 20 invested, 15 spent
+    expect(s.fleets.filter((f) => f.empireId === 0 && f.ships[0]!.designId === "scout").map((f) => f.name)).toEqual(["Scout 1", "Scout 2"]);
+    expect(capital(s).progress).toBe(6); // 20 invested, 14 spent
     s = run(s, end, end, end);
     expect(capital(s).buildings).toContain("factory");
   });
@@ -123,12 +123,12 @@ describe("production", () => {
     let s = fresh();
     const colonyId = capital(s).id;
     s = run(s, { type: "queueBuild", empireId: 0, colonyId, item: { kind: "building", id: "factory" } });
-    expect(buyCost(pack, capital(s))).toBe(60);
+    expect(buyCost(pack, s.empires[0]!, capital(s))).toBe(60);
     expect(applyCommand(s, { type: "buyBuild", empireId: 0, colonyId }, pack)).toMatchObject({ ok: false, error: "not enough credits" });
     s.empires[0]!.credits = 100;
     s = run(s, { type: "buyBuild", empireId: 0, colonyId });
     expect(s.empires[0]!.credits).toBe(40);
-    expect(buyCost(pack, capital(s))).toBeNull();
+    expect(buyCost(pack, s.empires[0]!, capital(s))).toBeNull();
     s = run(s, end);
     expect(capital(s).buildings).toContain("factory");
   });
@@ -142,8 +142,8 @@ describe("research", () => {
     expect(banked).toBe(15); // 5 per turn
     s = run(s, { type: "setResearch", empireId: 0, techId: "ion_drives" });
     while (!s.empires[0]!.techs.includes("ion_drives")) s = run(s, end);
-    const scout = s.fleets.find((f) => f.empireId === 0 && f.templateId === "scout")!;
-    expect(scout.speed).toBe(140 + 20);
+    const scout = s.fleets.find((f) => f.empireId === 0 && f.ships[0]!.designId === "scout")!;
+    expect(scout.speed).toBe(130 + 25 + 20); // corvette + afterburner + ion drives
     expect(s.empires[0]!.research.current).toBeNull();
     expect(s.lastTurnEvents).toContainEqual(expect.objectContaining({ type: "techResearched", techId: "ion_drives" }));
   });
@@ -165,7 +165,7 @@ describe("research", () => {
 describe("colonization", () => {
   function atTarget(): { s: GameState; fleetId: number; bodyId: number } {
     const s = fresh();
-    const ship = s.fleets.find((f) => f.empireId === 0 && f.templateId === "colony_ship")!;
+    const ship = s.fleets.find((f) => f.empireId === 0 && f.ships[0]!.designId === "colony_ship")!;
     // Find any colonizable planet and teleport the colony ship there for the test.
     for (const system of s.galaxy.systems) {
       const body = system.bodies.find((b) => b.kind === "planet" && b.planetType === "arid" && !s.colonies.some((c) => c.bodyId === b.id));
@@ -188,8 +188,9 @@ describe("colonization", () => {
   it("refuses taken, hostile, distant or non-planet targets and non-colony ships", () => {
     const { s, fleetId, bodyId } = atTarget();
     const t = run(s, { type: "colonize", empireId: 0, fleetId, bodyId });
-    const second = t.fleets.find((f) => f.empireId === 0 && f.templateId === "scout")!;
-    expect(applyCommand(t, { type: "colonize", empireId: 0, fleetId: second.id, bodyId }, pack)).toMatchObject({ ok: false, error: "not a colony ship" });
+    const second = t.fleets.find((f) => f.empireId === 0 && f.ships[0]!.designId === "scout")!;
+    second.systemId = t.fleets.find((f) => f.id === fleetId)?.systemId ?? second.systemId;
+    expect(applyCommand(t, { type: "colonize", empireId: 0, fleetId: second.id, bodyId }, pack)).toMatchObject({ ok: false, error: "fleet has no colony ship" });
     const capitalBody = capital(s, 1).bodyId;
     expect(applyCommand(s, { type: "colonize", empireId: 0, fleetId, bodyId: capitalBody }, pack)).toMatchObject({ ok: false });
     const toxic = s.galaxy.systems.flatMap((sys) => sys.bodies).find((b) => b.planetType === "toxic");
@@ -231,7 +232,7 @@ describe("food", () => {
 describe("knowledge and attention", () => {
   it("shows rival colonies only once sensed, and only their public details", () => {
     const s = fresh();
-    const view = empireView(s, 0);
+    const view = empireView(s, pack, 0);
     const rivalHome = s.empires[1]!.homeSystemId;
     expect(view.systems[rivalHome]!.colonies).toEqual([]);
     expect(view.systems[s.empires[0]!.homeSystemId]!.colonies).toMatchObject([{ own: true, capital: true }]);

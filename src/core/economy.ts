@@ -1,6 +1,7 @@
 import type { ContentPack, Effects } from "../content/schema";
-import type { Colony, Empire, EmpireId, Fleet, Focus, GameEvent, GameState, QueueItem, StarSystem } from "./state";
+import type { Colony, Empire, EmpireId, Focus, GameEvent, GameState, QueueItem, StarSystem } from "./state";
 import { getSystem } from "./state";
+import { designBuildable, designStats, getDesign, newFleet, refreshFleetStats } from "./ships";
 
 /**
  * Colonies, production, research, food, credits and growth.
@@ -10,7 +11,6 @@ import { getSystem } from "./state";
 
 type Body = StarSystem["bodies"][number];
 type Building = ContentPack["buildings"][number];
-type ShipTemplate = ContentPack["shipTemplates"][number];
 type Tech = ContentPack["techs"][number];
 
 const EFFECT_KEYS = [
@@ -28,6 +28,9 @@ const EFFECT_KEYS = [
   "minHabitability",
   "speed",
   "sensorRange",
+  "supplyRange",
+  "endurance",
+  "damagePercent",
 ] as const;
 export type Totals = Record<(typeof EFFECT_KEYS)[number], number>;
 
@@ -47,12 +50,6 @@ export function getBuilding(pack: ContentPack, id: string): Building {
   const building = pack.buildings.find((b) => b.id === id);
   if (!building) throw new Error(`unknown building "${id}"`);
   return building;
-}
-
-export function getShipTemplate(pack: ContentPack, id: string): ShipTemplate {
-  const template = pack.shipTemplates.find((t) => t.id === id);
-  if (!template) throw new Error(`unknown ship template "${id}"`);
-  return template;
 }
 
 /** Empire-wide modifiers from researched techs. */
@@ -152,7 +149,7 @@ export function colonyOutput(state: GameState, pack: ContentPack, colony: Colony
   const industry = Math.max(0, pct(pct(rawIndustry, fx.industryPercent), -debt));
   const research = Math.max(0, pct(pct(rawResearch, fx.researchPercent), -debt));
   const food = Math.max(0, pct(workers.farmers * stats.foodYield + fx.food, fx.foodPercent));
-  const credits = Math.max(0, pct(Math.floor((pop * eco.taxPercentPerPop) / 100) + fx.credits, fx.creditsPercent));
+  const credits = colony.blockaded ? 0 : Math.max(0, pct(Math.floor((pop * eco.taxPercentPerPop) / 100) + fx.credits, fx.creditsPercent));
   const upkeep = colony.buildings.reduce((sum, id) => sum + getBuilding(pack, id).upkeep, 0);
   const maxPop = maxPopulation(pack, body, fx);
   const growth = pop >= maxPop ? 0 : pct(eco.growthBase + Math.floor((pop * (maxPop - pop) * eco.growthRate) / maxPop), fx.growthPercent);
@@ -199,8 +196,11 @@ export function empireEconomy(state: GameState, pack: ContentPack, empireId: Emp
     totals.buildingUpkeep += out.upkeep;
     if (colony.queue.length === 0) totals.idleCredits += Math.floor((out.industry * pack.economy.idleIndustryCreditsPercent) / 100);
   }
+  const empire = state.empires[empireId]!;
+  const fx = empireEffects(pack, empire);
   for (const fleet of state.fleets) {
-    if (fleet.empireId === empireId) totals.shipUpkeep += getShipTemplate(pack, fleet.templateId).upkeep;
+    if (fleet.empireId !== empireId) continue;
+    for (const ship of fleet.ships) totals.shipUpkeep += designStats(pack, getDesign(empire, ship.designId), fx).upkeep;
   }
   totals.netCredits = totals.income + totals.idleCredits - totals.buildingUpkeep - totals.shipUpkeep;
   totals.netFood = totals.foodProduced - totals.foodEaten;
@@ -218,12 +218,13 @@ export function availableTechs(pack: ContentPack, empire: Empire): Tech[] {
   return pack.techs.filter((t) => techAvailable(pack, empire, t.id));
 }
 
-export function itemCost(pack: ContentPack, item: QueueItem): number {
-  return item.kind === "building" ? getBuilding(pack, item.id).cost : getShipTemplate(pack, item.id).cost;
+/** Ship queue items name one of the owning empire's designs. */
+export function itemCost(pack: ContentPack, empire: Empire, item: QueueItem): number {
+  return item.kind === "building" ? getBuilding(pack, item.id).cost : designStats(pack, getDesign(empire, item.id), empireEffects(pack, empire)).cost;
 }
 
-export function itemName(pack: ContentPack, item: QueueItem): string {
-  return item.kind === "building" ? getBuilding(pack, item.id).name : getShipTemplate(pack, item.id).name;
+export function itemName(pack: ContentPack, empire: Empire, item: QueueItem): string {
+  return item.kind === "building" ? getBuilding(pack, item.id).name : getDesign(empire, item.id).name;
 }
 
 /** Why `item` can't be added to `colony`'s queue, or null. */
@@ -235,35 +236,36 @@ export function buildBlocker(pack: ContentPack, empire: Empire, colony: Colony, 
     if (colony.buildings.includes(item.id) || colony.queue.some((q) => q.kind === "building" && q.id === item.id)) return "already built or queued";
     return null;
   }
-  const template = pack.shipTemplates.find((t) => t.id === item.id);
-  if (!template) return "unknown ship";
-  if (template.requires && !empire.techs.includes(template.requires)) return `needs ${template.requires}`;
+  const design = empire.designs.find((d) => d.id === item.id);
+  if (!design) return "unknown design";
+  if (!designBuildable(pack, empire, design)) return "design is obsolete or needs research";
   return null;
 }
 
 export function buildOptions(pack: ContentPack, empire: Empire, colony: Colony): QueueItem[] {
   const items: QueueItem[] = [
     ...pack.buildings.map((b) => ({ kind: "building" as const, id: b.id })),
-    ...pack.shipTemplates.map((t) => ({ kind: "ship" as const, id: t.id })),
+    ...empire.designs.map((d) => ({ kind: "ship" as const, id: d.id })),
   ];
   return items.filter((item) => buildBlocker(pack, empire, colony, item) === null);
 }
 
 /** Credits to finish the colony's current build this turn, or null if there's nothing to buy. */
-export function buyCost(pack: ContentPack, colony: Colony): number | null {
+export function buyCost(pack: ContentPack, empire: Empire, colony: Colony): number | null {
   const item = colony.queue[0];
   if (!item) return null;
-  const remaining = itemCost(pack, item) - colony.progress;
+  const remaining = itemCost(pack, empire, item) - colony.progress;
   return remaining > 0 ? remaining * pack.economy.buyCreditsPerIndustry : null;
 }
 
 /** Turns until each queue item completes at the colony's current industry (Infinity if no industry). */
 export function queueForecast(state: GameState, pack: ContentPack, colony: Colony): number[] {
   const industry = colonyOutput(state, pack, colony).industry;
-  let invested = colony.progress;
+  const empire = state.empires[colony.empireId]!;
+  const invested = colony.progress;
   let needed = 0;
   return colony.queue.map((item) => {
-    needed += itemCost(pack, item);
+    needed += itemCost(pack, empire, item);
     if (industry <= 0) return Infinity;
     return Math.max(1, Math.ceil((needed - invested) / industry));
   });
@@ -271,19 +273,11 @@ export function queueForecast(state: GameState, pack: ContentPack, colony: Colon
 
 // ---------- fleets ----------
 
-/** Recompute a fleet's speed and sensors from its template and its empire's techs. */
-export function refreshFleetStats(pack: ContentPack, empire: Empire, fleet: Fleet): void {
-  const template = getShipTemplate(pack, fleet.templateId);
-  const fx = empireEffects(pack, empire);
-  fleet.speed = template.speed + fx.speed;
-  fleet.sensorRange = template.sensorRange + fx.sensorRange;
-}
-
 export function refreshEmpireStats(state: GameState, pack: ContentPack, empire: Empire): void {
   const fx = empireEffects(pack, empire);
   empire.capitalSensorRange = pack.economy.capitalSensorRange + fx.sensorRange;
   empire.colonySensorRange = pack.economy.colonySensorRange + fx.sensorRange;
-  for (const fleet of state.fleets) if (fleet.empireId === empire.id) refreshFleetStats(pack, empire, fleet);
+  for (const fleet of state.fleets) if (fleet.empireId === empire.id) refreshFleetStats(pack, state, fleet);
 }
 
 const ROMAN = ["I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X"];
@@ -291,26 +285,6 @@ const ROMAN = ["I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X"];
 export function bodyName(system: StarSystem, bodyId: number): string {
   const index = system.bodies.findIndex((b) => b.id === bodyId);
   return `${system.name} ${ROMAN[index] ?? index + 1}`;
-}
-
-export function newFleet(state: GameState, pack: ContentPack, empire: Empire, templateId: string, systemId: number): Fleet {
-  const template = getShipTemplate(pack, templateId);
-  const count = (empire.shipsBuilt[templateId] ?? 0) + 1;
-  empire.shipsBuilt[templateId] = count;
-  const fleet: Fleet = {
-    id: state.nextId++,
-    empireId: empire.id,
-    name: `${template.name} ${count}`,
-    templateId,
-    speed: 0,
-    sensorRange: 0,
-    systemId,
-    route: [],
-    progress: 0,
-    holding: false,
-  };
-  refreshFleetStats(pack, empire, fleet);
-  return fleet;
 }
 
 export function newColony(state: GameState, empire: Empire, systemId: number, bodyId: number, population: number, capital: boolean): Colony {
@@ -327,6 +301,7 @@ export function newColony(state: GameState, empire: Empire, systemId: number, bo
     buildings: [],
     queue: [],
     progress: 0,
+    blockaded: false,
   };
 }
 
@@ -349,7 +324,7 @@ export function resolveEconomy(state: GameState, pack: ContentPack, events: Game
       colony.progress += industry;
       while (colony.queue.length > 0) {
         const item = colony.queue[0]!;
-        const cost = itemCost(pack, item);
+        const cost = itemCost(pack, empire, item);
         if (colony.progress < cost) break;
         colony.progress -= cost;
         colony.queue.shift();
@@ -357,7 +332,7 @@ export function resolveEconomy(state: GameState, pack: ContentPack, events: Game
           colony.buildings.push(item.id);
           events.push({ type: "buildingCompleted", turn, empireId: empire.id, colonyId: colony.id, systemId: colony.systemId, buildingId: item.id });
         } else {
-          const fleet = newFleet(state, pack, empire, item.id, colony.systemId);
+          const fleet = newFleet(state, pack, empire, [item.id], colony.systemId);
           state.fleets.push(fleet);
           events.push({ type: "shipCompleted", turn, empireId: empire.id, colonyId: colony.id, systemId: colony.systemId, fleetId: fleet.id });
         }
