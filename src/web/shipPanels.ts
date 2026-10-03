@@ -23,6 +23,7 @@ import {
   type ShipDesign,
 } from "../core";
 import { bar, button, h } from "./dom";
+import { spriteIcon } from "./sprites";
 
 /** What the ship screens need from the game screen. */
 export interface ShipContext {
@@ -37,6 +38,8 @@ export interface ShipContext {
   openDesigns(): void;
   close(): void;
   empireName(id: number): string;
+  /** Hull for a ship in a battle report, if its design is known to the viewer (own ships, or seen designs). */
+  hullOf(shipId: number, empireId: number, designName: string): string | null;
   empireColor(id: number): string;
   systemName(id: number): string;
 }
@@ -50,7 +53,8 @@ export function designSummary(pack: ContentPack, empire: Empire, design: Pick<Sh
   for (const id of design.components) counts.set(id, (counts.get(id) ?? 0) + 1);
   const parts = [...counts].map(([id, n]) => `${n > 1 ? `${n}× ` : ""}${getComponent(pack, id).name}`).join(", ") || "empty";
   const attack = stats.armed ? ` · ${stats.damagePerRound.toFixed(1)} dmg/round` : "";
-  return `${getHull(pack, design.hull).name}: ${parts} · ${stats.maxHp} hp${stats.shield ? ` · shield ${stats.shield}` : ""}${attack} · speed ${stats.speed}`;
+  const extras = [stats.troops ? `${stats.troops} troops` : "", stats.repair ? `repairs ${stats.repair}%/turn` : "", stats.mines ? `lays ${stats.mines} mines/turn` : ""].filter(Boolean);
+  return `${getHull(pack, design.hull).name}: ${parts} · ${stats.maxHp} hp${stats.shield ? ` · shield ${stats.shield}` : ""}${attack} · speed ${stats.speed}${extras.length ? ` · ${extras.join(" · ")}` : ""}`;
 }
 
 // ---------- designs list ----------
@@ -65,6 +69,7 @@ export function designsPanel(ctx: ShipContext): HTMLElement {
       h(
         "li",
         {},
+        spriteIcon(pack, design.hull, empire.color, 2),
         h("span", { className: "grow" }, h("div", { textContent: `${design.name} · ${stats.cost} ⚙ · upkeep ${stats.upkeep}` }), h("div", { className: "muted small", textContent: designSummary(pack, empire, design) })),
         h(
           "span",
@@ -118,13 +123,13 @@ export function designerPanel(ctx: ShipContext): HTMLElement {
 
   const hulls = h("div", { className: "segmented wrap" });
   for (const option of pack.hulls.filter((x) => hullAvailable(pack, empire, x.id))) {
-    hulls.append(
-      button(`${option.name} (${option.slots})`, () => {
+    const b = button(`${option.name} (${option.slots})`, () => {
         d.hull = option.id;
         d.components = d.components.slice(0, option.slots);
         ctx.rerender();
-      }, { className: option.id === d.hull ? "on" : "" }),
-    );
+      }, { className: `hull-option${option.id === d.hull ? " on" : ""}` });
+    b.prepend(spriteIcon(pack, option.id, empire.color, 2));
+    hulls.append(b);
   }
 
   const slots = h("ul");
@@ -192,6 +197,7 @@ export function designerPanel(ctx: ShipContext): HTMLElement {
     "div",
     { className: "sheet panel tall" },
     h("h2", {}, "Ship designer", button("✕", () => ((draft = null), ctx.openDesigns()), { ariaLabel: "Close" })),
+    h("div", { className: "designer-preview" }, spriteIcon(pack, d.hull, empire.color, 5)),
     name,
     h("h3", { textContent: "Hull" }),
     hulls,
@@ -249,6 +255,7 @@ export function fleetDetail(ctx: ShipContext, fleetId: FleetId): HTMLElement | n
     const li = h(
       "li",
       { className: `tappable${on ? " on" : ""}` },
+      spriteIcon(pack, getDesign(empire, ship.designId).hull, empire.color, 2),
       h("span", { className: "grow" }, h("div", { textContent: `${on ? "☑ " : ""}${getDesign(empire, ship.designId).name}` }), bar(ship.hp / s.maxHp)),
       h("span", { className: "small", textContent: `${ship.hp}/${s.maxHp}` }),
     );
@@ -335,7 +342,16 @@ export function battlePanel(ctx: ShipContext, report: BattleReport, round: numbe
     const alive = h("div", { className: "battle-ships" });
     for (const s of mine) {
       const now = Math.max(0, hp.get(s.shipId)!);
-      alive.append(h("div", { className: `battle-ship${now <= 0 ? " dead" : ""}`, title: `${s.designName} ${now}/${s.maxHp}` }, h("span", { className: "small", textContent: s.designName }), bar(now / s.maxHp)));
+      const hull = ctx.hullOf(s.shipId, s.empireId, s.designName);
+      alive.append(
+        h(
+          "div",
+          { className: `battle-ship${now <= 0 ? " dead" : ""}`, title: `${s.designName} ${now}/${s.maxHp}` },
+          hull ? spriteIcon(ctx.pack, hull, ctx.empireColor(s.empireId), 2, now <= 0) : null,
+          h("span", { className: "small", textContent: s.designName }),
+          bar(now / s.maxHp),
+        ),
+      );
     }
     sides.append(
       h(

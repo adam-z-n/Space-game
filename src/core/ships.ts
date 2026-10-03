@@ -46,6 +46,12 @@ export interface DesignStats {
   endurance: number;
   /** Extra turns of supply this ship adds to its fleet. */
   fuel: number;
+  /** Ground troops carried. */
+  troops: number;
+  /** Percent of hull repaired per turn across the fleet, even outside supply. */
+  repair: number;
+  /** Mine strength laid per turn while waiting in a system. */
+  mines: number;
   colonize: boolean;
   armed: boolean;
   role: ShipRole;
@@ -57,13 +63,14 @@ export interface DesignStats {
 export function designStats(pack: ContentPack, design: Pick<ShipDesign, "hull" | "components">, fx: Totals): DesignStats {
   const hull = getHull(pack, design.hull);
   const parts = design.components.map((id) => getComponent(pack, id));
-  const sum = (key: "hp" | "shield" | "speed" | "sensorRange" | "fuel" | "cost") => parts.reduce((n, c) => n + c[key], 0);
+  const sum = (key: "hp" | "shield" | "speed" | "sensorRange" | "fuel" | "cost" | "troops" | "repair" | "mines") => parts.reduce((n, c) => n + c[key], 0);
   const weapons = parts
     .filter((c) => c.kind === "weapon")
     .map((c) => ({ damage: Math.floor((c.damage * (100 + fx.damagePercent)) / 100), accuracy: c.accuracy }));
   const colonize = parts.some((c) => c.kind === "colony");
   const armed = weapons.length > 0;
-  const role: ShipRole = colonize ? "transport" : armed ? "combat" : parts.some((c) => c.kind === "fuel") ? "support" : parts.some((c) => c.kind === "sensor") ? "recon" : "support";
+  const transport = colonize || parts.some((c) => c.kind === "troops");
+  const role: ShipRole = transport ? "transport" : armed ? "combat" : parts.some((c) => c.kind === "sensor") ? "recon" : "support";
   return {
     cost: hull.cost + sum("cost"),
     upkeep: hull.upkeep,
@@ -75,6 +82,9 @@ export function designStats(pack: ContentPack, design: Pick<ShipDesign, "hull" |
     evasion: hull.evasion,
     endurance: hull.endurance + fx.endurance,
     fuel: sum("fuel"),
+    troops: sum("troops"),
+    repair: sum("repair"),
+    mines: sum("mines"),
     colonize,
     armed,
     role,
@@ -156,6 +166,18 @@ export function fleetStrength(pack: ContentPack, state: GameState, fleet: Fleet)
   return Math.round(total);
 }
 
+/** The hull of a fleet's largest ship (most slots, then structure): what the fleet looks like from afar. */
+export function flagshipHull(pack: ContentPack, state: GameState, fleet: Fleet): string {
+  const empire = state.empires[fleet.empireId]!;
+  let best: string | null = null;
+  for (const ship of fleet.ships) {
+    const hull = getHull(pack, getDesign(empire, ship.designId).hull);
+    const current = best ? getHull(pack, best) : null;
+    if (!current || hull.slots > current.slots || (hull.slots === current.slots && hull.structure > current.structure)) best = hull.id;
+  }
+  return best ?? pack.hulls[0]!.id;
+}
+
 /** Recompute cached speed and sensor range. Out-of-supply fleets are slowed. */
 export function refreshFleetStats(pack: ContentPack, state: GameState, fleet: Fleet): void {
   const stats = fleetShipStats(pack, state, fleet);
@@ -194,6 +216,7 @@ export function newFleet(state: GameState, pack: ContentPack, empire: Empire, de
     route: [],
     progress: 0,
     holding: false,
+    invadeColonyId: null,
   };
   fleet.orders = defaultOrders(fleetArmed(pack, state, fleet));
   fleet.supply = fleetMaxSupply(pack, state, fleet);

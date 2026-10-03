@@ -132,13 +132,13 @@ describe("save migration", () => {
     const json = readFileSync(new URL("./fixtures/save-v2-m2.json", import.meta.url), "utf8");
     const loaded = deserializeSave(json, defaultPack());
     const state = loaded.state;
-    expect(state.version).toBe(5);
+    expect(state.version).toBe(7);
     expect(state.turn).toBe(7);
     // Every empire gets its capital on its homeworld; fleets map to ship templates.
     for (const empire of state.empires) {
       const capital = state.colonies.find((c) => c.empireId === empire.id && c.capital)!;
       expect(capital.systemId).toBe(empire.homeSystemId);
-      expect(capital.buildings).toEqual(["capitol"]);
+      expect(capital.buildings).toEqual(defaultPack().start.capitalBuildings);
     }
     expect(new Set(state.fleets.flatMap((f) => f.ships.map((s) => s.designId)))).toEqual(new Set(["scout", "frigate"]));
     expect(state.empires.every((e) => e.designs.length === defaultPack().startingDesigns.length)).toBe(true);

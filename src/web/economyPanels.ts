@@ -3,7 +3,9 @@ import {
   availableTechs,
   buildOptions,
   buyCost,
+  colonyDefense,
   colonyOutput,
+  defendingTroops,
   empireEconomy,
   findColony,
   empireScore,
@@ -14,6 +16,7 @@ import {
   itemCost,
   itemName,
   queueForecast,
+  type Colony,
   type ColonyId,
   type Command,
   type ContentPack,
@@ -208,6 +211,7 @@ export function colonyPanel(ctx: PanelContext, colonyId: ColonyId): HTMLElement 
     h("div", { className: "sub", textContent: `Population ${colony.population}/${out.maxPop} · ${growthText}` }),
     focus,
     stats,
+    defensePanel(ctx, colony),
     h("h3", { textContent: "Building" }),
     queue,
     buy,
@@ -216,6 +220,25 @@ export function colonyPanel(ctx: PanelContext, colonyId: ColonyId): HTMLElement 
     h("h3", { textContent: "Buildings" }),
     h("div", { className: "muted", textContent: buildings }),
   );
+}
+
+/** Orbital defenses, garrison and mines at one of the player's colonies. */
+function defensePanel(ctx: PanelContext, colony: Colony): HTMLElement {
+  const { game, pack } = ctx;
+  const empire = game.state.empires[colony.empireId]!;
+  const d = colonyDefense(pack, empire, colony);
+  const troops = defendingTroops(game.state, pack, colony);
+  const mines = game.state.minefields.find((m) => m.systemId === colony.systemId && m.empireId === colony.empireId)?.strength ?? 0;
+  const lines: (HTMLElement | null)[] = [];
+  if (d.maxHp > 0) {
+    lines.push(h("div", { className: "small", textContent: `Orbital defenses ${colony.defenseHp}/${d.maxHp} hp · ${d.weapons.length} gun${d.weapons.length === 1 ? "" : "s"}${d.shield ? ` · shield ${d.shield}` : ""}` }), bar(colony.defenseHp / d.maxHp));
+  } else {
+    lines.push(h("div", { className: "muted small", textContent: "No orbital defenses: enemy warships can blockade freely and troops can land." }));
+  }
+  lines.push(h("div", { className: "small", textContent: `Ground troops ${troops} (garrison ${colony.troops}/${d.maxTroops} + militia ${colony.population * pack.combat.militiaPerPop}, with terrain and tech)` }));
+  if (mines > 0) lines.push(h("div", { className: "small", textContent: `Minefield strength ${mines}` }));
+  if (colony.blockaded) lines.push(h("div", { className: "danger-text small", textContent: "Under siege: no repairs, supply or trade until the blockade is broken." }));
+  return h("div", { className: "defense-box" }, h("h3", { textContent: "Defenses" }), ...lines);
 }
 
 function stat(label: string, value: string, note: string): HTMLElement {

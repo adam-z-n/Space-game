@@ -1,4 +1,5 @@
 import type { ContentPack, EmpireView, FleetId, SystemId } from "../core";
+import { spriteMarkup, spriteSize } from "./sprites";
 
 const SVG_NS = "http://www.w3.org/2000/svg";
 /** Screen pixels within which a tap hits a star or fleet. Keeps touch targets ~44pt. */
@@ -349,6 +350,8 @@ export class GalaxyMap {
     const color = (empireId: number) => view.empires[empireId]!.color;
     const parts: string[] = [];
 
+    parts.push(this.starfield());
+
     // Sensor coverage, drawn as one faint layer so overlaps don't stack up.
     parts.push(`<g class="sensors">`);
     for (const sensor of view.sensors) {
@@ -356,6 +359,11 @@ export class GalaxyMap {
     }
     parts.push(`</g>`);
 
+    // Own minefields: a dotted ring around the system.
+    for (const field of view.minefields) {
+      const sys = systems[field.systemId]!;
+      parts.push(`<circle class="minefield" cx="${sys.x}" cy="${sys.y}" r="${px(30)}" stroke="${color(view.viewerId)}" stroke-width="${px(1.5)}" stroke-dasharray="${px(1)} ${px(5)}"/>`);
+    }
     const supplied = new Set(scene.showSupply ? view.supplied : []);
     const myColor = color(view.viewerId);
     for (const lane of view.lanes) {
@@ -411,7 +419,7 @@ export class GalaxyMap {
       }
     }
 
-    // Fleets: chevrons beside their star (or on their lane), stacked when several share a spot.
+    // Fleets: their flagship's pixel sprite beside the star (or on the lane), stacked when several share a spot.
     this.markers = [];
     const stacks = new Map<string, number>();
     const ordered = [...view.fleets].sort((a, b) => Number(b.own) - Number(a.own) || a.id - b.id);
@@ -420,18 +428,18 @@ export class GalaxyMap {
       const index = stacks.get(key) ?? 0;
       stacks.set(key, index + 1);
       const inSystem = fleet.position.progress === 0;
-      const fx = fleet.x + (inSystem ? starRadius + px(9) : 0) + index * px(14);
-      const fy = fleet.y - (inSystem ? starRadius + px(4) : 0);
+      const fx = fleet.x + (inSystem ? starRadius + px(14) : 0) + index * px(22);
+      const fy = fleet.y - (inSystem ? starRadius + px(6) : 0);
       this.markers.push({ id: fleet.id, x: fx, y: fy, own: fleet.own });
       const selected = fleet.id === scene.selectedFleet;
-      const size = px(selected ? 10 : 8);
       const stale = fleet.seenTurn < view.turn;
-      const fill = stale ? "none" : color(fleet.empireId);
-      const stroke = stale ? color(fleet.empireId) : "#05070d";
-      if (selected) parts.push(`<circle class="selected-ring" cx="${fx}" cy="${fy}" r="${px(15)}" stroke-width="${px(1.5)}" stroke-dasharray="${px(3)} ${px(3)}"/>`);
-      parts.push(
-        `<path d="M${fx} ${fy - size} L${fx + size * 0.8} ${fy + size * 0.7} L${fx} ${fy + size * 0.2} L${fx - size * 0.8} ${fy + size * 0.7} Z" fill="${fill}" stroke="${stroke}" stroke-width="${px(stale ? 1.5 : 1)}" ${stale ? 'opacity="0.7"' : ""}/>`,
-      );
+      const sprite = this.pack.presentation.hullSprites[fleet.hull] ?? Object.values(this.pack.presentation.hullSprites)[0]!;
+      const { width, height } = spriteSize(sprite);
+      // About 1.6 screen pixels per sprite pixel: an escort is ~16px wide, a dreadnought ~40px.
+      const pixel = px(selected ? 2 : 1.6);
+      const size = (height * pixel) / 2;
+      if (selected) parts.push(`<circle class="selected-ring" cx="${fx}" cy="${fy}" r="${(width * pixel) / 2 + px(6)}" stroke-width="${px(1.5)}" stroke-dasharray="${px(3)} ${px(3)}"/>`);
+      parts.push(spriteMarkup(sprite, color(fleet.empireId), fx - (width * pixel) / 2, fy - size, pixel, stale ? ' opacity="0.45"' : ""));
       if (fleet.own && fleet.holding) parts.push(`<circle cx="${fx}" cy="${fy + size + px(4)}" r="${px(2)}" fill="${color(fleet.empireId)}"/>`);
       if (fleet.ships > 1) parts.push(`<text class="fleet-count" x="${fx + size * 0.9}" y="${fy - size * 0.6}" font-size="${px(10)}">${fleet.ships}</text>`);
       if (fleet.own && fleet.supply === 0) parts.push(`<circle class="dry" cx="${fx}" cy="${fy}" r="${px(12)}" stroke-width="${px(1.5)}"/>`);
@@ -439,6 +447,30 @@ export class GalaxyMap {
 
     parts.push(this.renderLabels(scene, starRadius));
     this.svg.innerHTML = parts.join("");
+  }
+
+  private starfieldCache: { key: string; markup: string } | null = null;
+
+  /** A faint backdrop of distant stars, fixed per galaxy (decoration only, not game state). */
+  private starfield(): string {
+    const key = `${this.galaxyKey}|${this.bounds.minX},${this.bounds.minY},${this.bounds.maxX},${this.bounds.maxY}`;
+    if (this.starfieldCache?.key === key) return this.starfieldCache.markup;
+    let seed = 0;
+    for (let i = 0; i < this.galaxyKey.length; i++) seed = (seed * 31 + this.galaxyKey.charCodeAt(i)) >>> 0;
+    const next = () => ((seed = (seed * 1664525 + 1013904223) >>> 0) / 4294967296);
+    const { minX, minY, maxX, maxY } = this.bounds;
+    const w = maxX - minX;
+    const h = maxY - minY;
+    const dots: string[] = [];
+    for (let i = 0; i < 260; i++) {
+      const x = minX - w * 0.5 + next() * w * 2;
+      const y = minY - h * 0.5 + next() * h * 2;
+      const r = next() < 0.85 ? 1.5 : 3;
+      dots.push(`<rect x="${x.toFixed(0)}" y="${y.toFixed(0)}" width="${r}" height="${r}" opacity="${(0.25 + next() * 0.5).toFixed(2)}"/>`);
+    }
+    const markup = `<g class="starfield" shape-rendering="crispEdges">${dots.join("")}</g>`;
+    this.starfieldCache = { key, markup };
+    return markup;
   }
 
   /**

@@ -2,8 +2,9 @@ import type { BattleReport, Body, BodyId, ColonyId, EmpireId, FleetId, FleetPosi
 import { colonyOnBody, fleetPosition } from "./state";
 import type { ContentPack } from "../content/schema";
 import { availableTechs, colonizeBlocker } from "./economy";
-import { fleetArmed, fleetCanColonize, fleetMaxSupply, fleetStrength } from "./ships";
+import { flagshipHull, fleetArmed, fleetCanColonize, fleetMaxSupply, fleetStrength } from "./ships";
 import { suppliedSystems } from "./supply";
+import { defendingTroops } from "./defense";
 import { positionPoint, sensorSources } from "./vision";
 
 /**
@@ -36,6 +37,9 @@ export interface ColonyMarker {
   seenTurn: number;
   /** Known for the viewer's own colonies only. */
   blockaded: boolean;
+  /** Orbital defense hit points and ground troops, current for own colonies, as last seen for rivals. */
+  defenseHp: number;
+  troops: number;
 }
 
 export interface FleetView {
@@ -49,6 +53,8 @@ export interface FleetView {
   /** Turn the position was observed; less than the current turn means last-known only. */
   seenTurn: number;
   ships: number;
+  /** Hull of the largest ship, for drawing the fleet. */
+  hull: string;
   strength: number;
   armed: boolean;
   // Own fleets only:
@@ -81,6 +87,8 @@ export interface EmpireView {
   supplied: SystemId[];
   /** Battles the viewer took part in last turn. */
   battles: BattleReport[];
+  /** The viewer's own minefields. */
+  minefields: { systemId: SystemId; strength: number }[];
 }
 
 export function empireView(state: GameState, pack: ContentPack, viewerId: EmpireId): EmpireView {
@@ -100,12 +108,26 @@ export function empireView(state: GameState, pack: ContentPack, viewerId: Empire
       own: true,
       seenTurn: state.turn,
       blockaded: c.blockaded,
+      defenseHp: c.defenseHp,
+      troops: defendingTroops(state, pack, c),
     });
   }
   for (const c of viewer.colonySightings) {
     // Capitals sit on the homeworld, always the first body of the home system.
     const capital = state.empires[c.empireId]!.homeSystemId === c.systemId && state.galaxy.systems[c.systemId]!.bodies[0]?.id === c.bodyId;
-    addMarker(c.systemId, { colonyId: c.colonyId, bodyId: c.bodyId, empireId: c.empireId, name: c.name, population: c.population, capital, own: false, seenTurn: c.turn, blockaded: false });
+    addMarker(c.systemId, {
+      colonyId: c.colonyId,
+      bodyId: c.bodyId,
+      empireId: c.empireId,
+      name: c.name,
+      population: c.population,
+      capital,
+      own: false,
+      seenTurn: c.turn,
+      blockaded: false,
+      defenseHp: c.defenseHp,
+      troops: c.troops,
+    });
   }
 
   const systems: SystemView[] = state.galaxy.systems.map((s) => {
@@ -135,6 +157,7 @@ export function empireView(state: GameState, pack: ContentPack, viewerId: Empire
       ...positionPoint(state, position),
       seenTurn: state.turn,
       ships: fleet.ships.length,
+      hull: flagshipHull(pack, state, fleet),
       strength: fleetStrength(pack, state, fleet),
       armed: fleetArmed(pack, state, fleet),
       route: [...fleet.route],
@@ -155,6 +178,7 @@ export function empireView(state: GameState, pack: ContentPack, viewerId: Empire
       ...positionPoint(state, position),
       seenTurn: s.turn,
       ships: s.ships,
+      hull: s.hull,
       strength: s.strength,
       armed: s.armed,
       route: null,
@@ -174,9 +198,10 @@ export function empireView(state: GameState, pack: ContentPack, viewerId: Empire
     lanes: state.galaxy.lanes,
     fleets,
     empires: state.empires.map((e) => ({ id: e.id, name: e.name, color: e.color, met: met.has(e.id) })),
-    sensors: sensorSources(state, viewerId),
+    sensors: sensorSources(state, pack, viewerId),
     supplied: [...suppliedSystems(state, pack, viewerId)].sort((a, b) => a - b),
     battles: state.lastBattles.filter((b) => b.empires.includes(viewerId)),
+    minefields: state.minefields.filter((m) => m.empireId === viewerId).map((m) => ({ systemId: m.systemId, strength: m.strength })),
   };
 }
 
@@ -200,6 +225,8 @@ export function omniscientView(state: GameState, pack: ContentPack, viewerId: Em
           own: c.empireId === viewerId,
           seenTurn: state.turn,
           blockaded: c.blockaded,
+          defenseHp: c.defenseHp,
+          troops: defendingTroops(state, pack, c),
         })),
     })),
     fleets: state.fleets.map((f) => {
@@ -213,6 +240,7 @@ export function omniscientView(state: GameState, pack: ContentPack, viewerId: Em
         ...positionPoint(state, position),
         seenTurn: state.turn,
         ships: f.ships.length,
+        hull: flagshipHull(pack, state, f),
         strength: fleetStrength(pack, state, f),
         armed: fleetArmed(pack, state, f),
         route: [...f.route],

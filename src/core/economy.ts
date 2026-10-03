@@ -31,6 +31,8 @@ const EFFECT_KEYS = [
   "supplyRange",
   "endurance",
   "damagePercent",
+  "groundPercent",
+  "defensePercent",
 ] as const;
 export type Totals = Record<(typeof EFFECT_KEYS)[number], number>;
 
@@ -52,20 +54,24 @@ export function getBuilding(pack: ContentPack, id: string): Building {
   return building;
 }
 
-/** Empire-wide modifiers from researched techs. */
-/** Empire-wide modifiers from researched techs, plus difficulty bonuses for AI empires. */
-export function empireEffects(pack: ContentPack, empire: Empire): Totals {
+/** Species traits and difficulty bonuses: the empire-wide effects that don't come from research. */
+function innateEffects(pack: ContentPack, empire: Empire): Effects[] {
+  const species = pack.species.find((s) => s.id === empire.species)?.effects;
   const difficulty = empire.difficulty ? pack.difficulties.find((d) => d.id === empire.difficulty)?.effects : undefined;
-  return sumEffects([...empire.techs.map((id) => getTech(pack, id).effects), ...(difficulty ? [difficulty] : [])]);
+  return [...(species ? [species] : []), ...(difficulty ? [difficulty] : [])];
+}
+
+/** Empire-wide modifiers: researched techs, species traits, and difficulty bonuses for AI empires. */
+export function empireEffects(pack: ContentPack, empire: Empire): Totals {
+  return sumEffects([...empire.techs.map((id) => getTech(pack, id).effects), ...innateEffects(pack, empire)]);
 }
 
 /** Modifiers acting on one colony: its buildings plus the empire's techs. */
 export function colonyEffects(pack: ContentPack, empire: Empire, colony: Colony): Totals {
-  const difficulty = empire.difficulty ? pack.difficulties.find((d) => d.id === empire.difficulty)?.effects : undefined;
   return sumEffects([
     ...empire.techs.map((id) => getTech(pack, id).effects),
     ...colony.buildings.map((id) => getBuilding(pack, id).effects),
-    ...(difficulty ? [difficulty] : []),
+    ...innateEffects(pack, empire),
   ]);
 }
 
@@ -84,6 +90,7 @@ export function planetStats(pack: ContentPack, body: Body) {
     foodYield: type?.foodYield ?? 0,
     capacity: size?.capacity ?? 0,
     yieldPercent: richness?.yieldPercent ?? 100,
+    groundDefense: type?.groundDefensePercent ?? 0,
   };
 }
 
@@ -309,6 +316,8 @@ export function newColony(state: GameState, empire: Empire, systemId: number, bo
     queue: [],
     progress: 0,
     blockaded: false,
+    defenseHp: 0,
+    troops: 0,
   };
 }
 

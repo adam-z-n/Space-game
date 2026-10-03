@@ -3,6 +3,7 @@ import { generateGalaxy, installHomeworld, pickHomeSystems } from "./galaxy";
 import { Rng } from "./rng";
 import { updateSightings } from "./vision";
 import { newColony } from "./economy";
+import { colonyDefense } from "./defense";
 import { newFleet, startingDesigns } from "./ships";
 import { STATE_VERSION, type Empire, type GameSettings, type GameState } from "./state";
 
@@ -16,6 +17,9 @@ export function validateSettings(settings: GameSettings, pack: ContentPack): str
     return `AI count must be ${MIN_AI}-${MAX_AI}`;
   }
   if (settings.aiCount + 1 > pack.empires.length) return "content pack has too few empires";
+  if (settings.playerEmpire !== undefined && !(Number.isInteger(settings.playerEmpire) && settings.playerEmpire >= 0 && settings.playerEmpire < pack.empires.length)) {
+    return "unknown player empire";
+  }
   if (settings.difficulty !== undefined && !pack.difficulties.some((d) => d.id === settings.difficulty)) return `unknown difficulty "${settings.difficulty}"`;
   if (settings.turnLimit !== undefined && (!Number.isInteger(settings.turnLimit) || settings.turnLimit < 10)) return "turn limit must be at least 10";
   return null;
@@ -33,9 +37,11 @@ export function createInitialState(settings: GameSettings, pack: ContentPack): G
 
   const empireCount = settings.aiCount + 1;
   const homes = pickHomeSystems(rng.fork("homes"), galaxy, empireCount);
-  // The player keeps the pack's first empire; AIs draw from the rest.
-  const [playerTemplate, ...others] = pack.empires;
-  const templates = [playerTemplate!, ...rng.fork("empires").shuffle(others)];
+  // The player takes the chosen empire (the pack's first by default); AIs draw from the rest.
+  const playerIndex = settings.playerEmpire ?? 0;
+  const playerTemplate = pack.empires[playerIndex]!;
+  const others = pack.empires.filter((_, i) => i !== playerIndex);
+  const templates = [playerTemplate, ...rng.fork("empires").shuffle(others)];
 
   // AI temperaments are dealt from a shuffled deck so a game rarely repeats one.
   const personalities = rng.fork("personalities").shuffle(pack.aiPersonalities.map((p) => p.id));
@@ -50,6 +56,7 @@ export function createInitialState(settings: GameSettings, pack: ContentPack): G
       id: i,
       name: templates[i]!.name,
       color: templates[i]!.color,
+      species: templates[i]!.species,
       isAI: i !== 0 || settings.allAI === true,
       personality: i !== 0 || settings.allAI === true ? personalities[i % personalities.length]! : null,
       // Empire 0 never gets difficulty modifiers, even when the AI plays it: in batch runs it is the
@@ -85,11 +92,15 @@ export function createInitialState(settings: GameSettings, pack: ContentPack): G
     lastTurnEvents: [],
     lastBattles: [],
     outcome: null,
+    minefields: [],
   };
 
   for (const empire of empires) {
     const capital = newColony(state, empire, empire.homeSystemId, homeworldIds[empire.id]!, pack.economy.capitalPopulation, true);
     capital.buildings = [...pack.start.capitalBuildings];
+    const defense = colonyDefense(pack, empire, capital);
+    capital.defenseHp = defense.maxHp;
+    capital.troops = defense.maxTroops;
     state.colonies.push(capital);
     for (const start of pack.start.fleets) state.fleets.push(newFleet(state, pack, empire, start.ships, empire.homeSystemId));
   }

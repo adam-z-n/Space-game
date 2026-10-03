@@ -39,6 +39,8 @@ const PlanetType = z.object({
   habitability: z.number().int().min(0).max(100),
   /** Food produced per farmer. 0 means colonies here can't feed themselves. */
   foodYield: z.number().int().nonnegative(),
+  /** Bonus to defending troops, in percent: rough terrain is hard to take. */
+  groundDefensePercent: z.number().int().nonnegative().default(0),
   weight,
 });
 
@@ -58,10 +60,6 @@ const Richness = z.object({
   weight,
 });
 
-const EmpireTemplate = z.object({
-  name: z.string().min(1),
-  color,
-});
 
 /**
  * Modifiers granted by buildings (to their colony) and techs (to every colony
@@ -93,6 +91,10 @@ export const EffectsSchema = z
     endurance: z.number().int(),
     /** Added to every weapon's damage, in percent. */
     damagePercent: z.number().int(),
+    /** Added to troop strength (attacking and defending), in percent. */
+    groundPercent: z.number().int(),
+    /** Added to colony defense hit points and weapon damage, in percent. */
+    defensePercent: z.number().int(),
   })
   .partial()
   .strict();
@@ -123,7 +125,7 @@ const Hull = z.object({
   requires: id.optional(),
 });
 
-export const COMPONENT_KINDS = ["weapon", "armor", "shield", "engine", "sensor", "colony", "fuel"] as const;
+export const COMPONENT_KINDS = ["weapon", "armor", "shield", "engine", "sensor", "colony", "fuel", "troops", "repair", "mines"] as const;
 
 const Component = z.object({
   id,
@@ -142,6 +144,12 @@ const Component = z.object({
   sensorRange: z.number().int().nonnegative().default(0),
   /** Fuel: extra turns of supply for the whole fleet. */
   fuel: z.number().int().nonnegative().default(0),
+  /** Troops: ground troops carried for invasions. */
+  troops: z.number().int().nonnegative().default(0),
+  /** Repair: percent of every ship's hull repaired each turn, even outside supply. */
+  repair: z.number().int().nonnegative().default(0),
+  /** Mines: mine strength laid per turn in the system the ship stays in. */
+  mines: z.number().int().nonnegative().default(0),
   requires: id.optional(),
 });
 
@@ -154,6 +162,23 @@ const Design = z.object({
 });
 export type DesignData = z.infer<typeof Design>;
 
+/** What a building adds to its colony's defenses. */
+const DefenseSchema = z
+  .object({
+    /** Orbital defense hit points. */
+    hp: z.number().int().nonnegative(),
+    /** Damage blocked per hit on the defenses. */
+    shield: z.number().int().nonnegative(),
+    weapons: z.array(z.object({ damage: z.number().int().positive(), accuracy: z.number().int().min(1).max(100), count: z.number().int().positive() })),
+    /** Garrison troops. */
+    troops: z.number().int().nonnegative(),
+    /** Minefield strength kept up in the colony's system. */
+    mines: z.number().int().nonnegative(),
+  })
+  .partial()
+  .strict();
+export type DefenseData = z.infer<typeof DefenseSchema>;
+
 const Building = z.object({
   id,
   name: z.string().min(1),
@@ -161,6 +186,7 @@ const Building = z.object({
   cost: z.number().int().positive(),
   upkeep: z.number().int().nonnegative(),
   effects: EffectsSchema,
+  defense: DefenseSchema.default({}),
   requires: id.optional(),
   /** Only granted to capitals at game start, never built. */
   buildable: z.boolean().default(true),
@@ -180,6 +206,18 @@ const ResearchField = z.object({ id, name: z.string().min(1) });
 
 const Combat = z.object({
   rounds: z.number().int().positive(),
+  /** Militia troops every colony raises per population. */
+  militiaPerPop: z.number().int().nonnegative(),
+  /** Garrison troops and orbital defense hit points restored per turn, in percent of max. */
+  garrisonRegenPercent: z.number().int().min(0).max(100),
+  defenseRepairPercent: z.number().int().min(0).max(100),
+  /** Population lost when a colony changes hands, in percent. */
+  captureLossPercent: z.number().int().min(0).max(100),
+  /** Each hostile ship in a minefield has this chance per turn to hit a mine, which deals mineDamage. */
+  mineHitPercent: z.number().int().min(0).max(100),
+  mineDamage: z.number().int().nonnegative(),
+  /** Most mine strength one empire can keep in a system. */
+  maxMines: z.number().int().nonnegative(),
   /** Damage dealt and taken, in percent, by stance. */
   stanceDamage: z.object({ aggressive: z.number().int(), balanced: z.number().int(), cautious: z.number().int() }),
   stanceDefense: z.object({ aggressive: z.number().int(), balanced: z.number().int(), cautious: z.number().int() }),
@@ -245,6 +283,50 @@ const Victory = z.object({
   }),
 });
 
+/** A playable species: flavor plus trait effects applied to its whole empire. */
+const Species = z.object({
+  id,
+  name: z.string().min(1),
+  description: z.string(),
+  /** Short trait summary shown when choosing, e.g. "+25% research". */
+  traits: z.array(z.string()),
+  effects: EffectsSchema.default({}),
+});
+
+const EmpireTemplate = z.object({
+  name: z.string().min(1),
+  color,
+  species: id,
+});
+
+/**
+ * Pixel-art sprite: rows of characters, one per pixel. "." is empty; other
+ * characters map to colors in the palette, where "@" means the empire's color.
+ */
+const Sprite = z.object({
+  rows: z.array(z.string().min(1)).min(1),
+  palette: z.record(z.string().length(1), z.string()),
+});
+export type SpriteData = z.infer<typeof Sprite>;
+
+/** How the theme looks: fonts, UI colors and art. The rules engine never reads this. */
+const Presentation = z.object({
+  /** Display font for headings and labels (bundled by the web client). */
+  displayFont: z.string(),
+  colors: z.object({
+    background: color,
+    panel: color,
+    panelEdge: color,
+    text: color,
+    muted: color,
+    accent: color,
+    warn: color,
+    danger: color,
+  }),
+  /** Sprite per hull id; ships of that hull use it. */
+  hullSprites: z.record(z.string(), Sprite),
+});
+
 const Economy = z.object({
   startingCredits: z.number().int(),
   startingFood: z.number().int().nonnegative(),
@@ -304,7 +386,9 @@ export const ContentPackSchema = z
     planetSizes: z.array(PlanetSize).min(1),
     richness: z.array(Richness).min(1),
     systemNames: z.array(z.string().min(1)).min(1),
+    species: z.array(Species).min(1),
     empires: z.array(EmpireTemplate).min(6),
+    presentation: Presentation,
     economy: Economy,
     researchFields: z.array(ResearchField).min(1),
     techs: z.array(Tech),
@@ -346,11 +430,24 @@ export const ContentPackSchema = z
     unique("components", pack.components.map((t) => t.id));
     unique("startingDesigns", pack.startingDesigns.map((t) => t.id));
     unique("aiPersonalities", pack.aiPersonalities.map((t) => t.id));
+    unique("species", pack.species.map((t) => t.id));
     unique("difficulties", pack.difficulties.map((t) => t.id));
 
     const techIds = new Set(pack.techs.map((t) => t.id));
     const fieldIds = new Set(pack.researchFields.map((f) => f.id));
     const issue = (path: (string | number)[], message: string) => ctx.addIssue({ code: "custom", path, message });
+    const speciesIds = new Set(pack.species.map((t) => t.id));
+    pack.empires.forEach((e, i) => {
+      if (!speciesIds.has(e.species)) issue(["empires", i, "species"], `unknown species "${e.species}"`);
+    });
+    for (const hull of pack.hulls) if (!pack.presentation.hullSprites[hull.id]) issue(["presentation", "hullSprites"], `no sprite for hull "${hull.id}"`);
+    for (const [hullId, sprite] of Object.entries(pack.presentation.hullSprites)) {
+      const width = sprite.rows[0]!.length;
+      if (sprite.rows.some((r) => r.length !== width)) issue(["presentation", "hullSprites", hullId], "sprite rows must all be the same width");
+      for (const ch of new Set(sprite.rows.join("").replace(/\./g, ""))) {
+        if (!sprite.palette[ch]) issue(["presentation", "hullSprites", hullId], `sprite uses "${ch}" but the palette doesn't define it`);
+      }
+    }
     if (!pack.difficulties.some((d) => d.id === "normal")) issue(["difficulties"], `needs a "normal" difficulty`);
     pack.aiPersonalities.forEach((p, i) => {
       for (const field of Object.keys(p.researchFields)) if (!fieldIds.has(field)) issue(["aiPersonalities", i, "researchFields"], `unknown research field "${field}"`);

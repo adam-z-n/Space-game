@@ -1,7 +1,7 @@
 import type { ContentPack } from "../content/schema";
 import { empireEffects } from "./economy";
 import { buildAdjacency, shortestPaths } from "./graph";
-import { fleetArmed, fleetMaxSupply, refreshFleetStats, shipStats } from "./ships";
+import { fleetArmed, fleetMaxSupply, fleetShipStats, refreshFleetStats, shipStats } from "./ships";
 import type { EmpireId, Fleet, GameEvent, GameState, SystemId } from "./state";
 
 /**
@@ -44,7 +44,7 @@ export function updateBlockades(state: GameState, pack: ContentPack, events: Gam
   for (const colony of state.colonies.slice().sort((a, b) => a.id - b.id)) {
     const present = armedHere.get(colony.systemId);
     const hostile = !!present && [...present].some((e) => e !== colony.empireId);
-    const defended = !!present && present.has(colony.empireId);
+    const defended = (!!present && present.has(colony.empireId)) || colony.defenseHp > 0;
     const blockaded = hostile && !defended;
     if (blockaded && !colony.blockaded && events) {
       events.push({ type: "blockaded", turn: state.turn, empireId: colony.empireId, colonyId: colony.id, systemId: colony.systemId });
@@ -62,10 +62,18 @@ export function resolveSupply(state: GameState, pack: ContentPack, events: GameE
   for (const fleet of state.fleets.slice().sort((a, b) => a.id - b.id)) {
     const empire = state.empires[fleet.empireId]!;
     const supplied = fleetInSupply(fleet, networks.get(fleet.empireId)!);
+    // Repair tenders mend the whole fleet wherever it is.
+    const tender = fleetShipStats(pack, state, fleet).reduce((n, s) => Math.max(n, s.repair), 0);
+    if (tender > 0 && !supplied) {
+      for (const ship of fleet.ships) {
+        const max = shipStats(pack, empire, ship).maxHp;
+        ship.hp = Math.min(max, ship.hp + Math.ceil((max * tender) / 100));
+      }
+    }
     if (supplied) {
       fleet.supply = fleetMaxSupply(pack, state, fleet);
       const docked = fleet.progress === 0 && state.colonies.some((c) => c.empireId === fleet.empireId && c.systemId === fleet.systemId);
-      const percent = docked ? pack.combat.dockRepairPercent : pack.combat.repairPercent;
+      const percent = Math.max(tender, docked ? pack.combat.dockRepairPercent : pack.combat.repairPercent);
       for (const ship of fleet.ships) {
         const max = shipStats(pack, empire, ship).maxHp;
         ship.hp = Math.min(max, ship.hp + Math.ceil((max * percent) / 100));

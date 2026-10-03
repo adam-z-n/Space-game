@@ -5,7 +5,35 @@ A turn-based space empire game for phones. See [docs/GAME_DESIGN.md](docs/GAME_D
 The game is built web-first in TypeScript: it runs as a mobile web app for playtesting, and will be wrapped
 with Capacitor for the iOS and Android app stores later using the same code.
 
-## Status: Milestone 5
+## Status: Milestone 6
+
+**Milestone 6: defenses, invasion, support ships**
+
+- Colony defenses from buildings: defense platforms, ground batteries and orbital fortresses (hit points and guns),
+  shield generators, garrisons (troops), minefields and sensor stations. Capitals start with a platform and a garrison.
+  Defenses fight in battles as one ship that never retreats, and repair between battles but not under siege.
+  A colony with standing defenses can't be blockaded.
+- Invasion: order a fleet carrying troops (troop bays) to invade a known rival colony; it lands once the colony's
+  orbital defenses are knocked out. Ground combat weighs troops against garrison plus militia, with terrain
+  (jungle, toxic and volcanic worlds are hard to take) and ground-forces tech. Captured colonies change hands
+  with their buildings; losing the capital moves it to the largest remaining colony.
+- Support ships: repair tenders mend their fleet even outside supply; minelayers mine the system they wait in.
+  Minefields hit hostile ships that stop in that system.
+- New designs (troop transport, repair tender, minelayer), six new techs, and terrain on every planet type
+- The AI values defenses where it is exposed, builds troop transports for its war target, gathers them with
+  its strike fleet and orders the landing
+- Domination re-tuned to 50% of all population now that conquest is possible
+
+**Theme: classic space opera**
+
+- A retro look inspired by the 1990s space 4X games: pixel fonts, bevelled panels, CRT scanlines and a starfield
+- Pixel-art ship sprites for every hull (Escort, Destroyer, Freighter, Cruiser, Battleship and the new Dreadnought),
+  drawn in each empire's colours on the map, in fleets, the designer and battle reports. Map fleets show their largest ship.
+- Nine playable species, each with a trait (Terran traders, Saurak breeders, Felari pilots, Kraal workers,
+  Ursoni soldiers, Aviari flyers, Mekkan builders, Psyrrh thinkers, Lithari who settle harsh worlds); pick yours on the start screen
+- Classic component names: Fusion Beam, Nuclear Missile, Titanium and Neutronium Armor, Deflector I and III, Colony and Troop Pods
+- All of it is content data: species and their effects, sprites (rows of characters plus a palette), colours and
+  the display font live in `pack.json`, so a different theme is a different pack
 
 **Milestone 5: AI opponents, difficulty, victory, balance harness**
 
@@ -74,7 +102,7 @@ with Capacitor for the iOS and Android app stores later using the same code.
 - Headless tests and a batch simulation runner
 - A preview web app with autosave and save export/import
 
-Not yet: orbital and planetary defenses, invasion, repair tenders and minelayers (Milestone 6).
+Next: mobile builds, performance and polish (Milestone 7).
 
 ## Play it
 
@@ -107,10 +135,11 @@ games run to the content pack's turn limit (200), which takes a minute or two pe
 | `src/core/supply.ts` | Supply networks, onboard supply, repair, attrition, blockades. |
 | `src/core/combat.ts` | Battle resolution and battle reports. |
 | `src/core/ai/` | AI empires: context (knowledge), strategy, operations, production, designs. |
+| `src/core/defense.ts` | Colony defenses, garrisons, minefields and invasions. |
 | `src/core/victory.ts` | Scores, domination, elimination and the turn limit. |
 | `src/core/view.ts` | What one empire may know. The UI renders only this, so fog of war can't leak. |
 | `src/content/` | Content pack schema and loader. |
-| `content/default/pack.json` | The placeholder content pack (stars, planets, names, empires, starting fleets). |
+| `content/default/pack.json` | The content pack: rules data, species, empires, names, ship sprites and UI colours. |
 | `src/platform/` | Save storage and app lifecycle. The only code that changes for the native app. |
 | `src/web/` | The web UI: galaxy map, HUD, colony/research/empire screens, ship designer, fleet orders, battle replays. |
 | `tests/` | Unit tests. |
@@ -136,6 +165,6 @@ These keep games replayable and multiplayer-ready:
 - Every empire is hostile to every other; diplomacy is out of scope for v1.
 - Fleet orders in v1: engage/evade, stance, target priority and retreat threshold. Patrol, escort and raid
   missions are deferred; blockades happen automatically when a warship sits at an enemy colony.
-- First theme: undecided; a generic placeholder pack is used for now.
+- First theme: classic retro space opera, with original names and species.
 - AI personalities are revealed in the Empire screen once you have met that rival.
-- Domination is set to 40% of all population from turn 50, tuned for a galaxy without invasion; revisit after Milestone 6.
+- Domination is 50% of all population from turn 50.

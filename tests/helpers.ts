@@ -12,6 +12,10 @@ export const testPack = loadContentPack({
     { id: "test60", name: "Test 60", description: "", slots: 2, structure: 10, cost: 1, upkeep: 0, speed: 60, sensorRange: 0, evasion: 0, endurance: 99 },
     { id: "test100", name: "Test 100", description: "", slots: 2, structure: 10, cost: 1, upkeep: 0, speed: 100, sensorRange: 120, evasion: 0, endurance: 99 },
   ],
+  presentation: {
+    ...raw.presentation,
+    hullSprites: { ...raw.presentation.hullSprites, test60: raw.presentation.hullSprites.corvette, test100: raw.presentation.hullSprites.corvette },
+  },
 });
 
 /** Give every empire the test designs and return a one-ship fleet of `hull`. */
@@ -35,6 +39,7 @@ export function testFleet(state: GameState, opts: { id: number; empireId: number
     route: [],
     progress: 0,
     holding: false,
+    invadeColonyId: null,
   };
 }
 
@@ -46,6 +51,10 @@ export function relocateCapitals(state: GameState, systems: number[]): void {
   state.colonies = state.colonies.filter((c) => c.capital && c.empireId < systems.length);
   for (const colony of state.colonies) {
     colony.systemId = systems[colony.empireId]!;
+    // No defenses either: they would shoot at test fleets.
+    colony.buildings = colony.buildings.filter((id) => id === "capitol");
+    colony.defenseHp = 0;
+    colony.troops = 0;
     const system = state.galaxy.systems[colony.systemId]!;
     if (!system.bodies.some((b) => b.id === colony.bodyId)) {
       system.bodies.push({ id: colony.bodyId, kind: "planet", planetType: "terran", size: "medium", richness: "normal" });

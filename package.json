@@ -12,6 +12,7 @@
     "sim": "tsx scripts/sim.ts"
   },
   "dependencies": {
+    "@fontsource/silkscreen": "^5.3.0",
     "zod": "^4.6.5"
   },
   "devDependencies": {

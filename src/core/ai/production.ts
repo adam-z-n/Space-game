@@ -39,6 +39,16 @@ export function planProduction(ctx: AiContext, strategy: Strategy, warshipId: st
 
   const colonyDesign = designWhere(ctx, (s) => s.colonize);
   const scoutDesign = designWhere(ctx, (s) => s.role === "recon");
+  const troopDesign = designWhere(ctx, (s) => s.troops > 0 && !s.colonize);
+  // Invasion force: enough troops for the nearest war-target colony's last known defenders, with a margin.
+  const carriedTroops = ctx.fleets.reduce((n, f) => n + f.troops, 0) + queuedOf((q) => isShip(q, (s) => s.troops > 0)) * (troopDesign ? designStats(pack, troopDesign, fx).troops : 0);
+  let troopsWanted = 0;
+  if (strategy.posture === "attack" && strategy.warTarget !== null && ctx.capital && troopDesign) {
+    const fromCapital = ctx.dist(ctx.capital.systemId);
+    const target = ctx.rivalColonies.filter((c) => c.empireId === strategy.warTarget).sort((a, b) => fromCapital[a.systemId]! - fromCapital[b.systemId]! || a.colonyId - b.colonyId)[0];
+    if (target) troopsWanted = Math.ceil((target.troops * 3) / 2) + 2;
+  }
+  let troopShortfall = troopsWanted - carriedTroops;
   let settlers = ctx.fleets.filter((f) => f.colonize).length + queuedOf((q) => isShip(q, (s) => s.colonize));
   let scouts = ctx.fleets.filter((f) => f.recon).length + queuedOf((q) => isShip(q, (s) => s.role === "recon"));
   const wantSettlers = Math.min(1 + Math.floor(p.expansion / 4), strategy.colonyTargets.length);
@@ -59,6 +69,9 @@ export function planProduction(ctx: AiContext, strategy: Strategy, warshipId: st
     else if (settlers < wantSettlers && big && colonyDesign && can({ kind: "ship", id: colonyDesign.id })) {
       pick = { kind: "ship", id: colonyDesign.id };
       settlers++;
+    } else if (troopShortfall > 0 && big && troopDesign && can({ kind: "ship", id: troopDesign.id })) {
+      pick = { kind: "ship", id: troopDesign.id };
+      troopShortfall -= designStats(pack, troopDesign, fx).troops;
     } else if (scouts < wantScouts && colony.capital && scoutDesign && can({ kind: "ship", id: scoutDesign.id })) {
       pick = { kind: "ship", id: scoutDesign.id };
       scouts++;
@@ -100,6 +113,7 @@ function bestBuilding(ctx: AiContext, colony: Colony, options: QueueItem[], upke
   const wInd = 5 + Math.floor((p.military + p.economy) / 2);
   const wRes = 5 + p.research;
   const hungry = ctx.economy.netFood < 0 ? 6 : 1;
+  const exposure = colonyExposure(ctx, colony);
   let best: QueueItem | null = null;
   let bestScore = 0;
   for (const item of options) {
@@ -113,7 +127,8 @@ function bestBuilding(ctx: AiContext, colony: Colony, options: QueueItem[], upke
       ((e.research ?? 0) + Math.floor(((e.researchPercent ?? 0) * out.research) / 100)) * wRes +
       (e.food ?? 0) * 3 * hungry +
       (e.credits ?? 0) * 6 +
-      (e.maxPop ?? 0) * 8 * (out.maxPop - colony.population <= 1 ? 2 : 1) -
+      (e.maxPop ?? 0) * 8 * (out.maxPop - colony.population <= 1 ? 2 : 1) +
+      defenseValue(b.defense) * exposure * (2 + p.defense) / 10 -
       b.upkeep * 8;
     const score = Math.floor((value * 1000) / itemCost(pack, ctx.empire, item));
     if (value > 0 && score > bestScore) {
@@ -122,6 +137,21 @@ function bestBuilding(ctx: AiContext, colony: Colony, options: QueueItem[], upke
     }
   }
   return best;
+}
+
+/** How threatened a colony is: 0 (deep in our space) to 3 (rivals or their warships next door). */
+function colonyExposure(ctx: AiContext, colony: Colony): number {
+  const d = ctx.dist(colony.systemId);
+  const nearRival = ctx.rivalColonies.some((c) => d[c.systemId]! <= 450);
+  const nearShips = ctx.recentEnemies.some((s) => d[s.systemId]! <= 350);
+  let exposure = (nearRival ? 1 : 0) + (nearShips ? 1 : 0) + (colony.blockaded ? 1 : 0);
+  if (colony.capital) exposure = Math.max(exposure, 1);
+  return exposure;
+}
+
+function defenseValue(d: { hp?: number; shield?: number; weapons?: { damage: number; accuracy: number; count: number }[]; troops?: number; mines?: number }): number {
+  const dpr = (d.weapons ?? []).reduce((n, w) => n + (w.damage * w.accuracy * w.count) / 100, 0);
+  return Math.floor((d.hp ?? 0) / 4 + dpr * 4 + (d.troops ?? 0) * 2 + (d.shield ?? 0) * 10 + (d.mines ?? 0) / 2);
 }
 
 /** Capital stays balanced; other colonies lean to the personality, or to food when the stock is running out. */

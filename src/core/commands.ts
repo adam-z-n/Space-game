@@ -25,6 +25,7 @@ import {
 } from "./state";
 import { buildBlocker, buyCost, colonizeBlocker, itemCost, newColony, techAvailable } from "./economy";
 import { designBlocker, fleetCanColonize, fleetMaxSupply, fleetShipStats, refreshFleetStats } from "./ships";
+import { fleetTroops } from "./defense";
 import { resolveTurn } from "./turn";
 
 /**
@@ -57,6 +58,11 @@ export type Command =
   | { type: "createDesign"; empireId: EmpireId; design: Omit<DesignData, "id"> }
   /** Hide a design from build lists. Ships already built are unaffected. */
   | { type: "retireDesign"; empireId: EmpireId; designId: string }
+  /**
+   * Order a fleet carrying troops to land on a rival colony once its orbital defenses are down.
+   * The fleet must be at (or heading for) the colony's system; null cancels the order.
+   */
+  | { type: "invade"; empireId: EmpireId; fleetId: FleetId; colonyId: ColonyId | null }
   /** Scrap a fleet to stop paying its upkeep. Nothing is refunded. */
   | { type: "disbandFleet"; empireId: EmpireId; fleetId: FleetId }
   /** Ends the orders phase for everyone and resolves the turn. */
@@ -216,6 +222,18 @@ export function validateCommand(state: GameState, command: Command, pack: Conten
       const fleet = ownFleet(state, command.empireId, command.fleetId);
       return typeof fleet === "string" ? fleet : null;
     }
+    case "invade": {
+      const fleet = ownFleet(state, command.empireId, command.fleetId);
+      if (typeof fleet === "string") return fleet;
+      if (command.colonyId === null) return null;
+      if (fleetTroops(state, pack, fleet) === 0) return "fleet carries no troops";
+      // Only colonies the empire knows about can be targeted (no peeking through fog).
+      const known = state.empires[command.empireId]!.colonySightings.find((c) => c.colonyId === command.colonyId);
+      if (!known) return "no known rival colony there";
+      const destination = fleet.route.length > 0 ? fleet.route[fleet.route.length - 1] : fleet.systemId;
+      if (destination !== known.systemId) return "fleet must be at or heading for that system";
+      return null;
+    }
     case "endTurn":
       return state.outcome ? "the game is over" : null;
     default:
@@ -237,6 +255,7 @@ export function applyCommand(state: GameState, command: Command, pack: ContentPa
       fleet.route = plan.route;
       fleet.progress = plan.progress;
       fleet.holding = false;
+      fleet.invadeColonyId = null; // re-issue after moving
       break;
     }
     case "setHold":
@@ -334,6 +353,9 @@ export function applyCommand(state: GameState, command: Command, pack: ContentPa
     }
     case "disbandFleet":
       next.fleets = next.fleets.filter((f) => f.id !== command.fleetId);
+      break;
+    case "invade":
+      findFleet(next, command.fleetId)!.invadeColonyId = command.colonyId;
       break;
     case "retireDesign":
       next.empires[command.empireId]!.designs.find((d) => d.id === command.designId)!.obsolete = true;

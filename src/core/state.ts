@@ -5,7 +5,7 @@ import type { BodyKind, Formation } from "../content/schema";
  * so it can be cloned, saved, hashed, and sent over a network unchanged.
  */
 
-export const STATE_VERSION = 5;
+export const STATE_VERSION = 7;
 
 export type SystemId = number;
 export type EmpireId = number;
@@ -25,6 +25,8 @@ export interface GameSettings {
   difficulty?: string;
   /** Overrides the content pack's turn limit. */
   turnLimit?: number;
+  /** Index into the content pack's empires for the player; AIs draw from the rest. Defaults to 0. */
+  playerEmpire?: number;
 }
 
 export interface Body {
@@ -62,6 +64,8 @@ export interface Empire {
   name: string;
   color: string;
   isAI: boolean;
+  /** Species id (content); its traits apply to the whole empire. */
+  species: string;
   /** AI personality id (content); null for human players. */
   personality: string | null;
   /** Difficulty id whose effects apply to this empire; null for human players. */
@@ -117,6 +121,10 @@ export interface Colony {
   progress: number;
   /** An enemy warship sits in orbit with no defender: no supply projection and no trade income. */
   blockaded: boolean;
+  /** Orbital defense hit points left (max comes from buildings); 0 means defenses are down. */
+  defenseHp: number;
+  /** Garrison troops (militia from population comes on top). */
+  troops: number;
 }
 
 export interface ColonySighting {
@@ -126,6 +134,9 @@ export interface ColonySighting {
   bodyId: BodyId;
   name: string;
   population: number;
+  /** Orbital defense hit points and ground troops (garrison plus militia) as observed. */
+  defenseHp: number;
+  troops: number;
   turn: number;
 }
 
@@ -141,6 +152,8 @@ export interface FleetSighting extends FleetPosition {
   empireId: EmpireId;
   name: string;
   ships: number;
+  /** Hull of the fleet's largest ship, as observed (for its icon). */
+  hull: string;
   /** Rough combat strength as observed (see fleetStrength). */
   strength: number;
   armed: boolean;
@@ -200,6 +213,8 @@ export interface Fleet {
   sensorRange: number;
   /** Player told this fleet to stay put; idle holding fleets don't need attention. */
   holding: boolean;
+  /** Land this fleet's troops on this colony once its orbital defenses are down. */
+  invadeColonyId: ColonyId | null;
 }
 
 export type GameEvent =
@@ -221,7 +236,29 @@ export type GameEvent =
   | { type: "fleetIntercepted"; turn: number; empireId: EmpireId; fleetId: FleetId; systemId: SystemId }
   | { type: "blockaded"; turn: number; empireId: EmpireId; colonyId: ColonyId; systemId: SystemId }
   | { type: "empireEliminated"; turn: number; empireId: EmpireId; eliminatedId: EmpireId }
+  /** Sent to both sides. */
+  | {
+      type: "invasion";
+      turn: number;
+      empireId: EmpireId;
+      attackerId: EmpireId;
+      defenderId: EmpireId;
+      colonyId: ColonyId;
+      systemId: SystemId;
+      captured: boolean;
+      attackingTroops: number;
+      defendingTroops: number;
+    }
+  | { type: "defensesDown"; turn: number; empireId: EmpireId; colonyId: ColonyId; systemId: SystemId }
+  | { type: "mineHits"; turn: number; empireId: EmpireId; systemId: SystemId; hits: number; shipsLost: number }
+  | { type: "capitalMoved"; turn: number; empireId: EmpireId; colonyId: ColonyId; systemId: SystemId }
   | { type: "gameOver"; turn: number; empireId: EmpireId; winnerId: EmpireId; reason: GameOutcome["reason"] };
+
+export interface Minefield {
+  systemId: SystemId;
+  empireId: EmpireId;
+  strength: number;
+}
 
 export interface GameOutcome {
   winnerId: EmpireId;
@@ -275,6 +312,8 @@ export interface GameState {
   lastBattles: BattleReport[];
   /** Set when the game ends; no further turns resolve. */
   outcome: GameOutcome | null;
+  /** Mines each empire keeps in a system; they hit other empires' ships that stop there. */
+  minefields: Minefield[];
 }
 
 export function getSystem(state: GameState, id: SystemId): StarSystem {

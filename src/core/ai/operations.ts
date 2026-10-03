@@ -12,12 +12,18 @@ export function planOperations(ctx: AiContext, strategy: Strategy): void {
   colonize(ctx, strategy);
   scout(ctx);
   defend(ctx, strategy);
+  invade(ctx);
   attack(ctx, strategy);
   garrison(ctx, strategy);
   gather(ctx);
 }
 
 const free = (ctx: AiContext, f: FleetInfo) => !ctx.busy.has(f.fleet.id);
+
+/** Systems unarmed ships should stay out of: recent enemy warships and defended rival colonies. */
+function dangerZones(ctx: AiContext): Set<SystemId> {
+  return new Set([...ctx.recentEnemies.map((s) => s.systemId), ...ctx.rivalColonies.filter((c) => c.defenseHp > 0).map((c) => c.systemId)]);
+}
 const warships = (ctx: AiContext) => ctx.fleets.filter((f) => f.armed && !f.colonize && free(ctx, f));
 
 function nearest(ctx: AiContext, from: SystemId, candidates: SystemId[]): SystemId | null {
@@ -85,7 +91,7 @@ function colonize(ctx: AiContext, strategy: Strategy): void {
       continue;
     }
     // Best value per distance, avoiding systems where enemy warships were just seen.
-    const danger = new Set(ctx.recentEnemies.map((s) => s.systemId));
+    const danger = dangerZones(ctx);
     const d = ctx.dist(at);
     let best: (typeof strategy.colonyTargets)[number] | null = null;
     let bestScore = -1;
@@ -111,7 +117,7 @@ function scout(ctx: AiContext): void {
   const explored = new Set(ctx.empire.explored);
   const claimed = new Set<SystemId>();
   for (const info of ctx.fleets) if (info.recon && info.fleet.route.length > 0) claimed.add(info.fleet.route[info.fleet.route.length - 1]!);
-  const danger = new Set(ctx.recentEnemies.map((s) => s.systemId));
+  const danger = dangerZones(ctx);
   for (const info of ctx.fleets) {
     if (!info.recon || !free(ctx, info)) continue;
     ctx.busy.add(info.fleet.id);
@@ -172,7 +178,10 @@ function attack(ctx: AiContext, strategy: Strategy): void {
   if (pool.length === 0 || !ctx.capital) return;
   const total = pool.reduce((n, f) => n + f.strength, 0);
   const nerve = 100 + ctx.personality.caution * 10;
-  const guardAt = (systemId: SystemId) => ctx.recentEnemies.filter((s) => s.systemId === systemId).reduce((n, s) => n + s.strength, 0);
+  // Known warships there plus the colony's orbital defenses as last seen.
+  const guardAt = (systemId: SystemId) =>
+    ctx.recentEnemies.filter((s) => s.systemId === systemId).reduce((n, s) => n + s.strength, 0) +
+    ctx.rivalColonies.filter((c) => c.systemId === systemId).reduce((n, c) => n + Math.floor((c.defenseHp * 6) / 5), 0);
   const lead = [...pool].sort((a, b) => b.strength - a.strength || a.fleet.id - b.fleet.id)[0]!;
 
   const candidates = ctx.rivalColonies
@@ -189,11 +198,40 @@ function attack(ctx: AiContext, strategy: Strategy): void {
   const needed = Math.floor((target.guard * nerve) / 100) + 1;
   const atStaging = pool.filter((f) => f.idle && f.fleet.systemId === staging);
   const ready = atStaging.reduce((n, f) => n + f.strength, 0);
+
+  // Troop transports gather at the staging system and ride along with the strongest fleet there.
+  const transports = ctx.fleets.filter((f) => f.troops > 0 && !f.armed && free(ctx, f));
+  const anchor = [...atStaging].sort((a, b) => b.strength - a.strength || a.fleet.id - b.fleet.id)[0];
+  let carried = anchor?.troops ?? 0;
+  for (const info of transports) {
+    if (anchor && info.idle && info.fleet.systemId === staging) {
+      ctx.busy.add(info.fleet.id);
+      carried += info.troops;
+      ctx.commands.push({ type: "mergeFleets", empireId: ctx.id, fleetId: info.fleet.id, intoFleetId: anchor.fleet.id });
+    } else {
+      moveTo(ctx, info, staging);
+    }
+  }
+
   if (raider || ready >= needed) {
     for (const info of raider ? pool : atStaging) moveTo(ctx, info, target.colony.systemId);
+    if (anchor && carried > 0 && !raider) {
+      ctx.commands.push({ type: "invade", empireId: ctx.id, fleetId: anchor.fleet.id, colonyId: target.colony.colonyId });
+    }
   }
   if (!raider) {
     for (const info of pool) if (!ctx.busy.has(info.fleet.id)) moveTo(ctx, info, staging);
+  }
+}
+
+/** Fleets with troops sitting at a known rival colony keep an invasion order on it. */
+function invade(ctx: AiContext): void {
+  for (const info of ctx.fleets) {
+    if (info.troops === 0 || !free(ctx, info) || info.fleet.progress > 0 || info.fleet.route.length > 0) continue;
+    const colony = ctx.rivalColonies.filter((c) => c.systemId === info.fleet.systemId).sort((a, b) => a.troops - b.troops || a.colonyId - b.colonyId)[0];
+    if (!colony || info.fleet.invadeColonyId === colony.colonyId) continue;
+    ctx.busy.add(info.fleet.id);
+    ctx.commands.push({ type: "invade", empireId: ctx.id, fleetId: info.fleet.id, colonyId: colony.colonyId });
   }
 }
 
