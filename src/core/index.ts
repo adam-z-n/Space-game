@@ -10,3 +10,4 @@ export * from "./save";
 export { loadContentPack, ContentError, type ContentPack } from "../content/schema";
 export * from "./vision";
 export * from "./view";
+export * from "./economy";

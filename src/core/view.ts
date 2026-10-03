@@ -1,5 +1,7 @@
-import type { Body, EmpireId, FleetId, FleetPosition, GameState, Lane, SystemId } from "./state";
-import { fleetPosition } from "./state";
+import type { Body, BodyId, ColonyId, EmpireId, FleetId, FleetPosition, GameState, Lane, SystemId } from "./state";
+import { colonyOnBody, fleetPosition } from "./state";
+import type { ContentPack } from "../content/schema";
+import { availableTechs, colonizeBlocker, getShipTemplate } from "./economy";
 import { positionPoint, sensorSources } from "./vision";
 
 /**
@@ -17,8 +19,19 @@ export interface SystemView {
   explored: boolean;
   /** Known only once explored. */
   bodies: Body[] | null;
-  /** Whose home this is, if the viewer has explored it. */
-  homeOf: EmpireId | null;
+  /** Colonies the viewer knows about here: its own, plus rivals' current or last-known. */
+  colonies: ColonyMarker[];
+}
+
+export interface ColonyMarker {
+  colonyId: ColonyId;
+  bodyId: BodyId;
+  empireId: EmpireId;
+  name: string;
+  population: number;
+  capital: boolean;
+  own: boolean;
+  seenTurn: number;
 }
 
 export interface FleetView {
@@ -59,7 +72,17 @@ export interface EmpireView {
 export function empireView(state: GameState, viewerId: EmpireId): EmpireView {
   const viewer = state.empires[viewerId]!;
   const explored = new Set(viewer.explored);
-  const homes = new Map(state.empires.map((e) => [e.homeSystemId, e.id]));
+  const markers = new Map<SystemId, ColonyMarker[]>();
+  const addMarker = (systemId: SystemId, marker: ColonyMarker) => markers.set(systemId, [...(markers.get(systemId) ?? []), marker]);
+  for (const c of state.colonies) {
+    if (c.empireId !== viewerId) continue;
+    addMarker(c.systemId, { colonyId: c.id, bodyId: c.bodyId, empireId: c.empireId, name: c.name, population: c.population, capital: c.capital, own: true, seenTurn: state.turn });
+  }
+  for (const c of viewer.colonySightings) {
+    // Capitals sit on the homeworld, always the first body of the home system.
+    const capital = state.empires[c.empireId]!.homeSystemId === c.systemId && state.galaxy.systems[c.systemId]!.bodies[0]?.id === c.bodyId;
+    addMarker(c.systemId, { colonyId: c.colonyId, bodyId: c.bodyId, empireId: c.empireId, name: c.name, population: c.population, capital, own: false, seenTurn: c.turn });
+  }
 
   const systems: SystemView[] = state.galaxy.systems.map((s) => {
     const known = explored.has(s.id);
@@ -71,7 +94,7 @@ export function empireView(state: GameState, viewerId: EmpireId): EmpireView {
       starType: s.starType,
       explored: known,
       bodies: known ? s.bodies : null,
-      homeOf: known ? (homes.get(s.id) ?? null) : null,
+      colonies: (markers.get(s.id) ?? []).sort((a, b) => a.colonyId - b.colonyId),
     };
   });
 
@@ -108,8 +131,7 @@ export function empireView(state: GameState, viewerId: EmpireId): EmpireView {
     });
   }
 
-  const met = new Set<EmpireId>([viewerId, ...viewer.sightings.map((s) => s.empireId)]);
-  for (const system of systems) if (system.homeOf !== null) met.add(system.homeOf);
+  const met = new Set<EmpireId>([viewerId, ...viewer.sightings.map((s) => s.empireId), ...viewer.colonySightings.map((c) => c.empireId)]);
 
   return {
     turn: state.turn,
@@ -125,10 +147,15 @@ export function empireView(state: GameState, viewerId: EmpireId): EmpireView {
 /** Full-knowledge view, for debugging and spectating AI games. */
 export function omniscientView(state: GameState, viewerId: EmpireId): EmpireView {
   const view = empireView(state, viewerId);
-  const homes = new Map(state.empires.map((e) => [e.homeSystemId, e.id]));
   return {
     ...view,
-    systems: state.galaxy.systems.map((s) => ({ ...s, explored: true, homeOf: homes.get(s.id) ?? null })),
+    systems: state.galaxy.systems.map((s) => ({
+      ...s,
+      explored: true,
+      colonies: state.colonies
+        .filter((c) => c.systemId === s.id)
+        .map((c) => ({ colonyId: c.id, bodyId: c.bodyId, empireId: c.empireId, name: c.name, population: c.population, capital: c.capital, own: c.empireId === viewerId, seenTurn: state.turn })),
+    })),
     fleets: state.fleets.map((f) => {
       const position = fleetPosition(f);
       return {
@@ -148,12 +175,26 @@ export function omniscientView(state: GameState, viewerId: EmpireId): EmpireView
   };
 }
 
-export type AttentionItem = { type: "idleFleet"; fleetId: FleetId; systemId: SystemId };
+export type AttentionItem =
+  | { type: "chooseResearch" }
+  | { type: "emptyQueue"; colonyId: ColonyId; systemId: SystemId }
+  | { type: "canColonize"; fleetId: FleetId; systemId: SystemId }
+  | { type: "idleFleet"; fleetId: FleetId; systemId: SystemId };
 
-/** Things the player probably wants to handle before ending the turn. */
-export function attentionItems(state: GameState, empireId: EmpireId): AttentionItem[] {
-  return state.fleets
-    .filter((f) => f.empireId === empireId && f.route.length === 0 && !f.holding)
-    .sort((a, b) => a.id - b.id)
-    .map((f) => ({ type: "idleFleet", fleetId: f.id, systemId: f.systemId }));
+/** Things the player probably wants to handle before ending the turn, most important first. */
+export function attentionItems(state: GameState, pack: ContentPack, empireId: EmpireId): AttentionItem[] {
+  const empire = state.empires[empireId]!;
+  const items: AttentionItem[] = [];
+  if (empire.research.current === null && availableTechs(pack, empire).length > 0) items.push({ type: "chooseResearch" });
+  for (const colony of state.colonies) {
+    if (colony.empireId === empireId && colony.queue.length === 0) items.push({ type: "emptyQueue", colonyId: colony.id, systemId: colony.systemId });
+  }
+  const idle = state.fleets.filter((f) => f.empireId === empireId && f.route.length === 0 && !f.holding).sort((a, b) => a.id - b.id);
+  for (const fleet of idle) {
+    const canSettle =
+      getShipTemplate(pack, fleet.templateId).colonize &&
+      state.galaxy.systems[fleet.systemId]!.bodies.some((b) => !colonyOnBody(state, b.id) && colonizeBlocker(pack, empire, b) === null);
+    items.push({ type: canSettle ? "canColonize" : "idleFleet", fleetId: fleet.id, systemId: fleet.systemId });
+  }
+  return items;
 }

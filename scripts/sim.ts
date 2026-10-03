@@ -5,13 +5,13 @@
  *   npm run sim -- [--games 20] [--turns 50] [--size medium] [--ai 4]
  */
 import { parseArgs } from "node:util";
-import { Game, buildAdjacency, replay, shortestPaths, stateHash, type GameSettings } from "../src/core";
+import { Game, buildAdjacency, replay, shortestPaths, stateHash, type GameEvent, type GameSettings } from "../src/core";
 import { defaultPack } from "../src/content/defaultPack";
 
 const { values } = parseArgs({
   options: {
     games: { type: "string", default: "20" },
-    turns: { type: "string", default: "50" },
+    turns: { type: "string", default: "100" },
     size: { type: "string" },
     ai: { type: "string", default: "4" },
   },
@@ -33,9 +33,15 @@ for (const galaxySize of sizes) {
   const deadEnds: number[] = [];
   const exploredShare: number[] = [];
   const msPerTurn: number[] = [];
+  const colonies: number[] = [];
+  const population: number[] = [];
+  const techs: number[] = [];
+  const credits: number[] = [];
+  const firstColonyTurn: number[] = [];
+  const eventCounts = new Map<string, number>();
 
   for (let g = 0; g < games; g++) {
-    const settings: GameSettings = { seed: `sim-${galaxySize}-${g}`, galaxySize, aiCount: Number(values.ai) };
+    const settings: GameSettings = { seed: `sim-${galaxySize}-${g}`, galaxySize, aiCount: Number(values.ai), allAI: true };
     const game = Game.create(settings, pack);
     const { galaxy } = game.state;
     const adj = buildAdjacency(galaxy.systems.length, galaxy.lanes);
@@ -50,8 +56,21 @@ for (const galaxySize of sizes) {
     }
 
     const start = performance.now();
-    for (let t = 0; t < turns; t++) game.endTurn();
+    const firstColony = new Map<number, number>();
+    for (let t = 0; t < turns; t++) {
+      const events: GameEvent[] = game.endTurn();
+      for (const e of events) eventCounts.set(e.type, (eventCounts.get(e.type) ?? 0) + 1);
+      for (const c of game.state.colonies) if (!c.capital && !firstColony.has(c.empireId)) firstColony.set(c.empireId, game.state.turn);
+    }
     msPerTurn.push((performance.now() - start) / turns);
+    for (const empire of game.state.empires) {
+      const mine = game.state.colonies.filter((c) => c.empireId === empire.id);
+      colonies.push(mine.length);
+      population.push(mine.reduce((n, c) => n + c.population, 0));
+      techs.push(empire.techs.length);
+      credits.push(empire.credits);
+      firstColonyTurn.push(firstColony.get(empire.id) ?? turns + 1);
+    }
 
     const ai = game.state.empires.filter((e) => e.isAI);
     exploredShare.push(avg(ai.map((e) => e.explored.length / galaxy.systems.length)));
@@ -69,6 +88,15 @@ for (const galaxySize of sizes) {
   console.log(`  nearest rival home   min ${Math.min(...homeGaps)}  avg ${fmt(avg(homeGaps))} distance units`);
   console.log(`  AI explored by end   avg ${fmt(avg(exploredShare) * 100)}% of systems`);
   console.log(`  resolution time      avg ${avg(msPerTurn).toFixed(2)} ms per turn`);
+  const range = (xs: number[]) => `min ${Math.min(...xs)}  avg ${fmt(avg(xs))}  max ${Math.max(...xs)}`;
+  console.log(`  colonies per empire  ${range(colonies)}`);
+  console.log(`  population           ${range(population)}`);
+  console.log(`  techs researched     ${range(techs)}`);
+  console.log(`  treasury at end      ${range(credits)}`);
+  console.log(`  first new colony     ${range(firstColonyTurn)} (turn)`);
+  const perEmpireGame = games * (Number(values.ai) + 1);
+  const ev = (k: string) => fmt((eventCounts.get(k) ?? 0) / perEmpireGame);
+  console.log(`  per empire per game  ships ${ev("shipCompleted")}  buildings ${ev("buildingCompleted")}  starving turns ${ev("starvation")}  debt turns ${ev("inDebt")}`);
 }
 
 console.log(failures === 0 ? "\nAll replays matched." : `\n${failures} replay mismatches.`);

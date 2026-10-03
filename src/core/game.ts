@@ -76,7 +76,7 @@ export class Game {
   endTurn(): GameEvent[] {
     for (const empire of this.current.empires) {
       if (!empire.isAI || empire.eliminated) continue;
-      for (const command of planAiTurn(this.current, empire.id)) {
+      for (const command of planAiTurn(this.current, this.pack, empire.id)) {
         const error = this.apply(command);
         if (error) throw new Error(`AI ${empire.id} issued an invalid command: ${error}`);
       }

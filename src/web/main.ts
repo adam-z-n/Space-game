@@ -3,11 +3,19 @@ import {
   MAX_AI,
   MIN_AI,
   attentionItems,
+  bodyName,
+  colonizeBlocker,
+  colonyOnBody,
   deserializeSave,
+  findColony,
+  getShipTemplate,
+  getTech,
+  prospectiveMaxPop,
   empireView,
   omniscientView,
   planMove,
   serializeSave,
+  type ColonyId,
   type EmpireView,
   type FleetId,
   type FleetView,
@@ -19,6 +27,8 @@ import { defaultPack } from "../content/defaultPack";
 import { onAppBackground } from "../platform/lifecycle";
 import { LocalSaveStore } from "../platform/storage";
 import { GalaxyMap, type MapTarget, type RoutePreview } from "./map";
+import { button, h, turnsText } from "./dom";
+import { colonyPanel, empirePanel, researchPanel, resourceBar, type PanelContext } from "./economyPanels";
 
 const AUTOSAVE = "autosave";
 const pack = defaultPack();
@@ -26,25 +36,6 @@ const store = new LocalSaveStore();
 const root = document.getElementById("app")!;
 
 // ---------- helpers ----------
-
-type Props<E> = Partial<Omit<E, "style">> & { style?: string };
-
-function h<K extends keyof HTMLElementTagNameMap>(tag: K, props: Props<HTMLElementTagNameMap[K]> = {}, ...children: (Node | string | null)[]): HTMLElementTagNameMap[K] {
-  const { style, ...rest } = props;
-  const el = Object.assign(document.createElement(tag), rest);
-  if (style) el.setAttribute("style", style);
-  for (const child of children) if (child !== null) el.append(child);
-  return el;
-}
-
-function button(label: string, onClick: () => void, props: Props<HTMLButtonElement> = {}): HTMLButtonElement {
-  const b = h("button", { textContent: label, ...props });
-  b.onclick = (e) => {
-    e.stopPropagation();
-    onClick();
-  };
-  return b;
-}
 
 function randomSeed(): string {
   const words = ["amber", "cobalt", "ember", "frost", "nova", "onyx", "quasar", "rift", "solar", "vanta", "zenith", "drift"];
@@ -71,7 +62,6 @@ function pickFile(): Promise<string | null> {
   });
 }
 
-const turnsText = (n: number) => (n === 1 ? "1 turn" : `${n} turns`);
 
 // ---------- setup screen ----------
 
@@ -109,7 +99,7 @@ async function showSetup(message?: string): Promise<void> {
       "div",
       { className: "setup" },
       h("h1", { textContent: "Space 4X" }),
-      h("p", { textContent: "Milestone 2 preview: fog of war, fleet orders, and the turn loop." }),
+      h("p", { textContent: "Milestone 3 preview: colonies, economy and research." }),
       saved ? button("Continue", () => loadAndStart(saved), { className: "primary" }) : null,
       h("label", {}, "Galaxy seed", h("div", { className: "row" }, seed, button("Random", () => (seed.value = randomSeed()), { type: "button" }))),
       h("label", {}, "Galaxy size", size),
@@ -139,11 +129,13 @@ interface UiState {
   /** A destination being considered for the selected fleet, waiting for confirmation. */
   preview: (RoutePreview & { destinationId: SystemId }) | null;
   report: GameEvent[] | null;
-  panel: "none" | "menu" | "fleets";
+  panel: "none" | "menu" | "fleets" | "research" | "empire" | "colony";
+  /** Colony shown when panel is "colony". */
+  colonyId: ColonyId | null;
   contextMenu: { target: MapTarget; x: number; y: number } | null;
   revealMap: boolean;
-  /** Index into the attention queue for the "next idle" button. */
-  idleCursor: number;
+  /** The attention item the "to do" button showed last, so the next press moves on from it. */
+  lastAttention: string | null;
 }
 
 function startGame(game: Game): void {
@@ -156,9 +148,10 @@ function startGame(game: Game): void {
     preview: null,
     report: null,
     panel: "none",
+    colonyId: null,
     contextMenu: null,
     revealMap: false,
-    idleCursor: 0,
+    lastAttention: null,
   };
 
   const save = () => store.write(AUTOSAVE, serializeSave(game)).catch(() => {});
@@ -204,6 +197,27 @@ function startGame(game: Game): void {
   const hud = h("div", { className: "hud" });
   root.append(hud);
 
+  const openPanel = (panel: UiState["panel"], colonyId: ColonyId | null = null) => {
+    ui.panel = panel;
+    ui.colonyId = colonyId;
+    ui.contextMenu = null;
+    update();
+  };
+  const ctx: PanelContext = {
+    game,
+    pack,
+    issue: (command) => {
+      const error = game.issue(command);
+      if (error) alert(error);
+      update();
+      return error === null;
+    },
+    openColony: (colonyId) => openPanel("colony", colonyId),
+    openResearch: () => openPanel("research"),
+    openEmpire: () => openPanel("empire"),
+    close: () => openPanel("none"),
+  };
+
   function selectTarget(target: MapTarget | null): void {
     ui.preview = null;
     ui.contextMenu = null;
@@ -242,12 +256,53 @@ function startGame(game: Game): void {
     map.centerOn(fleet.x, fleet.y);
   }
 
-  function nextIdle(): void {
-    const items = attentionItems(game.state, game.playerId);
+  /** Step through things that need a decision: research, empty queues, colony ships, idle fleets. */
+  function nextAttention(): void {
+    const items = attentionItems(game.state, pack, game.playerId);
     if (items.length === 0) return;
-    const item = items[ui.idleCursor % items.length]!;
-    ui.idleCursor++;
-    focusFleet(item.fleetId);
+    const key = (i: (typeof items)[number]) => JSON.stringify(i);
+    const last = items.findIndex((i) => key(i) === ui.lastAttention);
+    const item = items[(last + 1) % items.length]!;
+    ui.lastAttention = key(item);
+    switch (item.type) {
+      case "chooseResearch":
+        return openPanel("research");
+      case "emptyQueue": {
+        const system = view.systems[item.systemId]!;
+        map.centerOn(system.x, system.y);
+        ui.selectedSystem = system.id;
+        ui.selectedFleet = null;
+        return openPanel("colony", item.colonyId);
+      }
+      case "canColonize":
+      case "idleFleet":
+        ui.panel = "none";
+        return focusFleet(item.fleetId);
+    }
+  }
+
+  /** Planets in a system that one of the player's colony ships there could settle right now. */
+  function colonizeOptions(systemId: SystemId): { fleetId: FleetId; bodyId: number; name: string; maxPop: number }[] {
+    const empireState = game.state.empires[game.playerId]!;
+    const ships = game.state.fleets.filter(
+      (f) => f.empireId === game.playerId && f.systemId === systemId && f.progress === 0 && getShipTemplate(pack, f.templateId).colonize,
+    );
+    if (ships.length === 0) return [];
+    const system = game.state.galaxy.systems[systemId]!;
+    return system.bodies
+      .filter((b) => !colonyOnBody(game.state, b.id) && colonizeBlocker(pack, empireState, b) === null)
+      .map((b) => ({ fleetId: ships[0]!.id, bodyId: b.id, name: bodyName(system, b.id), maxPop: prospectiveMaxPop(pack, empireState, b) }));
+  }
+
+  function colonize(fleetId: FleetId, bodyId: number): void {
+    if (ctx.issue({ type: "colonize", empireId: game.playerId, fleetId, bodyId })) {
+      const colony = colonyOnBody(game.state, bodyId);
+      ui.selectedFleet = null;
+      if (colony) {
+        ui.selectedSystem = colony.systemId;
+        openPanel("colony", colony.id);
+      }
+    }
   }
 
   function fleetStatus(fleet: FleetView): string {
@@ -272,7 +327,47 @@ function startGame(game: Game): void {
         return `Explored ${systemName(e.systemId)}`;
       case "fleetSighted":
         return `${empire(e.ownerId).name} fleet sighted near ${systemName(e.systemId)}`;
+      case "colonySighted":
+        return `Found a ${empire(e.ownerId).name} colony at ${systemName(e.systemId)}`;
+      case "colonyFounded":
+        return `New colony at ${systemName(e.systemId)}`;
+      case "buildingCompleted":
+        return `${pack.buildings.find((b) => b.id === e.buildingId)?.name} built at ${colonyName(e.colonyId)}`;
+      case "shipCompleted":
+        return `${fleetView(e.fleetId)?.name ?? "Ship"} launched at ${colonyName(e.colonyId)}`;
+      case "techResearched":
+        return `Researched ${getTech(pack, e.techId).name}`;
+      case "populationGrew":
+        return `${colonyName(e.colonyId)} grew to ${e.population}`;
+      case "starvation":
+        return "Food ran out: colonies are starving";
+      case "inDebt":
+        return `Treasury in debt (${e.credits}): industry and research reduced`;
     }
+  }
+
+  const colonyName = (id: ColonyId) => findColony(game.state, id)?.name ?? "a colony";
+
+  /** Where tapping a report line should take the player. */
+  function openEvent(e: GameEvent): void {
+    switch (e.type) {
+      case "techResearched":
+        return openPanel("research");
+      case "starvation":
+      case "inDebt":
+        return openPanel("empire");
+      case "buildingCompleted":
+      case "populationGrew":
+        return openPanel("colony", e.colonyId);
+      case "shipCompleted":
+      case "fleetArrived":
+        return focusFleet(e.fleetId);
+      case "fleetSighted":
+        if (fleetView(e.fleetId)) return focusFleet(e.fleetId);
+    }
+    const system = view.systems[e.systemId]!;
+    selectTarget({ kind: "system", id: system.id });
+    map.centerOn(system.x, system.y);
   }
 
   // ---------- HUD pieces ----------
@@ -280,25 +375,20 @@ function startGame(game: Game): void {
   function topBar(): HTMLElement {
     const me = empire(game.playerId);
     const explored = game.state.empires[game.playerId]!.explored.length;
-    return h(
+    const bar = h(
       "div",
-      { className: "topbar" },
+      { className: "topbar-row" },
       h(
         "div",
         { className: "title" },
         `Turn ${view.turn}`,
         h("small", {}, h("span", { className: "swatch", style: `background:${me.color}` }), `${me.name} · ${explored}/${view.systems.length} explored`),
       ),
-      button("Fleets", () => {
-        ui.panel = ui.panel === "fleets" ? "none" : "fleets";
-        update();
-      }),
+      button("Fleets", () => openPanel(ui.panel === "fleets" ? "none" : "fleets")),
       button("⤢", () => map.fitGalaxy(), { ariaLabel: "Show whole galaxy" }),
-      button("☰", () => {
-        ui.panel = ui.panel === "menu" ? "none" : "menu";
-        update();
-      }, { ariaLabel: "Menu" }),
+      button("☰", () => openPanel(ui.panel === "menu" ? "none" : "menu"), { ariaLabel: "Menu" }),
     );
+    return h("div", { className: "topbar" }, bar, resourceBar(ctx));
   }
 
   function menuPanel(): HTMLElement {
@@ -414,6 +504,10 @@ function startGame(game: Game): void {
       if (fleet.route?.length === 0) actions.append(button(fleet.holding ? "Stop holding" : "Hold", () => setHold(fleet.id, !fleet.holding)));
       actions.append(button("Deselect", () => selectTarget(null)));
     }
+    const settle = fleet.own && fleet.position.progress === 0 ? colonizeOptions(fleet.position.systemId).filter((o) => o.fleetId === fleet.id) : [];
+    const settleRow = settle.length
+      ? h("div", { className: "column" }, ...settle.map((o) => button(`Colonize ${o.name} · max pop ${o.maxPop}`, () => colonize(o.fleetId, o.bodyId), { className: "primary" })))
+      : null;
     return h(
       "div",
       { className: "sheet" },
@@ -421,6 +515,7 @@ function startGame(game: Game): void {
       h("div", { className: "sub", textContent: `${owner.name} · ${fleetStatus(fleet)}` }),
       fleet.own ? h("div", { className: "hint", textContent: "Tap a star to set a destination, or drag from the fleet." }) : null,
       fleet.own && fleet.speed ? h("div", { className: "hint", textContent: `Speed ${fleet.speed} per turn` }) : null,
+      settleRow,
       fleet.own ? actions : null,
     );
   }
@@ -429,7 +524,8 @@ function startGame(game: Game): void {
     if (ui.selectedSystem === null) return null;
     const system = view.systems[ui.selectedSystem]!;
     const star = pack.starTypes.find((t) => t.id === system.starType);
-    const owner = system.homeOf === null ? null : empire(system.homeOf);
+    const capitalOf = system.colonies.find((c) => c.capital);
+    const settle = new Map(colonizeOptions(system.id).map((o) => [o.bodyId, o]));
 
     const bodies = h("ul");
     if (!system.bodies) {
@@ -438,15 +534,35 @@ function startGame(game: Game): void {
       bodies.append(h("li", {}, h("span", { textContent: "No bodies" })));
     } else {
       for (const body of system.bodies) {
+        const colony = system.colonies.find((c) => c.bodyId === body.id);
+        let label: string;
+        let detail: HTMLElement;
         if (body.kind === "planet") {
           const type = pack.planetTypes.find((t) => t.id === body.planetType);
           const size = pack.planetSizes.find((t) => t.id === body.size);
           const rich = pack.richness.find((t) => t.id === body.richness);
-          bodies.append(h("li", {}, h("span", { textContent: `${size?.name} ${type?.name} planet` }), h("span", { textContent: `${rich?.name} · hab ${type?.habitability}` })));
+          label = `${size?.name} ${type?.name}`;
+          detail = h("span", { textContent: `${rich?.name} · hab ${type?.habitability}` });
         } else {
-          const label = { asteroids: "Asteroid field", gasGiant: "Gas giant", anomaly: "Anomaly" }[body.kind];
-          bodies.append(h("li", {}, h("span", { textContent: label })));
+          label = { asteroids: "Asteroid field", gasGiant: "Gas giant", anomaly: "Anomaly" }[body.kind];
+          detail = h("span", { textContent: "" });
         }
+        const row = h("li", {}, h("span", {}, label));
+        if (colony) {
+          const owner = empire(colony.empireId);
+          const stale = !colony.own && colony.seenTurn < view.turn ? ` (turn ${colony.seenTurn})` : "";
+          row.firstChild!.appendChild(
+            h("div", { className: "small" }, h("span", { className: "swatch", style: `background:${owner.color}` }), `${colony.capital ? "★ " : ""}${colony.name} · pop ${colony.population}${stale}`),
+          );
+          if (colony.own) {
+            row.className = "tappable";
+            row.onclick = () => openPanel("colony", colony.colonyId);
+            detail = h("span", { textContent: "Manage ›" });
+          }
+        }
+        const option = settle.get(body.id);
+        row.append(option ? button(`Colonize · max ${option.maxPop}`, () => colonize(option.fleetId, option.bodyId), { className: "primary small-button" }) : detail);
+        bodies.append(row);
       }
     }
 
@@ -467,7 +583,7 @@ function startGame(game: Game): void {
       "div",
       { className: "sheet" },
       h("h2", {}, system.name, button("✕", () => selectTarget(null), { ariaLabel: "Close" })),
-      h("div", { className: "sub", textContent: `${star?.name ?? system.starType}${owner ? ` · ${owner.name} home` : ""}` }),
+      h("div", { className: "sub", textContent: `${star?.name ?? system.starType}${capitalOf ? ` · ${empire(capitalOf.empireId).name} capital` : ""}` }),
       bodies,
       here.length ? h("div", { className: "sub", style: "margin-top:10px", textContent: "Fleets" }) : null,
       here.length ? fleets : null,
@@ -477,16 +593,18 @@ function startGame(game: Game): void {
   function reportSheet(): HTMLElement | null {
     if (!ui.report) return null;
     const mine = ui.report.filter((e) => e.empireId === game.playerId);
+    // Growth is frequent: fold it into one line when several colonies grew.
+    const grew = mine.filter((e) => e.type === "populationGrew");
+    const shown = grew.length > 2 ? mine.filter((e) => e.type !== "populationGrew") : mine;
     const list = h("ul");
-    for (const e of mine) {
+    for (const e of shown) {
       const row = h("li", { className: "tappable" }, h("span", { textContent: describeEvent(e) }));
-      row.onclick = () => {
-        const system = view.systems[e.systemId]!;
-        if (e.type === "fleetArrived") return focusFleet(e.fleetId);
-        if (e.type === "fleetSighted" && fleetView(e.fleetId)) return focusFleet(e.fleetId);
-        selectTarget({ kind: "system", id: system.id });
-        map.centerOn(system.x, system.y);
-      };
+      row.onclick = () => openEvent(e);
+      list.append(row);
+    }
+    if (grew.length > 2) {
+      const row = h("li", { className: "tappable" }, h("span", { textContent: `${grew.length} colonies grew` }));
+      row.onclick = () => openPanel("empire");
       list.append(row);
     }
     if (mine.length === 0) list.append(h("li", {}, h("span", { className: "muted", textContent: "Nothing to report." })));
@@ -494,7 +612,7 @@ function startGame(game: Game): void {
   }
 
   function bottomBar(): HTMLElement {
-    const idle = attentionItems(game.state, game.playerId).length;
+    const todo = attentionItems(game.state, pack, game.playerId).length;
     const actions = h(
       "div",
       { className: "actions" },
@@ -503,18 +621,20 @@ function startGame(game: Game): void {
         ui.preview = null;
         update();
       }, { disabled: !game.canUndo }),
-      idle > 0 ? button(`${idle} idle ›`, nextIdle, { className: "attention", title: "Fleets without orders" }) : null,
+      todo > 0 ? button(`${todo} to do ›`, nextAttention, { className: "attention", title: "Research, build queues and fleets waiting for orders" }) : null,
       button("End turn", () => {
         ui.report = game.endTurn();
         ui.selectedSystem = null;
         ui.selectedFleet = null;
         ui.preview = null;
-        ui.idleCursor = 0;
+        ui.lastAttention = null;
+        ui.panel = "none";
         void save();
         update();
       }, { className: "primary" }),
     );
-    const sheet = previewBar() ?? fleetSheet() ?? systemSheet() ?? reportSheet();
+    // A full panel replaces the bottom sheet; the preview bar always shows.
+    const sheet = previewBar() ?? (ui.panel === "none" || ui.panel === "menu" ? (fleetSheet() ?? systemSheet() ?? reportSheet()) : null);
     return h("div", { className: "bottombar" }, sheet, actions);
   }
 
@@ -522,7 +642,19 @@ function startGame(game: Game): void {
     view = ui.revealMap ? omniscientView(game.state, game.playerId) : empireView(game.state, game.playerId);
     if (ui.selectedFleet !== null && !fleetView(ui.selectedFleet)) ui.selectedFleet = null;
     map.setScene({ view, selectedSystem: ui.selectedSystem, selectedFleet: ui.selectedFleet, preview: ui.preview });
-    const overlays = [ui.panel === "menu" ? menuPanel() : null, ui.panel === "fleets" ? fleetsPanel() : null, contextMenu()].filter((x): x is HTMLElement => x !== null);
+    const panel =
+      ui.panel === "menu"
+        ? menuPanel()
+        : ui.panel === "fleets"
+          ? fleetsPanel()
+          : ui.panel === "research"
+            ? researchPanel(ctx)
+            : ui.panel === "empire"
+              ? empirePanel(ctx)
+              : ui.panel === "colony" && ui.colonyId !== null
+                ? colonyPanel(ctx, ui.colonyId)
+                : null;
+    const overlays = [panel, contextMenu()].filter((x): x is HTMLElement => x !== null);
     hud.replaceChildren(topBar(), bottomBar(), ...overlays);
   }
 

@@ -1,6 +1,24 @@
 import type { ContentPack } from "../content/schema";
 import { buildAdjacency, findPath, laneLength } from "./graph";
-import { cloneState, findFleet, isInTransit, type EmpireId, type Fleet, type FleetId, type GameState, type SystemId } from "./state";
+import {
+  FOCUSES,
+  cloneState,
+  colonyOnBody,
+  findColony,
+  findFleet,
+  isInTransit,
+  type BodyId,
+  type Colony,
+  type ColonyId,
+  type EmpireId,
+  type Fleet,
+  type FleetId,
+  type Focus,
+  type GameState,
+  type QueueItem,
+  type SystemId,
+} from "./state";
+import { buildBlocker, buyCost, colonizeBlocker, getShipTemplate, itemCost, newColony, techAvailable } from "./economy";
 import { resolveTurn } from "./turn";
 
 /**
@@ -13,6 +31,17 @@ export type Command =
   | { type: "moveFleet"; empireId: EmpireId; fleetId: FleetId; destinationId: SystemId }
   /** Mark an idle fleet as deliberately waiting (or clear that), so it leaves the attention queue. */
   | { type: "setHold"; empireId: EmpireId; fleetId: FleetId; hold: boolean }
+  /** Use a colony ship in its current system to settle a planet. */
+  | { type: "colonize"; empireId: EmpireId; fleetId: FleetId; bodyId: BodyId }
+  | { type: "setFocus"; empireId: EmpireId; colonyId: ColonyId; focus: Focus }
+  | { type: "queueBuild"; empireId: EmpireId; colonyId: ColonyId; item: QueueItem }
+  /** Remove queue entry `index`. Progress on the first item is kept for whatever becomes first. */
+  | { type: "dequeueBuild"; empireId: EmpireId; colonyId: ColonyId; index: number }
+  /** Move queue entry `index` to the front. */
+  | { type: "prioritizeBuild"; empireId: EmpireId; colonyId: ColonyId; index: number }
+  /** Pay credits to finish the colony's current build; it completes when the turn resolves. */
+  | { type: "buyBuild"; empireId: EmpireId; colonyId: ColonyId }
+  | { type: "setResearch"; empireId: EmpireId; techId: string }
   /** Ends the orders phase for everyone and resolves the turn. */
   | { type: "endTurn" };
 
@@ -68,7 +97,14 @@ function ownFleet(state: GameState, empireId: EmpireId, fleetId: FleetId): Fleet
   return fleet;
 }
 
-export function validateCommand(state: GameState, command: Command): string | null {
+function ownColony(state: GameState, empireId: EmpireId, colonyId: ColonyId): Colony | string {
+  const colony = findColony(state, colonyId);
+  if (!colony) return `no colony ${colonyId}`;
+  if (colony.empireId !== empireId) return "colony belongs to another empire";
+  return colony;
+}
+
+export function validateCommand(state: GameState, command: Command, pack: ContentPack): string | null {
   switch (command.type) {
     case "moveFleet": {
       const fleet = ownFleet(state, command.empireId, command.fleetId);
@@ -82,6 +118,43 @@ export function validateCommand(state: GameState, command: Command): string | nu
       if (command.hold && fleet.route.length > 0) return "fleet is moving";
       return null;
     }
+    case "colonize": {
+      const fleet = ownFleet(state, command.empireId, command.fleetId);
+      if (typeof fleet === "string") return fleet;
+      if (!getShipTemplate(pack, fleet.templateId).colonize) return "not a colony ship";
+      if (isInTransit(fleet)) return "fleet is between systems";
+      const body = state.galaxy.systems[fleet.systemId]!.bodies.find((b) => b.id === command.bodyId);
+      if (!body) return "planet is not in the fleet's system";
+      if (colonyOnBody(state, body.id)) return "planet already colonized";
+      return colonizeBlocker(pack, state.empires[command.empireId]!, body);
+    }
+    case "setFocus": {
+      const colony = ownColony(state, command.empireId, command.colonyId);
+      if (typeof colony === "string") return colony;
+      return FOCUSES.includes(command.focus) ? null : `unknown focus ${command.focus}`;
+    }
+    case "queueBuild": {
+      const colony = ownColony(state, command.empireId, command.colonyId);
+      if (typeof colony === "string") return colony;
+      if (colony.queue.length >= 10) return "queue is full";
+      return buildBlocker(pack, state.empires[command.empireId]!, colony, command.item);
+    }
+    case "dequeueBuild":
+    case "prioritizeBuild": {
+      const colony = ownColony(state, command.empireId, command.colonyId);
+      if (typeof colony === "string") return colony;
+      return Number.isInteger(command.index) && command.index >= 0 && command.index < colony.queue.length ? null : "no such queue entry";
+    }
+    case "buyBuild": {
+      const colony = ownColony(state, command.empireId, command.colonyId);
+      if (typeof colony === "string") return colony;
+      const cost = buyCost(pack, colony);
+      if (cost === null) return "nothing to buy";
+      if (state.empires[command.empireId]!.credits < cost) return "not enough credits";
+      return null;
+    }
+    case "setResearch":
+      return techAvailable(pack, state.empires[command.empireId]!, command.techId) ? null : "tech not available";
     case "endTurn":
       return null;
     default:
@@ -91,7 +164,7 @@ export function validateCommand(state: GameState, command: Command): string | nu
 
 /** Apply a command to a copy of the state. The input state is never modified. */
 export function applyCommand(state: GameState, command: Command, pack: ContentPack): CommandResult {
-  const error = validateCommand(state, command);
+  const error = validateCommand(state, command, pack);
   if (error) return { ok: false, error };
 
   const next = cloneState(state);
@@ -107,6 +180,40 @@ export function applyCommand(state: GameState, command: Command, pack: ContentPa
     }
     case "setHold":
       findFleet(next, command.fleetId)!.holding = command.hold;
+      break;
+    case "colonize": {
+      const fleet = findFleet(next, command.fleetId)!;
+      const empire = next.empires[command.empireId]!;
+      next.colonies.push(newColony(next, empire, fleet.systemId, command.bodyId, pack.economy.colonyPopulation, false));
+      next.fleets = next.fleets.filter((f) => f.id !== fleet.id);
+      break;
+    }
+    case "setFocus":
+      findColony(next, command.colonyId)!.focus = command.focus;
+      break;
+    case "queueBuild":
+      findColony(next, command.colonyId)!.queue.push({ ...command.item });
+      break;
+    case "dequeueBuild": {
+      const colony = findColony(next, command.colonyId)!;
+      colony.queue.splice(command.index, 1);
+      if (colony.queue.length === 0) colony.progress = 0;
+      break;
+    }
+    case "prioritizeBuild": {
+      const colony = findColony(next, command.colonyId)!;
+      const [item] = colony.queue.splice(command.index, 1);
+      colony.queue.unshift(item!);
+      break;
+    }
+    case "buyBuild": {
+      const colony = findColony(next, command.colonyId)!;
+      next.empires[command.empireId]!.credits -= buyCost(pack, colony)!;
+      colony.progress = itemCost(pack, colony.queue[0]!);
+      break;
+    }
+    case "setResearch":
+      next.empires[command.empireId]!.research.current = command.techId;
       break;
     case "endTurn":
       resolveTurn(next, pack);

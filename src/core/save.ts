@@ -4,6 +4,7 @@ import { Game } from "./game";
 import type { Command } from "./commands";
 import { STATE_VERSION, type GameState } from "./state";
 import { updateSightings } from "./vision";
+import { newColony, refreshEmpireStats } from "./economy";
 
 export const SAVE_FORMAT = 1;
 
@@ -47,19 +48,46 @@ export function deserializeSave(json: string, pack: ContentPack): Game {
  * valid because commands only ever gain new types.
  */
 export function migrateState(state: GameState, pack: ContentPack): GameState {
-  if (state.version === 1) {
-    // v2 adds fog of war (sensor ranges, sightings) and fleet hold orders.
-    for (const empire of state.empires) {
-      empire.homeSensorRange = pack.start.homeSensorRange;
-      empire.sightings = [];
-    }
-    for (const fleet of state.fleets) {
-      fleet.sensorRange = pack.start.fleets.find((f) => f.name === fleet.name)?.sensorRange ?? 0;
-      fleet.holding = false;
-    }
-    state.version = 2;
-    updateSightings(state, null, state.turn);
+  // Older states don't match today's types; migrate them as plain JSON.
+  const old = state as unknown as { version: number; empires: Record<string, unknown>[]; fleets: Record<string, unknown>[]; colonies?: unknown[] };
+
+  if (old.version === 1) {
+    // v2 added fog of war (sensor ranges, sightings) and fleet hold orders. v3 recomputes sensors.
+    for (const empire of old.empires) empire.sightings = [];
+    for (const fleet of old.fleets) fleet.holding = false;
+    old.version = 2;
   }
+
+  if (old.version === 2) {
+    // v3 adds colonies, the economy and research, and ties fleets to ship templates.
+    const migrated = old as unknown as GameState;
+    migrated.colonies = [];
+    for (const empire of old.empires) {
+      delete empire.homeSensorRange;
+      Object.assign(empire, {
+        colonySightings: [],
+        credits: pack.economy.startingCredits,
+        food: pack.economy.startingFood,
+        techs: [],
+        research: { current: null, progress: 0 },
+        shipsBuilt: {},
+        capitalSensorRange: 0,
+        colonySensorRange: 0,
+      });
+    }
+    const legacyTemplates: Record<string, string> = { "Scout Wing": "scout", "Home Fleet": "frigate" };
+    for (const fleet of old.fleets) fleet.templateId = legacyTemplates[fleet.name as string] ?? pack.shipTemplates[0]!.id;
+    for (const empire of migrated.empires) {
+      const home = migrated.galaxy.systems[empire.homeSystemId]!;
+      const capital = newColony(migrated, empire, home.id, home.bodies[0]!.id, pack.economy.capitalPopulation, true);
+      capital.buildings = [...pack.start.capitalBuildings];
+      migrated.colonies.push(capital);
+      refreshEmpireStats(migrated, pack, empire);
+    }
+    old.version = 3;
+    updateSightings(migrated, null, migrated.turn);
+  }
+
   if (state.version !== STATE_VERSION) throw new Error(`unsupported state version ${state.version}`);
   return state;
 }

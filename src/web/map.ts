@@ -108,7 +108,7 @@ export class GalaxyMap {
     const bw = this.bounds.maxX - this.bounds.minX;
     const bh = this.bounds.maxY - this.bounds.minY;
     const landscape = width > height;
-    const top = 70;
+    const top = 110;
     const bottom = landscape ? 90 : Math.min(height * 0.3, 260);
     const right = landscape ? Math.min(width * 0.45, 440) : 0;
     const usableW = width - right;
@@ -387,9 +387,16 @@ export class GalaxyMap {
     for (const system of systems) {
       const starType = this.pack.starTypes.find((t) => t.id === system.starType);
       const opacity = system.explored ? 1 : 0.45;
-      if (system.homeOf !== null) {
-        parts.push(`<circle cx="${system.x}" cy="${system.y}" r="${starRadius + px(5)}" fill="none" stroke="${color(system.homeOf)}" stroke-width="${px(2.5)}"/>`);
-      }
+      // One ring per empire with colonies here; capitals get a second ring; old sightings are dashed.
+      const owners = [...new Set(system.colonies.map((c) => c.empireId))];
+      owners.forEach((empireId, i) => {
+        const mine = system.colonies.filter((c) => c.empireId === empireId);
+        const r = starRadius + px(5 + i * 5);
+        const stale = mine.every((c) => c.seenTurn < view.turn);
+        const dash = stale ? ` stroke-dasharray="${px(3)} ${px(3)}"` : "";
+        parts.push(`<circle cx="${system.x}" cy="${system.y}" r="${r}" fill="none" stroke="${color(empireId)}" stroke-width="${px(2.5)}"${dash}/>`);
+        if (mine.some((c) => c.capital)) parts.push(`<circle cx="${system.x}" cy="${system.y}" r="${r + px(4)}" fill="none" stroke="${color(empireId)}" stroke-width="${px(1)}"${dash}/>`);
+      });
       parts.push(`<circle cx="${system.x}" cy="${system.y}" r="${starRadius}" fill="${starType?.color ?? "#fff"}" opacity="${opacity}"/>`);
       if (system.id === scene.selectedSystem) {
         parts.push(`<circle class="selected-ring" cx="${system.x}" cy="${system.y}" r="${starRadius + px(11)}" stroke-width="${px(1.5)}" stroke-dasharray="${px(4)} ${px(4)}"/>`);
@@ -437,7 +444,7 @@ export class GalaxyMap {
     const priority = (id: SystemId) => {
       const system = view.systems[id]!;
       if (id === scene.selectedSystem || destinations.has(id)) return 0;
-      if (system.homeOf !== null) return 1;
+      if (system.colonies.length > 0) return 1;
       if (fleetSystems.has(id)) return 2;
       if (system.explored) return 3;
       return 4;

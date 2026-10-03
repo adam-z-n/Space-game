@@ -81,80 +81,88 @@
       "id": "terran",
       "name": "Terran",
       "habitability": 100,
-      "weight": 8
+      "weight": 8,
+      "foodYield": 3
     },
     {
       "id": "ocean",
       "name": "Ocean",
       "habitability": 85,
-      "weight": 8
+      "weight": 8,
+      "foodYield": 3
     },
     {
       "id": "arid",
       "name": "Arid",
       "habitability": 60,
-      "weight": 14
+      "weight": 14,
+      "foodYield": 2
     },
     {
       "id": "tundra",
       "name": "Tundra",
       "habitability": 50,
-      "weight": 14
+      "weight": 14,
+      "foodYield": 2
     },
     {
       "id": "jungle",
       "name": "Jungle",
       "habitability": 70,
-      "weight": 8
+      "weight": 8,
+      "foodYield": 3
     },
     {
       "id": "barren",
       "name": "Barren",
       "habitability": 10,
-      "weight": 24
+      "weight": 24,
+      "foodYield": 0
     },
     {
       "id": "toxic",
       "name": "Toxic",
       "habitability": 5,
-      "weight": 14
+      "weight": 14,
+      "foodYield": 0
     },
     {
       "id": "volcanic",
       "name": "Volcanic",
       "habitability": 5,
-      "weight": 10
+      "weight": 10,
+      "foodYield": 0
     }
   ],
   "planetSizes": [
     {
       "id": "tiny",
       "name": "Tiny",
-      "capacity": 2,
+      "capacity": 3,
       "weight": 15
     },
     {
       "id": "small",
       "name": "Small",
-      "capacity": 4,
+      "capacity": 5,
       "weight": 30
     },
     {
       "id": "medium",
       "name": "Medium",
-      "capacity": 6,
+      "capacity": 8,
       "weight": 30
     },
     {
       "id": "large",
       "name": "Large",
-      "capacity": 8,
+      "capacity": 11,
       "weight": 18
     },
     {
       "id": "huge",
       "name": "Huge",
-      "capacity": 10,
+      "capacity": 14,
       "weight": 7
     }
   ],
@@ -306,18 +314,408 @@
     "homeworldPlanetType": "terran",
     "homeworldSize": "medium",
     "homeworldRichness": "normal",
+    "capitalBuildings": [
+      "capitol"
+    ],
     "fleets": [
       {
-        "name": "Scout Wing",
-        "speed": 140,
-        "sensorRange": 260
+        "template": "scout"
       },
       {
-        "name": "Home Fleet",
-        "speed": 100,
-        "sensorRange": 160
+        "template": "frigate"
+      },
+      {
+        "template": "colony_ship"
       }
-    ],
-    "homeSensorRange": 250
-  }
+    ]
+  },
+  "economy": {
+    "startingCredits": 30,
+    "startingFood": 20,
+    "capitalPopulation": 5,
+    "colonyPopulation": 1,
+    "foodPerPop": 1,
+    "workerIndustry": 3,
+    "workerResearch": 3,
+    "growthThreshold": 100,
+    "growthBase": 5,
+    "growthRate": 20,
+    "starvationLoss": 40,
+    "minHabitability": 40,
+    "colonySensorRange": 180,
+    "capitalSensorRange": 250,
+    "foodStockCap": 100,
+    "idleIndustryCreditsPercent": 25,
+    "debtPenaltyPercent": 50,
+    "buyCreditsPerIndustry": 2,
+    "taxPercentPerPop": 50,
+    "colonyBaseIndustry": 2
+  },
+  "researchFields": [
+    {
+      "id": "growth",
+      "name": "Growth"
+    },
+    {
+      "id": "engineering",
+      "name": "Engineering"
+    },
+    {
+      "id": "science",
+      "name": "Science"
+    },
+    {
+      "id": "propulsion",
+      "name": "Propulsion"
+    },
+    {
+      "id": "sensors",
+      "name": "Sensors"
+    },
+    {
+      "id": "logistics",
+      "name": "Logistics"
+    }
+  ],
+  "techs": [
+    {
+      "id": "hydroponics",
+      "name": "Hydroponics",
+      "field": "growth",
+      "cost": 40,
+      "requires": [],
+      "effects": {},
+      "description": "Unlocks Hydroponic Farms."
+    },
+    {
+      "id": "subterranean_habitats",
+      "name": "Subterranean Habitats",
+      "field": "growth",
+      "cost": 110,
+      "requires": [
+        "hydroponics"
+      ],
+      "effects": {
+        "maxPopPercent": 20
+      },
+      "description": "+20% max population on every colony. Unlocks Habitat Domes."
+    },
+    {
+      "id": "terraforming",
+      "name": "Terraforming",
+      "field": "growth",
+      "cost": 220,
+      "requires": [
+        "subterranean_habitats"
+      ],
+      "effects": {
+        "minHabitability": -25
+      },
+      "description": "Colonize harsher worlds: minimum habitability -25."
+    },
+    {
+      "id": "cloning_centers",
+      "name": "Cloning Centers",
+      "field": "growth",
+      "cost": 360,
+      "requires": [
+        "terraforming"
+      ],
+      "effects": {
+        "growthPercent": 50
+      },
+      "description": "+50% population growth."
+    },
+    {
+      "id": "automation",
+      "name": "Automation",
+      "field": "engineering",
+      "cost": 50,
+      "requires": [],
+      "effects": {
+        "industryPercent": 10
+      },
+      "description": "+10% industry. Unlocks Automated Factories."
+    },
+    {
+      "id": "robotic_workforce",
+      "name": "Robotic Workforce",
+      "field": "engineering",
+      "cost": 150,
+      "requires": [
+        "automation"
+      ],
+      "effects": {
+        "industry": 2
+      },
+      "description": "+2 industry on every colony."
+    },
+    {
+      "id": "nano_assembly",
+      "name": "Nano Assembly",
+      "field": "engineering",
+      "cost": 320,
+      "requires": [
+        "robotic_workforce"
+      ],
+      "effects": {
+        "industryPercent": 15
+      },
+      "description": "+15% industry. Unlocks Nano Forges."
+    },
+    {
+      "id": "research_methods",
+      "name": "Research Methods",
+      "field": "science",
+      "cost": 40,
+      "requires": [],
+      "effects": {
+        "researchPercent": 10
+      },
+      "description": "+10% research."
+    },
+    {
+      "id": "neural_networks",
+      "name": "Neural Networks",
+      "field": "science",
+      "cost": 140,
+      "requires": [
+        "research_methods"
+      ],
+      "effects": {
+        "researchPercent": 15
+      },
+      "description": "+15% research. Unlocks Neural Institutes."
+    },
+    {
+      "id": "quantum_computing",
+      "name": "Quantum Computing",
+      "field": "science",
+      "cost": 300,
+      "requires": [
+        "neural_networks"
+      ],
+      "effects": {
+        "research": 3
+      },
+      "description": "+3 research on every colony."
+    },
+    {
+      "id": "ion_drives",
+      "name": "Ion Drives",
+      "field": "propulsion",
+      "cost": 60,
+      "requires": [],
+      "effects": {
+        "speed": 20
+      },
+      "description": "+20 speed for every ship."
+    },
+    {
+      "id": "fusion_drives",
+      "name": "Fusion Drives",
+      "field": "propulsion",
+      "cost": 180,
+      "requires": [
+        "ion_drives"
+      ],
+      "effects": {
+        "speed": 30
+      },
+      "description": "+30 speed for every ship."
+    },
+    {
+      "id": "improved_scanners",
+      "name": "Improved Scanners",
+      "field": "sensors",
+      "cost": 50,
+      "requires": [],
+      "effects": {
+        "sensorRange": 50
+      },
+      "description": "+50 sensor range for ships and colonies."
+    },
+    {
+      "id": "deep_space_arrays",
+      "name": "Deep Space Arrays",
+      "field": "sensors",
+      "cost": 170,
+      "requires": [
+        "improved_scanners"
+      ],
+      "effects": {
+        "sensorRange": 80
+      },
+      "description": "+80 sensor range for ships and colonies."
+    },
+    {
+      "id": "colonial_administration",
+      "name": "Colonial Administration",
+      "field": "logistics",
+      "cost": 60,
+      "requires": [],
+      "effects": {
+        "credits": 1
+      },
+      "description": "+1 credit from every colony."
+    },
+    {
+      "id": "trade_networks",
+      "name": "Trade Networks",
+      "field": "logistics",
+      "cost": 160,
+      "requires": [
+        "colonial_administration"
+      ],
+      "effects": {
+        "creditsPercent": 20
+      },
+      "description": "+20% credits. Unlocks Trade Hubs."
+    }
+  ],
+  "buildings": [
+    {
+      "id": "capitol",
+      "name": "Capitol",
+      "cost": 1,
+      "upkeep": 0,
+      "effects": {
+        "industry": 2,
+        "research": 2,
+        "credits": 3,
+        "food": 3
+      },
+      "description": "Seat of government.",
+      "buildable": false
+    },
+    {
+      "id": "factory",
+      "name": "Factory",
+      "cost": 30,
+      "upkeep": 1,
+      "effects": {
+        "industry": 2
+      },
+      "description": "+2 industry.",
+      "buildable": true
+    },
+    {
+      "id": "research_lab",
+      "name": "Research Lab",
+      "cost": 30,
+      "upkeep": 1,
+      "effects": {
+        "research": 2
+      },
+      "description": "+2 research.",
+      "buildable": true
+    },
+    {
+      "id": "hydroponic_farm",
+      "name": "Hydroponic Farm",
+      "cost": 30,
+      "upkeep": 1,
+      "effects": {
+        "food": 3
+      },
+      "requires": "hydroponics",
+      "description": "+3 food.",
+      "buildable": true
+    },
+    {
+      "id": "habitat_dome",
+      "name": "Habitat Dome",
+      "cost": 60,
+      "upkeep": 1,
+      "effects": {
+        "maxPop": 2
+      },
+      "requires": "subterranean_habitats",
+      "description": "+2 max population.",
+      "buildable": true
+    },
+    {
+      "id": "automated_factory",
+      "name": "Automated Factory",
+      "cost": 80,
+      "upkeep": 1,
+      "effects": {
+        "industryPercent": 25
+      },
+      "requires": "automation",
+      "description": "+25% industry here.",
+      "buildable": true
+    },
+    {
+      "id": "neural_institute",
+      "name": "Neural Institute",
+      "cost": 80,
+      "upkeep": 1,
+      "effects": {
+        "researchPercent": 25
+      },
+      "requires": "neural_networks",
+      "description": "+25% research here.",
+      "buildable": true
+    },
+    {
+      "id": "nano_forge",
+      "name": "Nano Forge",
+      "cost": 150,
+      "upkeep": 2,
+      "effects": {
+        "industry": 6
+      },
+      "requires": "nano_assembly",
+      "description": "+6 industry.",
+      "buildable": true
+    },
+    {
+      "id": "trade_hub",
+      "name": "Trade Hub",
+      "cost": 60,
+      "upkeep": 0,
+      "effects": {
+        "credits": 4
+      },
+      "requires": "trade_networks",
+      "description": "+4 credits.",
+      "buildable": true
+    }
+  ],
+  "shipTemplates": [
+    {
+      "id": "scout",
+      "name": "Scout",
+      "role": "recon",
+      "description": "Fast, long sensors, unarmed.",
+      "cost": 15,
+      "upkeep": 0,
+      "speed": 140,
+      "sensorRange": 260,
+      "colonize": false
+    },
+    {
+      "id": "colony_ship",
+      "name": "Colony Ship",
+      "role": "transport",
+      "description": "Founds a colony on a habitable planet.",
+      "cost": 50,
+      "upkeep": 1,
+      "speed": 90,
+      "sensorRange": 100,
+      "colonize": true
+    },
+    {
+      "id": "frigate",
+      "name": "Frigate",
+      "role": "combat",
+      "description": "Light warship. Combat arrives in Milestone 4.",
+      "cost": 35,
+      "upkeep": 1,
+      "speed": 100,
+      "sensorRange": 160,
+      "colonize": false
+    }
+  ]
 }

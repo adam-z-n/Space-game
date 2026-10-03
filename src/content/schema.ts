@@ -37,6 +37,8 @@ const PlanetType = z.object({
   name: z.string().min(1),
   /** Base habitability 0-100 for a typical species; species traits will modify this later. */
   habitability: z.number().int().min(0).max(100),
+  /** Food produced per farmer. 0 means colonies here can't feed themselves. */
+  foodYield: z.number().int().nonnegative(),
   weight,
 });
 
@@ -61,12 +63,116 @@ const EmpireTemplate = z.object({
   color,
 });
 
-const StartingFleet = z.object({
+/**
+ * Modifiers granted by buildings (to their colony) and techs (to every colony
+ * or the whole empire). Flat yields are per colony; percents stack additively.
+ */
+export const EffectsSchema = z
+  .object({
+    industry: z.number().int(),
+    research: z.number().int(),
+    food: z.number().int(),
+    credits: z.number().int(),
+    industryPercent: z.number().int(),
+    researchPercent: z.number().int(),
+    foodPercent: z.number().int(),
+    creditsPercent: z.number().int(),
+    growthPercent: z.number().int(),
+    /** Flat max population. */
+    maxPop: z.number().int(),
+    maxPopPercent: z.number().int(),
+    /** Change to the minimum habitability a planet needs to be colonized (negative = more planets). */
+    minHabitability: z.number().int(),
+    /** Added to every ship's speed. */
+    speed: z.number().int(),
+    /** Added to every ship's and colony's sensor range. */
+    sensorRange: z.number().int(),
+  })
+  .partial()
+  .strict();
+export type Effects = z.infer<typeof EffectsSchema>;
+
+export const SHIP_ROLES = ["combat", "transport", "recon", "support"] as const;
+
+const ShipTemplate = z.object({
+  id,
   name: z.string().min(1),
+  role: z.enum(SHIP_ROLES),
+  description: z.string(),
+  /** Industry to build. */
+  cost: z.number().int().positive(),
+  /** Credits per turn. */
+  upkeep: z.number().int().nonnegative(),
   /** Distance units per turn. */
   speed: z.number().int().positive(),
-  /** Distance within which this fleet sees other fleets. */
+  /** Distance within which this ship sees other fleets. */
   sensorRange: z.number().int().nonnegative(),
+  /** Can found a colony (consumed in the process). */
+  colonize: z.boolean().default(false),
+  /** Tech needed to build it. */
+  requires: id.optional(),
+});
+
+const Building = z.object({
+  id,
+  name: z.string().min(1),
+  description: z.string(),
+  cost: z.number().int().positive(),
+  upkeep: z.number().int().nonnegative(),
+  effects: EffectsSchema,
+  requires: id.optional(),
+  /** Only granted to capitals at game start, never built. */
+  buildable: z.boolean().default(true),
+});
+
+const Tech = z.object({
+  id,
+  name: z.string().min(1),
+  field: id,
+  description: z.string(),
+  cost: z.number().int().positive(),
+  requires: z.array(id).default([]),
+  effects: EffectsSchema.default({}),
+});
+
+const ResearchField = z.object({ id, name: z.string().min(1) });
+
+const Economy = z.object({
+  startingCredits: z.number().int(),
+  startingFood: z.number().int().nonnegative(),
+  capitalPopulation: z.number().int().positive(),
+  colonyPopulation: z.number().int().positive(),
+  /** Credits per population per turn, in percent (50 = half a credit per population). */
+  taxPercentPerPop: z.number().int().nonnegative(),
+  /** Food eaten per population per turn. */
+  foodPerPop: z.number().int().nonnegative(),
+  workerIndustry: z.number().int().nonnegative(),
+  /** Industry every colony makes regardless of workers, so new colonies can build. */
+  colonyBaseIndustry: z.number().int().nonnegative(),
+  workerResearch: z.number().int().nonnegative(),
+  /** Growth points needed for one population. */
+  growthThreshold: z.number().int().positive(),
+  /** Growth points every colony below max gets per turn. */
+  growthBase: z.number().int().nonnegative(),
+  /** Scales logistic growth: pop * (max - pop) * rate / max. */
+  growthRate: z.number().int().nonnegative(),
+  /** Growth points lost per turn while the empire is starving. */
+  starvationLoss: z.number().int().nonnegative(),
+  /** Planets below this habitability can't be colonized. */
+  minHabitability: z.number().int().min(0).max(100),
+  colonySensorRange: z.number().int().nonnegative(),
+  capitalSensorRange: z.number().int().nonnegative(),
+  foodStockCap: z.number().int().nonnegative(),
+  /** Share of industry turned into credits when a colony has nothing to build. */
+  idleIndustryCreditsPercent: z.number().int().min(0).max(100),
+  /** Credits per point of industry when buying the rest of a build outright. */
+  buyCreditsPerIndustry: z.number().int().positive(),
+  /** Industry and research lost while the treasury is negative. */
+  debtPenaltyPercent: z.number().int().min(0).max(100),
+});
+
+const StartingFleet = z.object({
+  template: id,
 });
 
 export const ContentPackSchema = z
@@ -87,12 +193,16 @@ export const ContentPackSchema = z
     richness: z.array(Richness).min(1),
     systemNames: z.array(z.string().min(1)).min(1),
     empires: z.array(EmpireTemplate).min(6),
+    economy: Economy,
+    researchFields: z.array(ResearchField).min(1),
+    techs: z.array(Tech),
+    buildings: z.array(Building),
+    shipTemplates: z.array(ShipTemplate).min(1),
     start: z.object({
       homeworldPlanetType: id,
       homeworldSize: id,
       homeworldRichness: id,
-      /** Distance within which a home system sees fleets. */
-      homeSensorRange: z.number().int().nonnegative(),
+      capitalBuildings: z.array(id),
       fleets: z.array(StartingFleet),
     }),
   })
@@ -110,6 +220,45 @@ export const ContentPackSchema = z
     unique("planetSizes", pack.planetSizes.map((p) => p.id));
     unique("richness", pack.richness.map((r) => r.id));
     unique("systemNames", pack.systemNames);
+    unique("researchFields", pack.researchFields.map((f) => f.id));
+    unique("techs", pack.techs.map((t) => t.id));
+    unique("buildings", pack.buildings.map((b) => b.id));
+    unique("shipTemplates", pack.shipTemplates.map((t) => t.id));
+
+    const techIds = new Set(pack.techs.map((t) => t.id));
+    const fieldIds = new Set(pack.researchFields.map((f) => f.id));
+    const issue = (path: (string | number)[], message: string) => ctx.addIssue({ code: "custom", path, message });
+    pack.techs.forEach((tech, i) => {
+      if (!fieldIds.has(tech.field)) issue(["techs", i, "field"], `unknown research field "${tech.field}"`);
+      for (const req of tech.requires) if (!techIds.has(req)) issue(["techs", i, "requires"], `unknown tech "${req}"`);
+    });
+    // Every tech must be reachable: no cycles in prerequisites.
+    const resolved = new Set<string>();
+    let progress = true;
+    while (progress) {
+      progress = false;
+      for (const tech of pack.techs) {
+        if (!resolved.has(tech.id) && tech.requires.every((r) => resolved.has(r))) {
+          resolved.add(tech.id);
+          progress = true;
+        }
+      }
+    }
+    for (const tech of pack.techs) if (!resolved.has(tech.id) && tech.requires.every((r) => techIds.has(r))) issue(["techs"], `${tech.id}: prerequisite cycle`);
+    pack.buildings.forEach((b, i) => {
+      if (b.requires && !techIds.has(b.requires)) issue(["buildings", i, "requires"], `unknown tech "${b.requires}"`);
+    });
+    pack.shipTemplates.forEach((t, i) => {
+      if (t.requires && !techIds.has(t.requires)) issue(["shipTemplates", i, "requires"], `unknown tech "${t.requires}"`);
+    });
+    const buildingIds = new Set(pack.buildings.map((b) => b.id));
+    pack.start.capitalBuildings.forEach((b, i) => {
+      if (!buildingIds.has(b)) issue(["start", "capitalBuildings", i], `unknown building "${b}"`);
+    });
+    const templateIds = new Set(pack.shipTemplates.map((t) => t.id));
+    pack.start.fleets.forEach((f, i) => {
+      if (!templateIds.has(f.template)) issue(["start", "fleets", i, "template"], `unknown ship template "${f.template}"`);
+    });
 
     const refs: [string, string, { id: string }[]][] = [
       ["homeworldPlanetType", pack.start.homeworldPlanetType, pack.planetTypes],
