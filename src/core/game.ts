@@ -1,5 +1,5 @@
 import type { ContentPack } from "../content/schema";
-import { planAiTurn } from "./ai";
+import { planAiTurn } from "./ai/index";
 import { applyCommand, type Command } from "./commands";
 import { createInitialState } from "./setup";
 import type { EmpireId, GameEvent, GameSettings, GameState } from "./state";
@@ -21,6 +21,8 @@ export function replay(settings: GameSettings, log: readonly Command[], pack: Co
  */
 export class Game {
   private turnStart: GameState;
+  /** AI commands that failed validation (a bug if non-empty). Not part of the game state. */
+  readonly aiRejections: { turn: number; empireId: number; command: string; error: string }[] = [];
   private turnStartLogLength: number;
 
   constructor(
@@ -74,11 +76,14 @@ export class Game {
 
   /** AI empires issue their orders, then the turn resolves. Returns the turn report. */
   endTurn(): GameEvent[] {
+    if (this.current.outcome) return [];
     for (const empire of this.current.empires) {
       if (!empire.isAI || empire.eliminated) continue;
       for (const command of planAiTurn(this.current, this.pack, empire.id)) {
+        // A rejected AI command is skipped rather than ending the player's game.
+        // It is never logged, so replays are unaffected; tests and the sim watch this list.
         const error = this.apply(command);
-        if (error) throw new Error(`AI ${empire.id} issued an invalid command: ${error}`);
+        if (error) this.aiRejections.push({ turn: this.current.turn, empireId: empire.id, command: command.type, error });
       }
     }
     const error = this.apply({ type: "endTurn" });

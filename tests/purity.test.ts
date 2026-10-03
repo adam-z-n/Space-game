@@ -14,7 +14,7 @@ const FORBIDDEN = [
   /Math\.(sin|cos|tan|asin|acos|atan|atan2|exp|log|pow|cbrt|hypot)\b/,
 ];
 
-const dirs = ["src/core", "src/content"];
+const dirs = ["src/core", "src/core/ai", "src/content"];
 
 describe("simulation core purity", () => {
   for (const dir of dirs) {

@@ -14,6 +14,7 @@ import {
   fleetStrength,
   getTech,
   prospectiveMaxPop,
+  turnLimit,
   empireView,
   omniscientView,
   planMove,
@@ -31,7 +32,7 @@ import { onAppBackground } from "../platform/lifecycle";
 import { LocalSaveStore } from "../platform/storage";
 import { GalaxyMap, type MapTarget, type RoutePreview } from "./map";
 import { button, h, turnsText } from "./dom";
-import { colonyPanel, empirePanel, researchPanel, resourceBar, type PanelContext } from "./economyPanels";
+import { colonyPanel, empirePanel, gameOverPanel, researchPanel, resourceBar, type PanelContext } from "./economyPanels";
 import { battlePanel, designerPanel, designsPanel, fleetDetail, startDraft, type ShipContext } from "./shipPanels";
 
 const AUTOSAVE = "autosave";
@@ -78,12 +79,18 @@ async function showSetup(message?: string): Promise<void> {
   for (const g of pack.galaxySizes) size.append(h("option", { value: g.id, textContent: `${g.name} (${g.systems} systems)`, selected: g.id === "medium" }));
   const ai = h("select");
   for (let n = MIN_AI; n <= MAX_AI; n++) ai.append(h("option", { value: String(n), textContent: `${n} rivals`, selected: n === 3 }));
+  const difficulty = h("select");
+  for (const d of pack.difficulties) difficulty.append(h("option", { value: d.id, textContent: d.name, selected: d.id === "normal" }));
+  const difficultyHint = h("div", { className: "hint" });
+  const describeDifficulty = () => (difficultyHint.textContent = pack.difficulties.find((d) => d.id === difficulty.value)?.description ?? "");
+  difficulty.onchange = describeDifficulty;
+  describeDifficulty();
   const error = h("p", { className: "error", textContent: message ?? "" });
 
   const start = button(
     "Start new game",
     () => {
-      const settings: GameSettings = { seed: seed.value.trim(), galaxySize: size.value, aiCount: Number(ai.value) };
+      const settings: GameSettings = { seed: seed.value.trim(), galaxySize: size.value, aiCount: Number(ai.value), difficulty: difficulty.value };
       try {
         startGame(Game.create(settings, pack));
       } catch (e) {
@@ -103,11 +110,12 @@ async function showSetup(message?: string): Promise<void> {
       "div",
       { className: "setup" },
       h("h1", { textContent: "Space 4X" }),
-      h("p", { textContent: "Milestone 4 preview: ship design, fleets, supply and combat." }),
+      h("p", { textContent: "Milestone 5 preview: AI rivals with personalities, difficulty levels and victory." }),
       saved ? button("Continue", () => loadAndStart(saved), { className: "primary" }) : null,
       h("label", {}, "Galaxy seed", h("div", { className: "row" }, seed, button("Random", () => (seed.value = randomSeed()), { type: "button" }))),
       h("label", {}, "Galaxy size", size),
       h("label", {}, "AI empires", ai),
+      h("label", {}, "Difficulty", difficulty, difficultyHint),
       start,
       importBtn,
       error,
@@ -133,7 +141,7 @@ interface UiState {
   /** A destination being considered for the selected fleet, waiting for confirmation. */
   preview: (RoutePreview & { destinationId: SystemId }) | null;
   report: GameEvent[] | null;
-  panel: "none" | "menu" | "fleets" | "research" | "empire" | "colony" | "designs" | "designer" | "battle";
+  panel: "none" | "menu" | "fleets" | "research" | "empire" | "colony" | "designs" | "designer" | "battle" | "gameover";
   /** Battle shown when panel is "battle", and the replay round. */
   battleId: number | null;
   battleRound: number;
@@ -229,6 +237,10 @@ function startGame(game: Game): void {
     openResearch: () => openPanel("research"),
     openEmpire: () => openPanel("empire"),
     close: () => openPanel("none"),
+    newGame: () => {
+      stopAutosave?.();
+      void showSetup();
+    },
   };
   const shipCtx: ShipContext = {
     game,
@@ -387,6 +399,10 @@ function startGame(game: Game): void {
         return `${fleetView(e.fleetId)?.name ?? "A fleet"} was stopped by enemies at ${systemName(e.systemId)}`;
       case "blockaded":
         return `${colonyName(e.colonyId)} is blockaded: no supply or trade`;
+      case "empireEliminated":
+        return e.eliminatedId === game.playerId ? "Your empire has fallen" : `${empire(e.eliminatedId).name} has been eliminated`;
+      case "gameOver":
+        return e.winnerId === game.playerId ? "Victory!" : `${empire(e.winnerId).name} has won the game`;
     }
   }
 
@@ -413,6 +429,10 @@ function startGame(game: Game): void {
         break;
       case "battle":
         return openBattle(e.battleId);
+      case "empireEliminated":
+        return openPanel("empire");
+      case "gameOver":
+        return openPanel("gameover");
     }
     const system = view.systems[e.systemId]!;
     selectTarget({ kind: "system", id: system.id });
@@ -430,7 +450,7 @@ function startGame(game: Game): void {
       h(
         "div",
         { className: "title" },
-        `Turn ${view.turn}`,
+        `Turn ${view.turn}/${turnLimit(game.state, pack)}`,
         h("small", {}, h("span", { className: "swatch", style: `background:${me.color}` }), `${me.name} · ${explored}/${view.systems.length} explored`),
       ),
       button("Fleets", () => openPanel(ui.panel === "fleets" ? "none" : "fleets")),
@@ -586,6 +606,14 @@ function startGame(game: Game): void {
     if (fleet.own) {
       if (fleet.route?.length === 0) actions.append(button(fleet.holding ? "Stop holding" : "Hold", () => setHold(fleet.id, !fleet.holding)));
       actions.append(button("Deselect", () => selectTarget(null)));
+      actions.append(
+        button("Disband", () => {
+          if (confirm(`Scrap ${fleet.name}? Its upkeep stops and nothing is refunded.`)) {
+            ctx.issue({ type: "disbandFleet", empireId: game.playerId, fleetId: fleet.id });
+            selectTarget(null);
+          }
+        }, { className: "danger" }),
+      );
     }
     const settle = fleet.own && fleet.position.progress === 0 ? colonizeOptions(fleet.position.systemId).filter((o) => o.fleetId === fleet.id) : [];
     const settleRow = settle.length
@@ -707,13 +735,15 @@ function startGame(game: Game): void {
         update();
       }, { disabled: !game.canUndo }),
       todo > 0 ? button(`${todo} to do ›`, nextAttention, { className: "attention", title: "Research, build queues and fleets waiting for orders" }) : null,
-      button("End turn", () => {
+      game.state.outcome
+        ? button("Results", () => openPanel("gameover"), { className: "primary" })
+        : button("End turn", () => {
         ui.report = game.endTurn();
         ui.selectedSystem = null;
         ui.selectedFleet = null;
         ui.preview = null;
         ui.lastAttention = null;
-        ui.panel = "none";
+        ui.panel = game.state.outcome ? "gameover" : "none";
         void save();
         update();
       }, { className: "primary" }),
@@ -753,7 +783,9 @@ function startGame(game: Game): void {
                     ? designerPanel(shipCtx)
                     : ui.panel === "battle"
                       ? battleView()
-                      : null;
+                      : ui.panel === "gameover"
+                        ? gameOverPanel(ctx)
+                        : null;
     const overlays = [panel, contextMenu()].filter((x): x is HTMLElement => x !== null);
     hud.replaceChildren(topBar(), bottomBar(), ...overlays);
   }

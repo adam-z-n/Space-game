@@ -2,6 +2,7 @@ import type { ContentPack } from "../content/schema";
 import { laneLength } from "./graph";
 import { updateSightings } from "./vision";
 import { resolveEconomy } from "./economy";
+import { checkVictory } from "./victory";
 import { resolveCombat } from "./combat";
 import { fleetArmed } from "./ships";
 import { resolveSupply, updateBlockades } from "./supply";
@@ -24,6 +25,7 @@ export function resolveTurn(state: GameState, pack: ContentPack): void {
   const resolved = state.turn;
   state.turn += 1;
   updateSightings(state, pack, events, resolved);
+  checkVictory(state, pack, events, resolved);
   state.lastTurnEvents = events;
 }
 

@@ -1046,5 +1046,136 @@
       ],
       "formation": "support"
     }
+  ],
+  "victory": {
+    "turnLimit": 200,
+    "dominationPercent": 40,
+    "dominationMinTurn": 50,
+    "score": {
+      "population": 10,
+      "colony": 25,
+      "tech": 15,
+      "military": 2
+    }
+  },
+  "aiPersonalities": [
+    {
+      "id": "expansionist",
+      "name": "Expansionist",
+      "description": "Settles everything it can reach and defends what it holds.",
+      "expansion": 9,
+      "military": 4,
+      "research": 5,
+      "economy": 6,
+      "aggression": 4,
+      "caution": 6,
+      "defense": 4,
+      "designStyle": "line",
+      "researchFields": {
+        "growth": 3,
+        "logistics": 2,
+        "propulsion": 2
+      }
+    },
+    {
+      "id": "turtle",
+      "name": "Turtle",
+      "description": "Builds up behind strong defenses and rarely strikes first.",
+      "expansion": 4,
+      "military": 6,
+      "research": 7,
+      "economy": 7,
+      "aggression": 1,
+      "caution": 8,
+      "defense": 9,
+      "designStyle": "fortress",
+      "researchFields": {
+        "defense": 3,
+        "science": 2,
+        "growth": 2
+      }
+    },
+    {
+      "id": "raider",
+      "name": "Raider",
+      "description": "Fast, cheap ships that hit weak colonies and run.",
+      "expansion": 5,
+      "military": 7,
+      "research": 4,
+      "economy": 4,
+      "aggression": 8,
+      "caution": 3,
+      "defense": 2,
+      "designStyle": "raider",
+      "researchFields": {
+        "propulsion": 3,
+        "weapons": 2,
+        "logistics": 2
+      }
+    },
+    {
+      "id": "warlord",
+      "name": "Warlord",
+      "description": "Builds a big battle fleet and goes looking for a fight.",
+      "expansion": 5,
+      "military": 9,
+      "research": 4,
+      "economy": 5,
+      "aggression": 9,
+      "caution": 4,
+      "defense": 4,
+      "designStyle": "line",
+      "researchFields": {
+        "weapons": 3,
+        "engineering": 2,
+        "defense": 2
+      }
+    },
+    {
+      "id": "technocrat",
+      "name": "Technocrat",
+      "description": "Out-researches rivals and fights with better ships.",
+      "expansion": 6,
+      "military": 4,
+      "research": 9,
+      "economy": 6,
+      "aggression": 3,
+      "caution": 7,
+      "defense": 5,
+      "designStyle": "fortress",
+      "researchFields": {
+        "science": 3,
+        "engineering": 2,
+        "weapons": 2
+      }
+    }
+  ],
+  "difficulties": [
+    {
+      "id": "easy",
+      "name": "Easy",
+      "description": "AI empires produce and research 25% less.",
+      "effects": {
+        "industryPercent": -25,
+        "researchPercent": -25
+      }
+    },
+    {
+      "id": "normal",
+      "name": "Normal",
+      "description": "No bonuses either way.",
+      "effects": {}
+    },
+    {
+      "id": "hard",
+      "name": "Hard",
+      "description": "AI empires produce, research and earn 40% more and see further.",
+      "effects": {
+        "industryPercent": 40,
+        "researchPercent": 40,
+        "creditsPercent": 40,
+        "sensorRange": 60
+      }
+    }
   ]
 }

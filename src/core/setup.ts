@@ -16,6 +16,8 @@ export function validateSettings(settings: GameSettings, pack: ContentPack): str
     return `AI count must be ${MIN_AI}-${MAX_AI}`;
   }
   if (settings.aiCount + 1 > pack.empires.length) return "content pack has too few empires";
+  if (settings.difficulty !== undefined && !pack.difficulties.some((d) => d.id === settings.difficulty)) return `unknown difficulty "${settings.difficulty}"`;
+  if (settings.turnLimit !== undefined && (!Number.isInteger(settings.turnLimit) || settings.turnLimit < 10)) return "turn limit must be at least 10";
   return null;
 }
 
@@ -35,6 +37,9 @@ export function createInitialState(settings: GameSettings, pack: ContentPack): G
   const [playerTemplate, ...others] = pack.empires;
   const templates = [playerTemplate!, ...rng.fork("empires").shuffle(others)];
 
+  // AI temperaments are dealt from a shuffled deck so a game rarely repeats one.
+  const personalities = rng.fork("personalities").shuffle(pack.aiPersonalities.map((p) => p.id));
+  const difficulty = settings.difficulty ?? "normal";
   const empires: Empire[] = [];
   const homeworldIds: number[] = [];
   for (let i = 0; i < empireCount; i++) {
@@ -46,6 +51,10 @@ export function createInitialState(settings: GameSettings, pack: ContentPack): G
       name: templates[i]!.name,
       color: templates[i]!.color,
       isAI: i !== 0 || settings.allAI === true,
+      personality: i !== 0 || settings.allAI === true ? personalities[i % personalities.length]! : null,
+      // Empire 0 never gets difficulty modifiers, even when the AI plays it: in batch runs it is the
+      // stand-in for a human, so its win rate measures how hard each difficulty is.
+      difficulty: i !== 0 ? difficulty : null,
       homeSystemId: home,
       explored: [home],
       capitalSensorRange: pack.economy.capitalSensorRange,
@@ -75,6 +84,7 @@ export function createInitialState(settings: GameSettings, pack: ContentPack): G
     nextId,
     lastTurnEvents: [],
     lastBattles: [],
+    outcome: null,
   };
 
   for (const empire of empires) {

@@ -11,7 +11,7 @@ import {
   type GameState,
 } from "../src/core";
 import { defaultPack } from "../src/content/defaultPack";
-import { testFleet, testPack } from "./helpers";
+import { relocateCapitals, testFleet, testPack } from "./helpers";
 
 const pack = testPack;
 
@@ -30,8 +30,8 @@ function lineState(): GameState {
     explored: [i * 4],
     sightings: [],
   }));
-  // No colonies: only the fleets' own sensors matter here.
-  state.colonies = [];
+  // Capitals stay (or the empires would be eliminated) but see nothing: only the fleets' sensors matter here.
+  relocateCapitals(state, [0, 4]);
   state.fleets = [
     testFleet(state, { id: 100, empireId: 0, systemId: 0, hull: "test100", name: "Blue" }),
     testFleet(state, { id: 200, empireId: 1, systemId: 4, hull: "test100", name: "Red" }),
@@ -132,7 +132,7 @@ describe("save migration", () => {
     const json = readFileSync(new URL("./fixtures/save-v2-m2.json", import.meta.url), "utf8");
     const loaded = deserializeSave(json, defaultPack());
     const state = loaded.state;
-    expect(state.version).toBe(4);
+    expect(state.version).toBe(5);
     expect(state.turn).toBe(7);
     // Every empire gets its capital on its homeworld; fleets map to ship templates.
     for (const empire of state.empires) {
