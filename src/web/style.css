@@ -126,16 +126,39 @@ svg.map {
   pointer-events: none;
 }
 
+.route {
+  fill: none;
+  opacity: 0.8;
+}
+
+.route.preview {
+  stroke: #ffffff;
+  opacity: 0.95;
+}
+
+.preview-dest {
+  fill: none;
+  stroke: #ffffff;
+}
+
+.preview-label {
+  fill: #ffffff;
+  font-weight: 600;
+  text-anchor: middle;
+  paint-order: stroke;
+  stroke: var(--bg);
+  stroke-width: 4px;
+  pointer-events: none;
+}
+
+.sensors {
+  fill: #4fc3f7;
+  opacity: 0.06;
+}
+
 .selected-ring {
   fill: none;
   stroke: var(--text);
-  stroke-dasharray: 4 4;
-}
-
-.route {
-  fill: none;
-  stroke-dasharray: 6 6;
-  opacity: 0.8;
 }
 
 /* HUD */
@@ -148,7 +171,8 @@ svg.map {
   display: flex;
   align-items: center;
   gap: 8px;
-  background: linear-gradient(var(--bg), transparent);
+  background: linear-gradient(var(--bg) 65%, transparent);
+  padding-bottom: 20px;
   pointer-events: none;
 }
 
@@ -161,8 +185,15 @@ svg.map {
   font-weight: 600;
 }
 
+.topbar .title {
+  min-width: 0;
+}
+
 .topbar .title small {
   display: block;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
   color: var(--muted);
   font-weight: 400;
 }
@@ -290,4 +321,70 @@ svg.map {
   .sheet {
     max-height: calc(100vh - 150px - var(--safe-bottom) - var(--safe-top));
   }
+}
+
+.menu.context {
+  right: auto;
+  z-index: 5;
+}
+
+.sheet.panel {
+  position: absolute;
+  top: calc(64px + var(--safe-top));
+  left: calc(12px + var(--safe-left));
+  right: calc(12px + var(--safe-right));
+  max-height: calc(100% - 200px - var(--safe-top) - var(--safe-bottom));
+  max-width: 480px;
+  margin-left: auto;
+  z-index: 4;
+}
+
+.sheet li.tappable {
+  cursor: pointer;
+  min-height: var(--touch);
+  align-items: center;
+}
+
+.sheet li.tappable:active {
+  background: #ffffff10;
+}
+
+.sheet li.section {
+  color: var(--muted);
+  font-size: 13px;
+  padding-top: 14px;
+}
+
+.muted {
+  color: var(--muted);
+}
+
+.hint {
+  color: var(--muted);
+  font-size: 13px;
+  margin: 2px 0 8px;
+}
+
+.sheet .row {
+  display: flex;
+  gap: 8px;
+}
+
+.sheet .row > button {
+  flex: 1;
+}
+
+.sheet.confirm .confirm-text {
+  font-weight: 600;
+  margin-bottom: 10px;
+}
+
+button.attention {
+  border-color: #fdd835;
+  color: #fdd835;
+  white-space: nowrap;
+}
+
+.topbar button {
+  min-width: var(--touch);
 }

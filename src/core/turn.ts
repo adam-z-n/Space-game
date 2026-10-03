@@ -1,5 +1,6 @@
 import type { ContentPack } from "../content/schema";
 import { laneLength } from "./graph";
+import { updateSightings } from "./vision";
 import type { EmpireId, GameEvent, GameState, SystemId } from "./state";
 
 /**
@@ -14,7 +15,9 @@ export function resolveTurn(state: GameState, pack: ContentPack): void {
   resolveCombat(state, pack, events);
   resolveInvasions(state, pack, events);
   resolveEconomy(state, pack, events);
+  const resolved = state.turn;
   state.turn += 1;
+  updateSightings(state, events, resolved);
   state.lastTurnEvents = events;
 }
 

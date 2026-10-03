@@ -309,12 +309,15 @@
     "fleets": [
       {
         "name": "Scout Wing",
-        "speed": 140
+        "speed": 140,
+        "sensorRange": 260
       },
       {
         "name": "Home Fleet",
-        "speed": 100
+        "speed": 100,
+        "sensorRange": 160
       }
-    ]
+    ],
+    "homeSensorRange": 250
   }
 }

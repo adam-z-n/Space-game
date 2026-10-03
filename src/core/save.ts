@@ -3,6 +3,7 @@ import { hashString } from "./rng";
 import { Game } from "./game";
 import type { Command } from "./commands";
 import { STATE_VERSION, type GameState } from "./state";
+import { updateSightings } from "./vision";
 
 export const SAVE_FORMAT = 1;
 
@@ -36,9 +37,31 @@ export function deserializeSave(json: string, pack: ContentPack): Game {
   const save = JSON.parse(json) as Partial<SaveGame>;
   if (save.format !== SAVE_FORMAT) throw new Error(`unsupported save format ${String(save.format)}`);
   if (!save.state || !Array.isArray(save.log)) throw new Error("corrupt save");
-  if (save.state.version !== STATE_VERSION) throw new Error(`unsupported state version ${save.state.version}`);
   if (save.contentPack?.id !== pack.id) throw new Error(`save needs content pack "${save.contentPack?.id}"`);
-  return new Game(pack, save.state, save.log);
+  const state = migrateState(save.state, pack);
+  return new Game(pack, state, save.log);
+}
+
+/**
+ * Bring an older saved state up to STATE_VERSION. Saved command logs stay
+ * valid because commands only ever gain new types.
+ */
+export function migrateState(state: GameState, pack: ContentPack): GameState {
+  if (state.version === 1) {
+    // v2 adds fog of war (sensor ranges, sightings) and fleet hold orders.
+    for (const empire of state.empires) {
+      empire.homeSensorRange = pack.start.homeSensorRange;
+      empire.sightings = [];
+    }
+    for (const fleet of state.fleets) {
+      fleet.sensorRange = pack.start.fleets.find((f) => f.name === fleet.name)?.sensorRange ?? 0;
+      fleet.holding = false;
+    }
+    state.version = 2;
+    updateSightings(state, null, state.turn);
+  }
+  if (state.version !== STATE_VERSION) throw new Error(`unsupported state version ${state.version}`);
+  return state;
 }
 
 /** Stable fingerprint of a state, for determinism checks. */

@@ -1,8 +1,24 @@
-import { Game, MAX_AI, MIN_AI, deserializeSave, serializeSave, type FleetId, type GameEvent, type GameSettings, type SystemId } from "../core";
+import {
+  Game,
+  MAX_AI,
+  MIN_AI,
+  attentionItems,
+  deserializeSave,
+  empireView,
+  omniscientView,
+  planMove,
+  serializeSave,
+  type EmpireView,
+  type FleetId,
+  type FleetView,
+  type GameEvent,
+  type GameSettings,
+  type SystemId,
+} from "../core";
 import { defaultPack } from "../content/defaultPack";
 import { onAppBackground } from "../platform/lifecycle";
 import { LocalSaveStore } from "../platform/storage";
-import { GalaxyMap } from "./map";
+import { GalaxyMap, type MapTarget, type RoutePreview } from "./map";
 
 const AUTOSAVE = "autosave";
 const pack = defaultPack();
@@ -19,6 +35,15 @@ function h<K extends keyof HTMLElementTagNameMap>(tag: K, props: Props<HTMLEleme
   if (style) el.setAttribute("style", style);
   for (const child of children) if (child !== null) el.append(child);
   return el;
+}
+
+function button(label: string, onClick: () => void, props: Props<HTMLButtonElement> = {}): HTMLButtonElement {
+  const b = h("button", { textContent: label, ...props });
+  b.onclick = (e) => {
+    e.stopPropagation();
+    onClick();
+  };
+  return b;
 }
 
 function randomSeed(): string {
@@ -46,6 +71,8 @@ function pickFile(): Promise<string | null> {
   });
 }
 
+const turnsText = (n: number) => (n === 1 ? "1 turn" : `${n} turns`);
+
 // ---------- setup screen ----------
 
 async function showSetup(message?: string): Promise<void> {
@@ -59,39 +86,32 @@ async function showSetup(message?: string): Promise<void> {
   for (let n = MIN_AI; n <= MAX_AI; n++) ai.append(h("option", { value: String(n), textContent: `${n} rivals`, selected: n === 3 }));
   const error = h("p", { className: "error", textContent: message ?? "" });
 
-  const start = h("button", { className: "primary", textContent: "Start new game" });
-  start.onclick = () => {
-    const settings: GameSettings = { seed: seed.value.trim(), galaxySize: size.value, aiCount: Number(ai.value) };
-    try {
-      startGame(Game.create(settings, pack));
-    } catch (e) {
-      error.textContent = (e as Error).message;
-    }
-  };
+  const start = button(
+    "Start new game",
+    () => {
+      const settings: GameSettings = { seed: seed.value.trim(), galaxySize: size.value, aiCount: Number(ai.value) };
+      try {
+        startGame(Game.create(settings, pack));
+      } catch (e) {
+        error.textContent = (e as Error).message;
+      }
+    },
+    { className: "primary" },
+  );
 
-  const reroll = h("button", { textContent: "Random", type: "button" });
-  reroll.onclick = () => (seed.value = randomSeed());
-
-  const importBtn = h("button", { textContent: "Import save file" });
-  importBtn.onclick = async () => {
+  const importBtn = button("Import save file", async () => {
     const text = await pickFile();
     if (text) loadAndStart(text);
-  };
-
-  let continueBtn: HTMLButtonElement | null = null;
-  if (saved) {
-    continueBtn = h("button", { className: "primary", textContent: "Continue" });
-    continueBtn.onclick = () => loadAndStart(saved);
-  }
+  });
 
   root.append(
     h(
       "div",
       { className: "setup" },
       h("h1", { textContent: "Space 4X" }),
-      h("p", { textContent: "Milestone 1 preview: galaxy generation and the turn loop." }),
-      continueBtn,
-      h("label", {}, "Galaxy seed", h("div", { className: "row" }, seed, reroll)),
+      h("p", { textContent: "Milestone 2 preview: fog of war, fleet orders, and the turn loop." }),
+      saved ? button("Continue", () => loadAndStart(saved), { className: "primary" }) : null,
+      h("label", {}, "Galaxy seed", h("div", { className: "row" }, seed, button("Random", () => (seed.value = randomSeed()), { type: "button" }))),
       h("label", {}, "Galaxy size", size),
       h("label", {}, "AI empires", ai),
       start,
@@ -113,136 +133,340 @@ function loadAndStart(json: string): void {
 
 let stopAutosave: (() => void) | null = null;
 
+interface UiState {
+  selectedSystem: SystemId | null;
+  selectedFleet: FleetId | null;
+  /** A destination being considered for the selected fleet, waiting for confirmation. */
+  preview: (RoutePreview & { destinationId: SystemId }) | null;
+  report: GameEvent[] | null;
+  panel: "none" | "menu" | "fleets";
+  contextMenu: { target: MapTarget; x: number; y: number } | null;
+  revealMap: boolean;
+  /** Index into the attention queue for the "next idle" button. */
+  idleCursor: number;
+}
+
 function startGame(game: Game): void {
   stopAutosave?.();
   root.replaceChildren();
 
-  let selectedSystem: SystemId | null = game.state.empires[0]!.homeSystemId;
-  let selectedFleet: FleetId | null = null;
-  /** When set, the next map tap picks this fleet's destination. */
-  let movingFleet: FleetId | null = null;
-  let report: GameEvent[] | null = null;
-  let menuOpen = false;
+  const ui: UiState = {
+    selectedSystem: game.state.empires[game.playerId]!.homeSystemId,
+    selectedFleet: null,
+    preview: null,
+    report: null,
+    panel: "none",
+    contextMenu: null,
+    revealMap: false,
+    idleCursor: 0,
+  };
 
   const save = () => store.write(AUTOSAVE, serializeSave(game)).catch(() => {});
   stopAutosave = onAppBackground(() => void save());
   void save();
 
-  const map = new GalaxyMap(root, pack, (systemId) => {
-    if (movingFleet !== null) {
-      if (systemId !== null) {
-        const error = game.issue({ type: "moveFleet", empireId: game.playerId, fleetId: movingFleet, destinationId: systemId });
-        if (error) alert(error);
+  let view: EmpireView = empireView(game.state, game.playerId);
+  const fleetView = (id: FleetId | null) => (id === null ? undefined : view.fleets.find((f) => f.id === id));
+  const systemName = (id: SystemId) => view.systems[id]!.name;
+  const empire = (id: number) => view.empires[id]!;
+
+  const map = new GalaxyMap(root, pack, {
+    onTap: (target) => {
+      if (ui.contextMenu || ui.panel !== "none") {
+        ui.contextMenu = null;
+        ui.panel = "none";
+        return update();
       }
-      movingFleet = null;
-    } else {
-      selectedSystem = systemId;
-      selectedFleet = null;
-    }
-    menuOpen = false;
-    update();
+      const selected = fleetView(ui.selectedFleet);
+      if (target?.kind === "system" && selected?.own) {
+        if (ui.preview?.destinationId === target.id) return confirmPreview();
+        return setPreview(selected.id, target.id);
+      }
+      selectTarget(target);
+    },
+    onLongPress: (target, x, y) => {
+      ui.contextMenu = { target, x, y };
+      update();
+    },
+    onDragOrder: (fleetId, systemId, final) => {
+      ui.selectedFleet = fleetId;
+      ui.selectedSystem = null;
+      ui.contextMenu = null;
+      if (systemId === null) {
+        ui.preview = null;
+        return update();
+      }
+      setPreview(fleetId, systemId);
+      if (final) confirmPreview();
+    },
   });
 
-  const hud = h("div");
+  const hud = h("div", { className: "hud" });
   root.append(hud);
 
-  const systemName = (id: SystemId) => game.state.galaxy.systems[id]!.name;
-  const empireName = (id: number) => game.state.empires[id]!.name;
-  const fleetName = (id: FleetId) => game.state.fleets.find((f) => f.id === id)?.name ?? `Fleet ${id}`;
+  function selectTarget(target: MapTarget | null): void {
+    ui.preview = null;
+    ui.contextMenu = null;
+    ui.selectedFleet = target?.kind === "fleet" ? target.id : null;
+    ui.selectedSystem = target?.kind === "system" ? target.id : null;
+    if (target) ui.report = null;
+    update();
+  }
+
+  function setPreview(fleetId: FleetId, destinationId: SystemId): void {
+    const plan = planMove(game.state, fleetId, destinationId);
+    ui.preview = typeof plan === "string" ? null : { fleetId, route: plan.route, turns: plan.turns, destinationId };
+    update();
+  }
+
+  function confirmPreview(): void {
+    const preview = ui.preview;
+    if (!preview) return;
+    const error = game.issue({ type: "moveFleet", empireId: game.playerId, fleetId: preview.fleetId, destinationId: preview.destinationId });
+    if (error) alert(error);
+    ui.preview = null;
+    navigator.vibrate?.(8);
+    update();
+  }
+
+  function setHold(fleetId: FleetId, hold: boolean): void {
+    const error = game.issue({ type: "setHold", empireId: game.playerId, fleetId, hold });
+    if (error) alert(error);
+    update();
+  }
+
+  function focusFleet(fleetId: FleetId): void {
+    const fleet = fleetView(fleetId);
+    if (!fleet) return;
+    selectTarget({ kind: "fleet", id: fleetId });
+    map.centerOn(fleet.x, fleet.y);
+  }
+
+  function nextIdle(): void {
+    const items = attentionItems(game.state, game.playerId);
+    if (items.length === 0) return;
+    const item = items[ui.idleCursor % items.length]!;
+    ui.idleCursor++;
+    focusFleet(item.fleetId);
+  }
+
+  function fleetStatus(fleet: FleetView): string {
+    const pos = fleet.position;
+    if (!fleet.own) {
+      const where = pos.nextSystemId === null ? `at ${systemName(pos.systemId)}` : `between ${systemName(pos.systemId)} and ${systemName(pos.nextSystemId)}`;
+      return fleet.seenTurn < view.turn ? `Last seen turn ${fleet.seenTurn}, ${where}` : `Sighted ${where}`;
+    }
+    if (fleet.route && fleet.route.length > 0) {
+      const dest = fleet.route[fleet.route.length - 1]!;
+      const plan = planMove(game.state, fleet.id, dest);
+      return `To ${systemName(dest)} · ${typeof plan === "string" ? "?" : turnsText(plan.turns)}`;
+    }
+    return `${fleet.holding ? "Holding" : "Idle"} at ${systemName(pos.systemId)}`;
+  }
 
   function describeEvent(e: GameEvent): string {
     switch (e.type) {
       case "fleetArrived":
-        return `${fleetName(e.fleetId)} arrived at ${systemName(e.systemId)}`;
+        return `${fleetView(e.fleetId)?.name ?? "Fleet"} arrived at ${systemName(e.systemId)}`;
       case "systemExplored":
         return `Explored ${systemName(e.systemId)}`;
+      case "fleetSighted":
+        return `${empire(e.ownerId).name} fleet sighted near ${systemName(e.systemId)}`;
     }
   }
 
+  // ---------- HUD pieces ----------
+
   function topBar(): HTMLElement {
-    const state = game.state;
-    const explored = state.empires[0]!.explored.length;
-    const menuBtn = h("button", { textContent: "☰", ariaLabel: "Menu" });
-    menuBtn.onclick = () => {
-      menuOpen = !menuOpen;
-      update();
-    };
-    const fit = h("button", { textContent: "⤢", ariaLabel: "Show whole galaxy" });
-    fit.onclick = () => map.fitGalaxy();
+    const me = empire(game.playerId);
+    const explored = game.state.empires[game.playerId]!.explored.length;
     return h(
       "div",
       { className: "topbar" },
-      h("div", { className: "title" }, `Turn ${state.turn}`, h("small", { textContent: `${state.empires[0]!.name} · explored ${explored}/${state.galaxy.systems.length}` })),
-      fit,
-      menuBtn,
+      h(
+        "div",
+        { className: "title" },
+        `Turn ${view.turn}`,
+        h("small", {}, h("span", { className: "swatch", style: `background:${me.color}` }), `${me.name} · ${explored}/${view.systems.length} explored`),
+      ),
+      button("Fleets", () => {
+        ui.panel = ui.panel === "fleets" ? "none" : "fleets";
+        update();
+      }),
+      button("⤢", () => map.fitGalaxy(), { ariaLabel: "Show whole galaxy" }),
+      button("☰", () => {
+        ui.panel = ui.panel === "menu" ? "none" : "menu";
+        update();
+      }, { ariaLabel: "Menu" }),
     );
   }
 
-  function menu(): HTMLElement | null {
-    if (!menuOpen) return null;
-    const exportBtn = h("button", { textContent: "Export save file" });
-    exportBtn.onclick = () => download(`space4x-turn${game.state.turn}.json`, serializeSave(game));
-    const newBtn = h("button", { textContent: "New game…" });
-    newBtn.onclick = () => {
-      if (confirm("Start a new game? The current game will be replaced.")) {
-        stopAutosave?.();
-        void showSetup();
+  function menuPanel(): HTMLElement {
+    return h(
+      "div",
+      { className: "menu" },
+      button("Export save file", () => download(`space4x-turn${game.state.turn}.json`, serializeSave(game))),
+      button(ui.revealMap ? "Hide map (debug)" : "Reveal map (debug)", () => {
+        ui.revealMap = !ui.revealMap;
+        ui.panel = "none";
+        update();
+      }),
+      button("New game…", () => {
+        if (confirm("Start a new game? The current game will be replaced.")) {
+          stopAutosave?.();
+          void showSetup();
+        }
+      }),
+      h("div", { className: "debug-note", textContent: `Seed: ${game.state.settings.seed}` }),
+    );
+  }
+
+  function fleetsPanel(): HTMLElement {
+    const list = h("ul");
+    for (const fleet of view.fleets.filter((f) => f.own)) {
+      const row = h("li", { className: "tappable" }, h("span", { textContent: fleet.name }), h("span", { textContent: fleetStatus(fleet) }));
+      row.onclick = () => {
+        ui.panel = "none";
+        focusFleet(fleet.id);
+      };
+      list.append(row);
+    }
+    const rivals = view.fleets.filter((f) => !f.own);
+    if (rivals.length > 0) {
+      list.append(h("li", { className: "section" }, h("span", { textContent: "Known rival fleets" })));
+      for (const fleet of rivals) {
+        const row = h(
+          "li",
+          { className: "tappable" },
+          h("span", {}, h("span", { className: "swatch", style: `background:${empire(fleet.empireId).color}` }), fleet.name),
+          h("span", { textContent: fleetStatus(fleet) }),
+        );
+        row.onclick = () => {
+          ui.panel = "none";
+          focusFleet(fleet.id);
+        };
+        list.append(row);
       }
-    };
-    const seed = h("div", { className: "debug-note", textContent: `Seed: ${game.state.settings.seed}` });
-    return h("div", { className: "menu" }, exportBtn, newBtn, seed);
+    }
+    return h("div", { className: "sheet panel" }, h("h2", {}, "Fleets", button("✕", () => ((ui.panel = "none"), update()), { ariaLabel: "Close" })), list);
+  }
+
+  function contextMenu(): HTMLElement | null {
+    const menu = ui.contextMenu;
+    if (!menu) return null;
+    const close = () => (ui.contextMenu = null);
+    const items: HTMLButtonElement[] = [];
+    const selected = fleetView(ui.selectedFleet);
+
+    if (menu.target.kind === "system") {
+      const id = menu.target.id;
+      items.push(button("Details", () => selectTarget({ kind: "system", id })));
+      if (selected?.own) {
+        items.push(
+          button(`Send ${selected.name} here`, () => {
+            close();
+            setPreview(selected.id, id);
+            confirmPreview();
+          }),
+        );
+      }
+      items.push(button("Center here", () => (close(), map.centerOn(view.systems[id]!.x, view.systems[id]!.y), update())));
+    } else {
+      const fleet = fleetView(menu.target.id);
+      if (fleet?.own) {
+        items.push(button("Set destination", () => selectTarget({ kind: "fleet", id: fleet.id })));
+        if (fleet.route?.length === 0) {
+          items.push(button(fleet.holding ? "Stop holding" : "Hold here", () => (close(), setHold(fleet.id, !fleet.holding))));
+        } else {
+          items.push(button("Stop at next system", () => (close(), setPreview(fleet.id, fleet.route![0]!), confirmPreview())));
+        }
+      } else if (fleet) {
+        items.push(button("Details", () => selectTarget({ kind: "fleet", id: fleet.id })));
+      }
+      if (fleet) items.push(button("Center here", () => (close(), map.centerOn(fleet.x, fleet.y), update())));
+    }
+
+    const width = 220;
+    const left = Math.min(Math.max(menu.x - width / 2, 8), window.innerWidth - width - 8);
+    const top = Math.min(menu.y + 16, window.innerHeight - 60 * items.length - 16);
+    return h("div", { className: "menu context", style: `left:${left}px;top:${top}px;width:${width}px` }, ...items);
+  }
+
+  function previewBar(): HTMLElement | null {
+    const preview = ui.preview;
+    if (!preview) return null;
+    const fleet = fleetView(preview.fleetId);
+    const text = preview.route.length === 0 ? `${fleet?.name}: stay at ${systemName(preview.destinationId)}` : `${fleet?.name} → ${systemName(preview.destinationId)} · ${turnsText(preview.turns)}`;
+    return h(
+      "div",
+      { className: "sheet confirm" },
+      h("div", { className: "confirm-text", textContent: text }),
+      h("div", { className: "row" }, button("Cancel", () => ((ui.preview = null), update())), button("Confirm", confirmPreview, { className: "primary" })),
+    );
+  }
+
+  function fleetSheet(): HTMLElement | null {
+    const fleet = fleetView(ui.selectedFleet);
+    if (!fleet) return null;
+    const owner = empire(fleet.empireId);
+    const actions = h("div", { className: "row" });
+    if (fleet.own) {
+      if (fleet.route?.length === 0) actions.append(button(fleet.holding ? "Stop holding" : "Hold", () => setHold(fleet.id, !fleet.holding)));
+      actions.append(button("Deselect", () => selectTarget(null)));
+    }
+    return h(
+      "div",
+      { className: "sheet" },
+      h("h2", {}, h("span", {}, h("span", { className: "swatch", style: `background:${owner.color}` }), fleet.name), button("✕", () => selectTarget(null), { ariaLabel: "Close" })),
+      h("div", { className: "sub", textContent: `${owner.name} · ${fleetStatus(fleet)}` }),
+      fleet.own ? h("div", { className: "hint", textContent: "Tap a star to set a destination, or drag from the fleet." }) : null,
+      fleet.own && fleet.speed ? h("div", { className: "hint", textContent: `Speed ${fleet.speed} per turn` }) : null,
+      fleet.own ? actions : null,
+    );
   }
 
   function systemSheet(): HTMLElement | null {
-    if (selectedSystem === null) return null;
-    const state = game.state;
-    const system = state.galaxy.systems[selectedSystem]!;
+    if (ui.selectedSystem === null) return null;
+    const system = view.systems[ui.selectedSystem]!;
     const star = pack.starTypes.find((t) => t.id === system.starType);
-    const owner = state.empires.find((e) => e.homeSystemId === system.id);
-
-    const close = h("button", { textContent: "✕", ariaLabel: "Close" });
-    close.onclick = () => {
-      selectedSystem = null;
-      selectedFleet = null;
-      update();
-    };
+    const owner = system.homeOf === null ? null : empire(system.homeOf);
 
     const bodies = h("ul");
-    if (system.bodies.length === 0) bodies.append(h("li", {}, h("span", { textContent: "No bodies" })));
-    for (const body of system.bodies) {
-      if (body.kind === "planet") {
-        const type = pack.planetTypes.find((t) => t.id === body.planetType);
-        const size = pack.planetSizes.find((t) => t.id === body.size);
-        const rich = pack.richness.find((t) => t.id === body.richness);
-        bodies.append(h("li", {}, h("span", { textContent: `${size?.name} ${type?.name} planet` }), h("span", { textContent: `${rich?.name} · hab ${type?.habitability}` })));
-      } else {
-        const label = { asteroids: "Asteroid field", gasGiant: "Gas giant", anomaly: "Anomaly" }[body.kind];
-        bodies.append(h("li", {}, h("span", { textContent: label })));
+    if (!system.bodies) {
+      bodies.append(h("li", {}, h("span", { className: "muted", textContent: "Unexplored. Send a fleet to survey it." })));
+    } else if (system.bodies.length === 0) {
+      bodies.append(h("li", {}, h("span", { textContent: "No bodies" })));
+    } else {
+      for (const body of system.bodies) {
+        if (body.kind === "planet") {
+          const type = pack.planetTypes.find((t) => t.id === body.planetType);
+          const size = pack.planetSizes.find((t) => t.id === body.size);
+          const rich = pack.richness.find((t) => t.id === body.richness);
+          bodies.append(h("li", {}, h("span", { textContent: `${size?.name} ${type?.name} planet` }), h("span", { textContent: `${rich?.name} · hab ${type?.habitability}` })));
+        } else {
+          const label = { asteroids: "Asteroid field", gasGiant: "Gas giant", anomaly: "Anomaly" }[body.kind];
+          bodies.append(h("li", {}, h("span", { textContent: label })));
+        }
       }
     }
 
+    const here = view.fleets.filter((f) => f.position.systemId === system.id && f.position.progress === 0);
     const fleets = h("ul");
-    const here = state.fleets.filter((f) => f.systemId === system.id && f.progress === 0);
     for (const fleet of here) {
-      const empire = state.empires[fleet.empireId]!;
-      const left = h("span", {}, h("span", { className: "swatch", style: `background:${empire.color}` }), fleet.name);
-      let right: HTMLElement = h("span", { textContent: fleet.route.length ? `→ ${systemName(fleet.route[fleet.route.length - 1]!)}` : empire.name });
-      if (fleet.empireId === game.playerId) {
-        const moveBtn = h("button", { textContent: fleet.route.length ? "Redirect" : "Move" });
-        moveBtn.onclick = () => {
-          movingFleet = fleet.id;
-          selectedFleet = fleet.id;
-          update();
-        };
-        right = moveBtn;
-      }
-      fleets.append(h("li", {}, left, right));
+      const row = h(
+        "li",
+        { className: "tappable" },
+        h("span", {}, h("span", { className: "swatch", style: `background:${empire(fleet.empireId).color}` }), fleet.name),
+        h("span", { textContent: fleet.own ? fleetStatus(fleet).split(" at ")[0]! : fleet.seenTurn < view.turn ? `seen turn ${fleet.seenTurn}` : empire(fleet.empireId).name }),
+      );
+      row.onclick = () => selectTarget({ kind: "fleet", id: fleet.id });
+      fleets.append(row);
     }
 
     return h(
       "div",
       { className: "sheet" },
-      h("h2", {}, system.name, close),
+      h("h2", {}, system.name, button("✕", () => selectTarget(null), { ariaLabel: "Close" })),
       h("div", { className: "sub", textContent: `${star?.name ?? system.starType}${owner ? ` · ${owner.name} home` : ""}` }),
       bodies,
       here.length ? h("div", { className: "sub", style: "margin-top:10px", textContent: "Fleets" }) : null,
@@ -251,62 +475,60 @@ function startGame(game: Game): void {
   }
 
   function reportSheet(): HTMLElement | null {
-    if (!report) return null;
-    const mine = report.filter((e) => e.empireId === game.playerId);
-    const rivals = report.length - mine.length;
+    if (!ui.report) return null;
+    const mine = ui.report.filter((e) => e.empireId === game.playerId);
     const list = h("ul");
-    for (const e of mine) list.append(h("li", {}, h("span", { textContent: describeEvent(e) })));
-    if (mine.length === 0) list.append(h("li", {}, h("span", { textContent: "Nothing to report." })));
-    if (rivals > 0) list.append(h("li", {}, h("span", { textContent: `Rival empires: ${rivals} events` })));
-    const close = h("button", { textContent: "✕", ariaLabel: "Close report" });
-    close.onclick = () => {
-      report = null;
-      update();
-    };
-    return h("div", { className: "sheet" }, h("h2", {}, `Turn ${game.state.turn - 1} report`, close), list);
+    for (const e of mine) {
+      const row = h("li", { className: "tappable" }, h("span", { textContent: describeEvent(e) }));
+      row.onclick = () => {
+        const system = view.systems[e.systemId]!;
+        if (e.type === "fleetArrived") return focusFleet(e.fleetId);
+        if (e.type === "fleetSighted" && fleetView(e.fleetId)) return focusFleet(e.fleetId);
+        selectTarget({ kind: "system", id: system.id });
+        map.centerOn(system.x, system.y);
+      };
+      list.append(row);
+    }
+    if (mine.length === 0) list.append(h("li", {}, h("span", { className: "muted", textContent: "Nothing to report." })));
+    return h("div", { className: "sheet" }, h("h2", {}, `Turn ${view.turn - 1} report`, button("✕", () => ((ui.report = null), update()), { ariaLabel: "Close report" })), list);
   }
 
   function bottomBar(): HTMLElement {
-    const actions = h("div", { className: "actions" });
-    if (movingFleet !== null) {
-      const cancel = h("button", { textContent: "Cancel" });
-      cancel.onclick = () => {
-        movingFleet = null;
-        update();
-      };
-      actions.append(h("div", { className: "sheet", style: "flex:1;padding:10px 14px", textContent: `Tap a destination for ${fleetName(movingFleet)}` }), cancel);
-      return h("div", { className: "bottombar" }, actions);
-    }
-
-    const undo = h("button", { textContent: "Undo", disabled: !game.canUndo });
-    undo.onclick = () => {
-      game.undo();
-      update();
-    };
-    const endTurn = h("button", { className: "primary", textContent: "End turn" });
-    endTurn.onclick = () => {
-      report = game.endTurn();
-      selectedSystem = null;
-      selectedFleet = null;
-      void save();
-      update();
-    };
-    actions.append(undo, endTurn);
-    return h(
+    const idle = attentionItems(game.state, game.playerId).length;
+    const actions = h(
       "div",
-      { className: "bottombar" },
-      reportSheet() ?? systemSheet(),
-      actions,
-      h("div", { className: "debug-note", textContent: "Preview build: no fog of war yet, AI scouts explore on their own." }),
+      { className: "actions" },
+      button("Undo", () => {
+        game.undo();
+        ui.preview = null;
+        update();
+      }, { disabled: !game.canUndo }),
+      idle > 0 ? button(`${idle} idle ›`, nextIdle, { className: "attention", title: "Fleets without orders" }) : null,
+      button("End turn", () => {
+        ui.report = game.endTurn();
+        ui.selectedSystem = null;
+        ui.selectedFleet = null;
+        ui.preview = null;
+        ui.idleCursor = 0;
+        void save();
+        update();
+      }, { className: "primary" }),
     );
+    const sheet = previewBar() ?? fleetSheet() ?? systemSheet() ?? reportSheet();
+    return h("div", { className: "bottombar" }, sheet, actions);
   }
 
   function update(): void {
-    map.setState(game.state, { systemId: selectedSystem, fleetId: selectedFleet });
-    hud.replaceChildren(topBar(), bottomBar(), ...[menu()].filter((x): x is HTMLElement => x !== null));
+    view = ui.revealMap ? omniscientView(game.state, game.playerId) : empireView(game.state, game.playerId);
+    if (ui.selectedFleet !== null && !fleetView(ui.selectedFleet)) ui.selectedFleet = null;
+    map.setScene({ view, selectedSystem: ui.selectedSystem, selectedFleet: ui.selectedFleet, preview: ui.preview });
+    const overlays = [ui.panel === "menu" ? menuPanel() : null, ui.panel === "fleets" ? fleetsPanel() : null, contextMenu()].filter((x): x is HTMLElement => x !== null);
+    hud.replaceChildren(topBar(), bottomBar(), ...overlays);
   }
 
   update();
+  const home = view.systems[game.state.empires[game.playerId]!.homeSystemId]!;
+  map.centerOn(home.x, home.y);
 }
 
 void showSetup();

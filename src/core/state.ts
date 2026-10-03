@@ -5,7 +5,7 @@ import type { BodyKind } from "../content/schema";
  * so it can be cloned, saved, hashed, and sent over a network unchanged.
  */
 
-export const STATE_VERSION = 1;
+export const STATE_VERSION = 2;
 
 export type SystemId = number;
 export type EmpireId = number;
@@ -54,9 +54,28 @@ export interface Empire {
   color: string;
   isAI: boolean;
   homeSystemId: SystemId;
-  /** Systems this empire has visited, ascending. Basis for fog of war later. */
+  /** Systems this empire has visited, ascending. Their bodies are known. */
   explored: SystemId[];
+  /** Distance within which the home system sees fleets. */
+  homeSensorRange: number;
+  /** Last-known positions of other empires' fleets, by fleet id. */
+  sightings: FleetSighting[];
   eliminated: boolean;
+}
+
+/** Where a fleet is: in a system, or `progress` distance along the lane toward `nextSystemId`. */
+export interface FleetPosition {
+  systemId: SystemId;
+  nextSystemId: SystemId | null;
+  progress: number;
+}
+
+export interface FleetSighting extends FleetPosition {
+  fleetId: FleetId;
+  empireId: EmpireId;
+  name: string;
+  /** Turn this was observed. Equal to the current turn while the fleet is in sensor range. */
+  turn: number;
 }
 
 export interface Fleet {
@@ -71,11 +90,17 @@ export interface Fleet {
   route: SystemId[];
   /** Distance travelled along the lane toward route[0]. 0 means "in system". */
   progress: number;
+  /** Distance within which this fleet sees other fleets. */
+  sensorRange: number;
+  /** Player told this fleet to stay put; idle holding fleets don't need attention. */
+  holding: boolean;
 }
 
 export type GameEvent =
   | { type: "fleetArrived"; turn: number; empireId: EmpireId; fleetId: FleetId; systemId: SystemId }
-  | { type: "systemExplored"; turn: number; empireId: EmpireId; systemId: SystemId };
+  | { type: "systemExplored"; turn: number; empireId: EmpireId; systemId: SystemId }
+  /** `empireId` spotted a fleet of `ownerId` that was not in sensor range last turn. */
+  | { type: "fleetSighted"; turn: number; empireId: EmpireId; ownerId: EmpireId; fleetId: FleetId; systemId: SystemId };
 
 export interface GameState {
   version: number;
@@ -110,6 +135,12 @@ export function findFleet(state: GameState, id: FleetId): Fleet | undefined {
 
 export function isInTransit(fleet: Fleet): boolean {
   return fleet.progress > 0;
+}
+
+export function fleetPosition(fleet: Fleet): FleetPosition {
+  return fleet.progress > 0
+    ? { systemId: fleet.systemId, nextSystemId: fleet.route[0]!, progress: fleet.progress }
+    : { systemId: fleet.systemId, nextSystemId: null, progress: 0 };
 }
 
 export function cloneState(state: GameState): GameState {

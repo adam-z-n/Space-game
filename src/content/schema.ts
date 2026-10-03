@@ -65,6 +65,8 @@ const StartingFleet = z.object({
   name: z.string().min(1),
   /** Distance units per turn. */
   speed: z.number().int().positive(),
+  /** Distance within which this fleet sees other fleets. */
+  sensorRange: z.number().int().nonnegative(),
 });
 
 export const ContentPackSchema = z
@@ -89,6 +91,8 @@ export const ContentPackSchema = z
       homeworldPlanetType: id,
       homeworldSize: id,
       homeworldRichness: id,
+      /** Distance within which a home system sees fleets. */
+      homeSensorRange: z.number().int().nonnegative(),
       fleets: z.array(StartingFleet),
     }),
   })

@@ -5,7 +5,20 @@ A turn-based space empire game for phones. See [docs/GAME_DESIGN.md](docs/GAME_D
 The game is built web-first in TypeScript: it runs as a mobile web app for playtesting, and will be wrapped
 with Capacitor for the iOS and Android app stores later using the same code.
 
-## Status: Milestone 1
+## Status: Milestone 2
+
+**Milestone 2: map and orders**
+
+- Fog of war: star charts are known, but planets show only once explored and rival fleets only within sensor range
+  (home system and your fleets). Out of range, you keep last-known sightings.
+- Select fleets and stars on the map; tap a star to preview a route with turns to arrive, then confirm
+- Drag from a fleet to a star to order it directly; long-press stars and fleets for context actions
+- Hold orders and an attention queue ("2 idle ›") so ending a turn is never a guess
+- Fleets list, turn report with tap-to-locate, readable labels at any zoom
+- A debug "Reveal map" option in the menu
+- Older saves are migrated automatically
+
+**Milestone 1: simulation core**
 
 - Seeded, reproducible galaxy generation (systems, lanes, planets, home systems)
 - The command pipeline and turn loop: every action is a serializable command applied to a deterministic state
@@ -14,9 +27,9 @@ with Capacitor for the iOS and Android app stores later using the same code.
 - Saves (current state plus full command log), undo within a turn, and replay from the log
 - A data-driven content pack, validated at load
 - Headless tests and a batch simulation runner
-- A preview web app: map with pan and pinch zoom, system details, fleet moves, end turn, autosave
+- A preview web app with autosave and save export/import
 
-Not yet: fog of war, colonies, economy, research, combat. Those are later milestones.
+Not yet: colonies, economy, research, ship design, combat. Those are later milestones.
 
 ## Running it
 
@@ -37,7 +50,8 @@ npm run build      # production web build in dist/
 
 | Path | What it is |
 | --- | --- |
-| `src/core/` | The simulation: state, RNG, galaxy generation, commands, turn resolution, AI, saves. No UI or platform code. |
+| `src/core/` | The simulation: state, RNG, galaxy generation, commands, turn resolution, fog of war, AI, saves. No UI or platform code. |
+| `src/core/view.ts` | What one empire may know. The UI renders only this, so fog of war can't leak. |
 | `src/content/` | Content pack schema and loader. |
 | `content/default/pack.json` | The placeholder content pack (stars, planets, names, empires, starting fleets). |
 | `src/platform/` | Save storage and app lifecycle. The only code that changes for the native app. |

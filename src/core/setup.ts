@@ -1,6 +1,7 @@
 import type { ContentPack } from "../content/schema";
 import { generateGalaxy, installHomeworld, pickHomeSystems } from "./galaxy";
 import { Rng } from "./rng";
+import { updateSightings } from "./vision";
 import { STATE_VERSION, type Empire, type Fleet, type GameSettings, type GameState } from "./state";
 
 export const MIN_AI = 2;
@@ -44,14 +45,26 @@ export function createInitialState(settings: GameSettings, pack: ContentPack): G
       isAI: i !== 0,
       homeSystemId: home,
       explored: [home],
+      homeSensorRange: pack.start.homeSensorRange,
+      sightings: [],
       eliminated: false,
     });
     for (const template of pack.start.fleets) {
-      fleets.push({ id: nextId++, empireId: i, name: template.name, speed: template.speed, systemId: home, route: [], progress: 0 });
+      fleets.push({
+        id: nextId++,
+        empireId: i,
+        name: template.name,
+        speed: template.speed,
+        sensorRange: template.sensorRange,
+        systemId: home,
+        route: [],
+        progress: 0,
+        holding: false,
+      });
     }
   }
 
-  return {
+  const state: GameState = {
     version: STATE_VERSION,
     contentPack: { id: pack.id, version: pack.version },
     settings: { ...settings },
@@ -63,4 +76,6 @@ export function createInitialState(settings: GameSettings, pack: ContentPack): G
     nextId,
     lastTurnEvents: [],
   };
+  updateSightings(state, null, state.turn);
+  return state;
 }
