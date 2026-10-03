@@ -601,3 +601,8 @@ button.small-button {
   gap: 8px;
   margin-top: 8px;
 }
+
+button.danger {
+  color: var(--danger);
+  border-color: #ef535066;
+}

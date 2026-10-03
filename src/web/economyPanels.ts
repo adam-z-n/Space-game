@@ -6,8 +6,11 @@ import {
   colonyOutput,
   empireEconomy,
   findColony,
+  empireScore,
   getDesign,
   getTech,
+  populationShares,
+  turnLimit,
   itemCost,
   itemName,
   queueForecast,
@@ -30,6 +33,7 @@ export interface PanelContext {
   openResearch(): void;
   openEmpire(): void;
   close(): void;
+  newGame(): void;
 }
 
 const FOCUS_LABELS: Record<Focus, string> = { balanced: "Balanced", industry: "Industry", research: "Research", food: "Food" };
@@ -82,6 +86,40 @@ export function empirePanel(ctx: PanelContext): HTMLElement {
   );
   if (empire.credits < 0) list.append(h("li", {}, h("span", { className: "warn-text", textContent: `In debt: industry and research -${pack.economy.debtPenaltyPercent}%` })));
   if (eco.netFood < 0 && empire.food + eco.netFood < 0) list.append(h("li", {}, h("span", { className: "warn-text", textContent: "Food runs out next turn: colonies will starve" })));
+  // Score and the road to victory.
+  const score = empireScore(game.state, pack, game.playerId);
+  const share = populationShares(game.state).get(game.playerId) ?? 0;
+  list.append(
+    h("li", { className: "section" }, h("span", { textContent: "Victory" })),
+    row("Your score", `${score.total}`),
+    row("Share of galaxy population", `${share}% (domination at ${pack.victory.dominationPercent}% from turn ${pack.victory.dominationMinTurn})`),
+    row("Turn limit", `${turnLimit(game.state, pack)}: highest score wins`),
+  );
+
+  // Rivals: what we know. Personalities show once we've met them.
+  const known = new Set([...empire.sightings.map((s) => s.empireId), ...empire.colonySightings.map((c) => c.empireId)]);
+  list.append(h("li", { className: "section" }, h("span", { textContent: "Rivals" })));
+  for (const rival of game.state.empires) {
+    if (rival.id === game.playerId) continue;
+    const met = known.has(rival.id);
+    const personality = pack.aiPersonalities.find((p) => p.id === rival.personality);
+    const seenFleets = empire.sightings.filter((s) => s.empireId === rival.id && s.armed);
+    const strength = seenFleets.reduce((n, s) => n + s.strength, 0);
+    const colonies = empire.colonySightings.filter((c) => c.empireId === rival.id).length;
+    const li = h(
+      "li",
+      {},
+      h(
+        "span",
+        { className: "grow" },
+        h("div", {}, h("span", { className: "swatch", style: `background:${rival.color}` }), `${rival.name}${rival.eliminated ? " (eliminated)" : ""}`),
+        h("div", { className: "muted small", textContent: met ? `${personality?.name ?? "Unknown"}: ${personality?.description ?? ""}` : "Not yet met" }),
+      ),
+      h("span", { className: "small", textContent: met ? `${colonies} known colon${colonies === 1 ? "y" : "ies"} · fleets ~${strength}` : "" }),
+    );
+    list.append(li);
+  }
+
   list.append(h("li", { className: "section" }, h("span", { textContent: "Colonies" })));
   for (const colony of colonies) {
     const out = colonyOutput(game.state, pack, colony);
@@ -225,5 +263,38 @@ export function researchPanel(ctx: PanelContext): HTMLElement {
     list,
     h("h3", { textContent: `Researched (${empire.techs.length}/${pack.techs.length})` }),
     h("div", { className: "muted", textContent: known }),
+  );
+}
+
+/** Final standings. Everything is revealed once the game is over. */
+export function gameOverPanel(ctx: PanelContext): HTMLElement | null {
+  const { game, pack } = ctx;
+  const outcome = game.state.outcome;
+  if (!outcome) return null;
+  const won = outcome.winnerId === game.playerId;
+  const winner = game.state.empires[outcome.winnerId]!;
+  const reason = { domination: "by holding a dominant share of the galaxy's population", turnLimit: "with the highest score at the turn limit", elimination: "as the last empire standing" }[outcome.reason];
+  const list = h("ul");
+  const standings = game.state.empires
+    .map((e) => ({ e, score: empireScore(game.state, pack, e.id) }))
+    .sort((a, b) => b.score.total - a.score.total || a.e.id - b.e.id);
+  for (const { e, score } of standings) {
+    const personality = pack.aiPersonalities.find((p) => p.id === e.personality);
+    list.append(
+      h(
+        "li",
+        {},
+        h("span", { className: "grow" }, h("div", {}, h("span", { className: "swatch", style: `background:${e.color}` }), `${e.name}${e.id === game.playerId ? " (you)" : ""}`), h("div", { className: "muted small", textContent: personality ? personality.name : "Player" })),
+        h("span", { className: "small", textContent: `${score.total} pts · ${score.colonies} colonies · pop ${score.population} · ${score.techs} techs` }),
+      ),
+    );
+  }
+  return h(
+    "div",
+    { className: "sheet panel tall" },
+    h("h2", {}, won ? "Victory!" : "Game over", button("✕", ctx.close, { ariaLabel: "Close" })),
+    h("div", { className: "sub", textContent: `${won ? "You win" : `${winner.name} wins`} ${reason}, turn ${outcome.turn}.` }),
+    list,
+    button("New game", () => ctx.newGame(), { className: "primary" }),
   );
 }

@@ -5,7 +5,21 @@ A turn-based space empire game for phones. See [docs/GAME_DESIGN.md](docs/GAME_D
 The game is built web-first in TypeScript: it runs as a mobile web app for playtesting, and will be wrapped
 with Capacitor for the iOS and Android app stores later using the same code.
 
-## Status: Milestone 4
+## Status: Milestone 5
+
+**Milestone 5: AI opponents, difficulty, victory, balance harness**
+
+- AI in four steps (`src/core/ai/`): what the empire knows (its own state and sightings only), strategy
+  (posture: expand / build / defend / attack, war target, wanted fleet strength, research), operations (a job
+  for every fleet: resupply, colonize, scout, defend, strike, garrison, regroup; supply-aware reach checks and
+  routes that avoid known enemy warships) and production (focus, build choices, a fleet budget, debt control, buying)
+- Five personalities defined in the content pack (expansionist, turtle, raider, warlord, technocrat): appetites,
+  aggression, caution, defense, ship design style and research preferences
+- Difficulty levels (content effects applied to AI empires only): easy, normal, hard. The AI never sees through fog of war.
+- Victory: domination (a share of all population), elimination, or best score at the turn limit; game-over screen
+- Disband fleets to cut upkeep
+- `npm run sim` plays all-AI games to the end and reports win rates by personality, how games ended, combat and
+  economy stats, AI command rejections, and how often the unmodified "baseline" empire wins at a given difficulty
 
 **Milestone 4: ship design, fleets, supply, combat**
 
@@ -60,7 +74,7 @@ with Capacitor for the iOS and Android app stores later using the same code.
 - Headless tests and a batch simulation runner
 - A preview web app with autosave and save export/import
 
-Not yet: orbital and planetary defenses, invasion, repair tenders and minelayers (Milestone 6), and a real AI (Milestone 5).
+Not yet: orbital and planetary defenses, invasion, repair tenders and minelayers (Milestone 6).
 
 ## Play it
 
@@ -80,7 +94,8 @@ npm run typecheck  # includes a check that the simulation core uses no browser/N
 npm run build      # production web build in dist/
 ```
 
-`npm run sim -- --games 50 --turns 100 --size large --ai 5` adjusts the batch.
+`npm run sim -- --games 50 --turns 100 --size large --ai 5 --difficulty hard` adjusts the batch. Without `--turns`,
+games run to the content pack's turn limit (200), which takes a minute or two per handful of games.
 
 ## Layout
 
@@ -91,6 +106,8 @@ npm run build      # production web build in dist/
 | `src/core/ships.ts` | Designs, design stats, fleet stats and strength. |
 | `src/core/supply.ts` | Supply networks, onboard supply, repair, attrition, blockades. |
 | `src/core/combat.ts` | Battle resolution and battle reports. |
+| `src/core/ai/` | AI empires: context (knowledge), strategy, operations, production, designs. |
+| `src/core/victory.ts` | Scores, domination, elimination and the turn limit. |
 | `src/core/view.ts` | What one empire may know. The UI renders only this, so fog of war can't leak. |
 | `src/content/` | Content pack schema and loader. |
 | `content/default/pack.json` | The placeholder content pack (stars, planets, names, empires, starting fleets). |
@@ -120,3 +137,5 @@ These keep games replayable and multiplayer-ready:
 - Fleet orders in v1: engage/evade, stance, target priority and retreat threshold. Patrol, escort and raid
   missions are deferred; blockades happen automatically when a warship sits at an enemy colony.
 - First theme: undecided; a generic placeholder pack is used for now.
+- AI personalities are revealed in the Empire screen once you have met that rival.
+- Domination is set to 40% of all population from turn 50, tuned for a galaxy without invasion; revisit after Milestone 6.

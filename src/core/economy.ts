@@ -53,13 +53,20 @@ export function getBuilding(pack: ContentPack, id: string): Building {
 }
 
 /** Empire-wide modifiers from researched techs. */
+/** Empire-wide modifiers from researched techs, plus difficulty bonuses for AI empires. */
 export function empireEffects(pack: ContentPack, empire: Empire): Totals {
-  return sumEffects(empire.techs.map((id) => getTech(pack, id).effects));
+  const difficulty = empire.difficulty ? pack.difficulties.find((d) => d.id === empire.difficulty)?.effects : undefined;
+  return sumEffects([...empire.techs.map((id) => getTech(pack, id).effects), ...(difficulty ? [difficulty] : [])]);
 }
 
 /** Modifiers acting on one colony: its buildings plus the empire's techs. */
 export function colonyEffects(pack: ContentPack, empire: Empire, colony: Colony): Totals {
-  return sumEffects([...empire.techs.map((id) => getTech(pack, id).effects), ...colony.buildings.map((id) => getBuilding(pack, id).effects)]);
+  const difficulty = empire.difficulty ? pack.difficulties.find((d) => d.id === empire.difficulty)?.effects : undefined;
+  return sumEffects([
+    ...empire.techs.map((id) => getTech(pack, id).effects),
+    ...colony.buildings.map((id) => getBuilding(pack, id).effects),
+    ...(difficulty ? [difficulty] : []),
+  ]);
 }
 
 const pct = (value: number, percent: number) => Math.floor((value * (100 + percent)) / 100);

@@ -57,6 +57,8 @@ export type Command =
   | { type: "createDesign"; empireId: EmpireId; design: Omit<DesignData, "id"> }
   /** Hide a design from build lists. Ships already built are unaffected. */
   | { type: "retireDesign"; empireId: EmpireId; designId: string }
+  /** Scrap a fleet to stop paying its upkeep. Nothing is refunded. */
+  | { type: "disbandFleet"; empireId: EmpireId; fleetId: FleetId }
   /** Ends the orders phase for everyone and resolves the turn. */
   | { type: "endTurn" };
 
@@ -210,8 +212,12 @@ export function validateCommand(state: GameState, command: Command, pack: Conten
     }
     case "setResearch":
       return techAvailable(pack, state.empires[command.empireId]!, command.techId) ? null : "tech not available";
+    case "disbandFleet": {
+      const fleet = ownFleet(state, command.empireId, command.fleetId);
+      return typeof fleet === "string" ? fleet : null;
+    }
     case "endTurn":
-      return null;
+      return state.outcome ? "the game is over" : null;
     default:
       return `unknown command ${(command as { type: string }).type}`;
   }
@@ -326,6 +332,9 @@ export function applyCommand(state: GameState, command: Command, pack: ContentPa
       });
       break;
     }
+    case "disbandFleet":
+      next.fleets = next.fleets.filter((f) => f.id !== command.fleetId);
+      break;
     case "retireDesign":
       next.empires[command.empireId]!.designs.find((d) => d.id === command.designId)!.obsolete = true;
       break;

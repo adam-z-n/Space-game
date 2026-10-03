@@ -196,6 +196,55 @@ const Combat = z.object({
   dockRepairPercent: z.number().int().min(0).max(100),
 });
 
+const scale = z.number().int().min(0).max(10);
+
+/** An AI temperament: data, not code, so themes can ship their own rivals. */
+const Personality = z.object({
+  id,
+  name: z.string().min(1),
+  description: z.string(),
+  /** Appetites on a 0-10 scale. */
+  expansion: scale,
+  military: scale,
+  research: scale,
+  economy: scale,
+  /** Willingness to start fights and hit rival colonies. */
+  aggression: scale,
+  /** Higher = needs better odds, retreats sooner. */
+  caution: scale,
+  /** Garrisons colonies and holds chokepoints. */
+  defense: scale,
+  /** raider: small fast hulls; line: balanced warships; fortress: heavy armor and shields. */
+  designStyle: z.enum(["raider", "line", "fortress"]),
+  /** Weight per research field id (missing fields count as 1). */
+  researchFields: z.record(z.string(), z.number().int().min(0).max(10)),
+});
+export type PersonalityData = z.infer<typeof Personality>;
+
+const Difficulty = z.object({
+  id,
+  name: z.string().min(1),
+  description: z.string(),
+  /** Applied to AI empires only. */
+  effects: EffectsSchema,
+});
+
+const Victory = z.object({
+  /** The game ends after this many turns; highest score wins. */
+  turnLimit: z.number().int().positive(),
+  /** Holding this share of all population wins outright... */
+  dominationPercent: z.number().int().min(1).max(100),
+  /** ...once the game has run this long. */
+  dominationMinTurn: z.number().int().nonnegative(),
+  score: z.object({
+    population: z.number().int().nonnegative(),
+    colony: z.number().int().nonnegative(),
+    tech: z.number().int().nonnegative(),
+    /** Points per 10 strength of warships. */
+    military: z.number().int().nonnegative(),
+  }),
+});
+
 const Economy = z.object({
   startingCredits: z.number().int(),
   startingFood: z.number().int().nonnegative(),
@@ -261,6 +310,9 @@ export const ContentPackSchema = z
     techs: z.array(Tech),
     buildings: z.array(Building),
     combat: Combat,
+    victory: Victory,
+    aiPersonalities: z.array(Personality).min(1),
+    difficulties: z.array(Difficulty).min(1),
     hulls: z.array(Hull).min(1),
     components: z.array(Component).min(1),
     /** Designs every empire starts with. */
@@ -293,10 +345,16 @@ export const ContentPackSchema = z
     unique("hulls", pack.hulls.map((t) => t.id));
     unique("components", pack.components.map((t) => t.id));
     unique("startingDesigns", pack.startingDesigns.map((t) => t.id));
+    unique("aiPersonalities", pack.aiPersonalities.map((t) => t.id));
+    unique("difficulties", pack.difficulties.map((t) => t.id));
 
     const techIds = new Set(pack.techs.map((t) => t.id));
     const fieldIds = new Set(pack.researchFields.map((f) => f.id));
     const issue = (path: (string | number)[], message: string) => ctx.addIssue({ code: "custom", path, message });
+    if (!pack.difficulties.some((d) => d.id === "normal")) issue(["difficulties"], `needs a "normal" difficulty`);
+    pack.aiPersonalities.forEach((p, i) => {
+      for (const field of Object.keys(p.researchFields)) if (!fieldIds.has(field)) issue(["aiPersonalities", i, "researchFields"], `unknown research field "${field}"`);
+    });
     pack.techs.forEach((tech, i) => {
       if (!fieldIds.has(tech.field)) issue(["techs", i, "field"], `unknown research field "${tech.field}"`);
       for (const req of tech.requires) if (!techIds.has(req)) issue(["techs", i, "requires"], `unknown tech "${req}"`);

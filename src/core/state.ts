@@ -5,7 +5,7 @@ import type { BodyKind, Formation } from "../content/schema";
  * so it can be cloned, saved, hashed, and sent over a network unchanged.
  */
 
-export const STATE_VERSION = 4;
+export const STATE_VERSION = 5;
 
 export type SystemId = number;
 export type EmpireId = number;
@@ -21,6 +21,10 @@ export interface GameSettings {
   aiCount: number;
   /** AI also plays empire 0; for batch testing and spectating. */
   allAI?: boolean;
+  /** Content difficulty id for AI empires; defaults to "normal". */
+  difficulty?: string;
+  /** Overrides the content pack's turn limit. */
+  turnLimit?: number;
 }
 
 export interface Body {
@@ -58,6 +62,10 @@ export interface Empire {
   name: string;
   color: string;
   isAI: boolean;
+  /** AI personality id (content); null for human players. */
+  personality: string | null;
+  /** Difficulty id whose effects apply to this empire; null for human players. */
+  difficulty: string | null;
   homeSystemId: SystemId;
   /** Systems this empire has visited, ascending. Their bodies are known. */
   explored: SystemId[];
@@ -211,7 +219,15 @@ export type GameEvent =
   | { type: "outOfSupply"; turn: number; empireId: EmpireId; fleetId: FleetId; systemId: SystemId }
   | { type: "attrition"; turn: number; empireId: EmpireId; fleetId: FleetId; systemId: SystemId; shipsLost: number }
   | { type: "fleetIntercepted"; turn: number; empireId: EmpireId; fleetId: FleetId; systemId: SystemId }
-  | { type: "blockaded"; turn: number; empireId: EmpireId; colonyId: ColonyId; systemId: SystemId };
+  | { type: "blockaded"; turn: number; empireId: EmpireId; colonyId: ColonyId; systemId: SystemId }
+  | { type: "empireEliminated"; turn: number; empireId: EmpireId; eliminatedId: EmpireId }
+  | { type: "gameOver"; turn: number; empireId: EmpireId; winnerId: EmpireId; reason: GameOutcome["reason"] };
+
+export interface GameOutcome {
+  winnerId: EmpireId;
+  reason: "domination" | "turnLimit" | "elimination";
+  turn: number;
+}
 
 export interface BattleShip {
   shipId: ShipId;
@@ -257,6 +273,8 @@ export interface GameState {
   lastTurnEvents: GameEvent[];
   /** Battles fought in the most recent turn resolution, for reports and replay. */
   lastBattles: BattleReport[];
+  /** Set when the game ends; no further turns resolve. */
+  outcome: GameOutcome | null;
 }
 
 export function getSystem(state: GameState, id: SystemId): StarSystem {

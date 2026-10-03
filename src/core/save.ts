@@ -106,6 +106,17 @@ export function migrateState(state: GameState, pack: ContentPack): GameState {
     old.version = 4;
   }
 
+  if (old.version === 4) {
+    // v5 added AI personalities and difficulty, and game outcomes.
+    const personalities = pack.aiPersonalities.map((p) => p.id);
+    for (const empire of migrated.empires) {
+      empire.personality = empire.isAI ? personalities[empire.id % personalities.length]! : null;
+      empire.difficulty = empire.isAI ? "normal" : null;
+    }
+    migrated.outcome = null;
+    old.version = 5;
+  }
+
   if (startVersion !== migrated.version) {
     for (const empire of migrated.empires) refreshEmpireStats(migrated, pack, empire);
     updateSightings(migrated, pack, null, migrated.turn);

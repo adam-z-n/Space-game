@@ -37,3 +37,22 @@ export function testFleet(state: GameState, opts: { id: number; empireId: number
     holding: false,
   };
 }
+
+/**
+ * Keep one capital per empire, moved to the given systems, with sensors off so
+ * it doesn't affect vision tests. Empires need a colony or they are eliminated.
+ */
+export function relocateCapitals(state: GameState, systems: number[]): void {
+  state.colonies = state.colonies.filter((c) => c.capital && c.empireId < systems.length);
+  for (const colony of state.colonies) {
+    colony.systemId = systems[colony.empireId]!;
+    const system = state.galaxy.systems[colony.systemId]!;
+    if (!system.bodies.some((b) => b.id === colony.bodyId)) {
+      system.bodies.push({ id: colony.bodyId, kind: "planet", planetType: "terran", size: "medium", richness: "normal" });
+    }
+  }
+  for (const empire of state.empires) {
+    empire.capitalSensorRange = 0;
+    empire.colonySensorRange = 0;
+  }
+}
