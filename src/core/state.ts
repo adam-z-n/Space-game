@@ -5,7 +5,7 @@ import type { BodyKind, Formation } from "../content/schema";
  * so it can be cloned, saved, hashed, and sent over a network unchanged.
  */
 
-export const STATE_VERSION = 6;
+export const STATE_VERSION = 7;
 
 export type SystemId = number;
 export type EmpireId = number;
@@ -25,6 +25,8 @@ export interface GameSettings {
   difficulty?: string;
   /** Overrides the content pack's turn limit. */
   turnLimit?: number;
+  /** Index into the content pack's empires for the player; AIs draw from the rest. Defaults to 0. */
+  playerEmpire?: number;
 }
 
 export interface Body {
@@ -62,6 +64,8 @@ export interface Empire {
   name: string;
   color: string;
   isAI: boolean;
+  /** Species id (content); its traits apply to the whole empire. */
+  species: string;
   /** AI personality id (content); null for human players. */
   personality: string | null;
   /** Difficulty id whose effects apply to this empire; null for human players. */
@@ -148,6 +152,8 @@ export interface FleetSighting extends FleetPosition {
   empireId: EmpireId;
   name: string;
   ships: number;
+  /** Hull of the fleet's largest ship, as observed (for its icon). */
+  hull: string;
   /** Rough combat strength as observed (see fleetStrength). */
   strength: number;
   armed: boolean;

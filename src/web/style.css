@@ -379,8 +379,8 @@ svg.map {
 }
 
 button.attention {
-  border-color: #fdd835;
-  color: #fdd835;
+  border-color: var(--warn);
+  color: var(--warn);
   white-space: nowrap;
 }
 
@@ -421,15 +421,15 @@ button.attention {
 .chip.ind .glyph { color: #ffb74d; }
 .chip.res .glyph { color: #4fc3f7; }
 .chip.food .glyph { color: #81c784; }
-.chip.cr .glyph { color: #fdd835; }
+.chip.cr .glyph { color: var(--warn); }
 
 .chip.warn {
-  border-color: #fdd835;
-  color: #fdd835;
+  border-color: var(--warn);
+  color: var(--warn);
 }
 
 .warn-text {
-  color: #fdd835;
+  color: var(--warn);
 }
 
 .sheet.panel.tall {
@@ -614,4 +614,195 @@ button.danger {
 
 .defense-box {
   margin-top: 6px;
+}
+
+/* ---------- Retro theme (colors come from the content pack via theme.ts) ---------- */
+
+:root {
+  --warn: #ffcf4a;
+  --display-font: ui-monospace, monospace;
+}
+
+body {
+  background:
+    radial-gradient(ellipse at 50% 30%, #0d1a3a55 0%, transparent 70%),
+    var(--bg);
+}
+
+/* Faint CRT scanlines over everything; purely decorative. */
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background: repeating-linear-gradient(to bottom, rgba(0, 0, 0, 0.16) 0 1px, transparent 1px 3px);
+  z-index: 50;
+}
+
+h1,
+h2,
+h3,
+button,
+select,
+.topbar .title,
+.chip,
+.stat-value,
+.empire-name,
+.confirm-text {
+  font-family: var(--display-font);
+  letter-spacing: 0.02em;
+}
+
+h1 {
+  font-size: 30px;
+  color: var(--accent);
+  text-shadow: 3px 3px 0 #000;
+  text-align: center;
+}
+
+button,
+select,
+input {
+  border-radius: 3px;
+  border: 2px solid var(--line);
+  background: linear-gradient(#1b2a4a, #12203d);
+  box-shadow: inset 1px 1px 0 #ffffff22, inset -1px -1px 0 #00000066;
+  font-size: 13px;
+}
+
+button:active {
+  box-shadow: inset 1px 1px 0 #00000066, inset -1px -1px 0 #ffffff22;
+}
+
+button.primary {
+  background: linear-gradient(#7fe0ff, #3fb6e6);
+  border-color: #b8efff;
+  color: #04121c;
+  text-shadow: none;
+}
+
+button.attention {
+  background: linear-gradient(#3a3014, #241d0a);
+}
+
+.sheet,
+.menu,
+.sheet.panel {
+  border-radius: 4px;
+  border: 2px solid var(--line);
+  box-shadow: 0 0 0 2px #000, inset 0 0 0 1px #ffffff14, 0 8px 24px #0009;
+}
+
+.sheet h2 {
+  font-size: 16px;
+  color: var(--accent);
+}
+
+.sheet h3 {
+  font-size: 12px;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.resources .chip {
+  border-radius: 3px;
+  font-size: 12px;
+}
+
+.bar {
+  height: 6px;
+  border-radius: 0;
+  background: #000a;
+  border: 1px solid #ffffff22;
+}
+
+.bar-fill {
+  background: repeating-linear-gradient(to right, var(--accent) 0 4px, #3fb6e6 4px 6px);
+}
+
+.starfield rect {
+  fill: #cfe3ff;
+}
+
+.lane {
+  stroke: #2c3f66;
+}
+
+/* Sprites stay crisp at any size. */
+svg.sprite {
+  image-rendering: pixelated;
+  flex: none;
+  filter: drop-shadow(1px 1px 0 #000);
+}
+
+svg.sprite.dim {
+  opacity: 0.35;
+  filter: grayscale(1);
+}
+
+.sheet li {
+  align-items: center;
+}
+
+.sheet li > svg.sprite {
+  margin-right: 8px;
+}
+
+/* Start screen */
+.title-art {
+  display: flex;
+  justify-content: center;
+  margin-bottom: -8px;
+}
+
+.empire-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 8px;
+}
+
+.empire-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  padding: 10px;
+  text-align: left;
+  min-height: 120px;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+.empire-card.on {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent), inset 0 0 12px #5fd3ff33;
+}
+
+.empire-name {
+  font-size: 12px;
+  color: var(--text);
+}
+
+.empire-card .trait {
+  color: var(--warn);
+}
+
+/* Designer */
+.designer-preview {
+  display: flex;
+  justify-content: center;
+  padding: 8px 0;
+  background: radial-gradient(circle, #13234a 0%, transparent 70%);
+}
+
+.hull-option {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  justify-content: center;
+}
+
+.battle-ship {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
 }

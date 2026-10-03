@@ -24,7 +24,16 @@ with Capacitor for the iOS and Android app stores later using the same code.
   its strike fleet and orders the landing
 - Domination re-tuned to 50% of all population now that conquest is possible
 
-**Milestone 5: AI opponents, difficulty, victory, balance harness**
+**Theme: classic space opera**
+
+- A retro look inspired by the 1990s space 4X games: pixel fonts, bevelled panels, CRT scanlines and a starfield
+- Pixel-art ship sprites for every hull (Escort, Destroyer, Freighter, Cruiser, Battleship and the new Dreadnought),
+  drawn in each empire's colours on the map, in fleets, the designer and battle reports. Map fleets show their largest ship.
+- Nine playable species, each with a trait (Terran traders, Saurak breeders, Felari pilots, Kraal workers,
+  Ursoni soldiers, Aviari flyers, Mekkan builders, Psyrrh thinkers, Lithari who settle harsh worlds); pick yours on the start screen
+- Classic component names: Fusion Beam, Nuclear Missile, Titanium and Neutronium Armor, Deflector I and III, Colony and Troop Pods
+- All of it is content data: species and their effects, sprites (rows of characters plus a palette), colours and
+  the display font live in `pack.json`, so a different theme is a different pack
 
 **Milestone 5: AI opponents, difficulty, victory, balance harness**
 
@@ -130,7 +139,7 @@ games run to the content pack's turn limit (200), which takes a minute or two pe
 | `src/core/victory.ts` | Scores, domination, elimination and the turn limit. |
 | `src/core/view.ts` | What one empire may know. The UI renders only this, so fog of war can't leak. |
 | `src/content/` | Content pack schema and loader. |
-| `content/default/pack.json` | The placeholder content pack (stars, planets, names, empires, starting fleets). |
+| `content/default/pack.json` | The content pack: rules data, species, empires, names, ship sprites and UI colours. |
 | `src/platform/` | Save storage and app lifecycle. The only code that changes for the native app. |
 | `src/web/` | The web UI: galaxy map, HUD, colony/research/empire screens, ship designer, fleet orders, battle replays. |
 | `tests/` | Unit tests. |
@@ -156,6 +165,6 @@ These keep games replayable and multiplayer-ready:
 - Every empire is hostile to every other; diplomacy is out of scope for v1.
 - Fleet orders in v1: engage/evade, stance, target priority and retreat threshold. Patrol, escort and raid
   missions are deferred; blockades happen automatically when a warship sits at an enemy colony.
-- First theme: undecided; a generic placeholder pack is used for now.
+- First theme: classic retro space opera, with original names and species.
 - AI personalities are revealed in the Empire screen once you have met that rival.
 - Domination is 50% of all population from turn 50.

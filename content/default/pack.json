@@ -1,7 +1,7 @@
 {
   "id": "default",
-  "name": "Placeholder Sci-Fi",
-  "version": "0.1.0",
+  "name": "Classic Space Opera",
+  "version": "0.2.0",
   "galaxySizes": [
     {
       "id": "small",
@@ -294,28 +294,49 @@
   ],
   "empires": [
     {
-      "name": "Terran Accord",
-      "color": "#4fc3f7"
+      "name": "Terran Federation",
+      "color": "#4fc3f7",
+      "species": "terran"
     },
     {
-      "name": "Vex Hegemony",
-      "color": "#ef5350"
+      "name": "Saurak Dominion",
+      "color": "#66bb6a",
+      "species": "saurak"
     },
     {
-      "name": "Sylari Concord",
-      "color": "#66bb6a"
+      "name": "Felari Pride",
+      "color": "#fdd835",
+      "species": "felari"
     },
     {
-      "name": "Korrath Dominion",
-      "color": "#ffa726"
+      "name": "Kraal Hive",
+      "color": "#a1887f",
+      "species": "kraal"
     },
     {
-      "name": "Nym Collective",
-      "color": "#ab47bc"
+      "name": "Ursoni Clans",
+      "color": "#ef5350",
+      "species": "ursoni"
     },
     {
-      "name": "Ossian League",
-      "color": "#fdd835"
+      "name": "Aviari Skylords",
+      "color": "#ffa726",
+      "species": "aviari"
+    },
+    {
+      "name": "Mekkan Collective",
+      "color": "#90a4ae",
+      "species": "mekkan"
+    },
+    {
+      "name": "Psyrrh Conclave",
+      "color": "#ab47bc",
+      "species": "psyrrh"
+    },
+    {
+      "name": "Lithari Assembly",
+      "color": "#f48fb1",
+      "species": "lithari"
     }
   ],
   "start": {
@@ -601,23 +622,23 @@
     },
     {
       "id": "heavy_lasers",
-      "name": "Heavy Lasers",
+      "name": "Fusion Beams",
       "field": "weapons",
       "cost": 80,
       "requires": [],
       "effects": {},
-      "description": "Unlocks the Heavy Laser."
+      "description": "Unlocks the Fusion Beam."
     },
     {
       "id": "guided_torpedoes",
-      "name": "Guided Torpedoes",
+      "name": "Nuclear Missiles",
       "field": "weapons",
       "cost": 200,
       "requires": [
         "heavy_lasers"
       ],
       "effects": {},
-      "description": "Unlocks Torpedoes."
+      "description": "Unlocks the Nuclear Missile."
     },
     {
       "id": "weapon_calibration",
@@ -634,12 +655,12 @@
     },
     {
       "id": "composite_armor",
-      "name": "Composite Armor",
+      "name": "Neutronium Armor",
       "field": "defense",
       "cost": 70,
       "requires": [],
       "effects": {},
-      "description": "Unlocks Composite Armor."
+      "description": "Unlocks Neutronium Armor."
     },
     {
       "id": "deflector_shields",
@@ -648,18 +669,18 @@
       "cost": 90,
       "requires": [],
       "effects": {},
-      "description": "Unlocks Deflector Shields."
+      "description": "Unlocks the Deflector I and Shield Generators."
     },
     {
       "id": "hardened_shields",
-      "name": "Hardened Shields",
+      "name": "Advanced Deflectors",
       "field": "defense",
       "cost": 240,
       "requires": [
         "deflector_shields"
       ],
       "effects": {},
-      "description": "Unlocks Hardened Shields."
+      "description": "Unlocks the Deflector III."
     },
     {
       "id": "cruiser_hulls",
@@ -672,7 +693,7 @@
     },
     {
       "id": "capital_ships",
-      "name": "Capital Ships",
+      "name": "Battleship Hulls",
       "field": "engineering",
       "cost": 280,
       "requires": [
@@ -772,6 +793,17 @@
       ],
       "effects": {},
       "description": "Unlocks the Repair Bay for repair tenders."
+    },
+    {
+      "id": "dreadnought_hulls",
+      "name": "Dreadnought Hulls",
+      "field": "engineering",
+      "cost": 450,
+      "requires": [
+        "capital_ships"
+      ],
+      "effects": {},
+      "description": "Unlocks the Dreadnought hull."
     }
   ],
   "buildings": [
@@ -1026,8 +1058,8 @@
   "hulls": [
     {
       "id": "corvette",
-      "name": "Corvette",
-      "description": "Small and quick. Hard to hit.",
+      "name": "Escort",
+      "description": "Small hull: quick and hard to hit.",
       "slots": 2,
       "structure": 10,
       "cost": 8,
@@ -1039,8 +1071,8 @@
     },
     {
       "id": "frigate",
-      "name": "Frigate",
-      "description": "Light warship hull.",
+      "name": "Destroyer",
+      "description": "Medium hull: the workhorse warship.",
       "slots": 3,
       "structure": 18,
       "cost": 14,
@@ -1052,8 +1084,8 @@
     },
     {
       "id": "transport",
-      "name": "Transport",
-      "description": "Roomy, slow, unarmored.",
+      "name": "Freighter",
+      "description": "Roomy cargo hull, slow and unarmored.",
       "slots": 2,
       "structure": 14,
       "cost": 12,
@@ -1066,7 +1098,7 @@
     {
       "id": "cruiser",
       "name": "Cruiser",
-      "description": "Balanced line warship.",
+      "description": "Large hull: a balanced line warship.",
       "slots": 5,
       "structure": 40,
       "cost": 30,
@@ -1080,7 +1112,7 @@
     {
       "id": "battleship",
       "name": "Battleship",
-      "description": "Heavy capital ship.",
+      "description": "Huge hull: heavy capital ship.",
       "slots": 8,
       "structure": 90,
       "cost": 70,
@@ -1090,6 +1122,20 @@
       "evasion": 0,
       "endurance": 10,
       "requires": "capital_ships"
+    },
+    {
+      "id": "dreadnought",
+      "name": "Dreadnought",
+      "description": "Colossal hull: the pride of the fleet.",
+      "slots": 12,
+      "structure": 170,
+      "cost": 130,
+      "upkeep": 7,
+      "speed": 75,
+      "sensorRange": 220,
+      "evasion": 0,
+      "endurance": 12,
+      "requires": "dreadnought_hulls"
     }
   ],
   "components": [
@@ -1113,7 +1159,7 @@
     },
     {
       "id": "heavy_laser",
-      "name": "Heavy Laser",
+      "name": "Fusion Beam",
       "kind": "weapon",
       "description": "6 damage, 75% accuracy.",
       "cost": 8,
@@ -1123,7 +1169,7 @@
     },
     {
       "id": "torpedo",
-      "name": "Torpedo",
+      "name": "Nuclear Missile",
       "kind": "weapon",
       "description": "12 damage, 50% accuracy.",
       "cost": 10,
@@ -1133,7 +1179,7 @@
     },
     {
       "id": "armor_plating",
-      "name": "Armor Plating",
+      "name": "Titanium Armor",
       "kind": "armor",
       "description": "+8 hit points.",
       "cost": 3,
@@ -1141,7 +1187,7 @@
     },
     {
       "id": "composite_armor",
-      "name": "Composite Armor",
+      "name": "Neutronium Armor",
       "kind": "armor",
       "description": "+18 hit points.",
       "cost": 6,
@@ -1150,7 +1196,7 @@
     },
     {
       "id": "deflector",
-      "name": "Deflector Shield",
+      "name": "Deflector I",
       "kind": "shield",
       "description": "Blocks 1 damage per hit.",
       "cost": 5,
@@ -1159,7 +1205,7 @@
     },
     {
       "id": "hardened_shield",
-      "name": "Hardened Shield",
+      "name": "Deflector III",
       "kind": "shield",
       "description": "Blocks 3 damage per hit.",
       "cost": 10,
@@ -1184,7 +1230,7 @@
     },
     {
       "id": "colony_module",
-      "name": "Colony Module",
+      "name": "Colony Pod",
       "kind": "colony",
       "description": "Founds a colony; the ship is used up.",
       "cost": 36
@@ -1199,7 +1245,7 @@
     },
     {
       "id": "troop_bay",
-      "name": "Troop Bay",
+      "name": "Troop Pod",
       "kind": "troops",
       "description": "Carries 5 ground troops for invasions.",
       "cost": 6,
@@ -1237,7 +1283,7 @@
     },
     {
       "id": "frigate",
-      "name": "Frigate",
+      "name": "Destroyer",
       "hull": "frigate",
       "components": [
         "laser",
@@ -1268,7 +1314,7 @@
     },
     {
       "id": "troop_transport",
-      "name": "Troop Transport",
+      "name": "Troop Ship",
       "hull": "transport",
       "components": [
         "troop_bay",
@@ -1426,6 +1472,256 @@
         "researchPercent": 40,
         "creditsPercent": 40,
         "sensorRange": 60
+      }
+    }
+  ],
+  "presentation": {
+    "displayFont": "Silkscreen",
+    "colors": {
+      "background": "#050812",
+      "panel": "#0f1830",
+      "panelEdge": "#3c5a8c",
+      "text": "#e8eefc",
+      "muted": "#8fa0c0",
+      "accent": "#5fd3ff",
+      "warn": "#ffcf4a",
+      "danger": "#ff5a5a"
+    },
+    "hullSprites": {
+      "corvette": {
+        "rows": [
+          ".k........",
+          "ek@k......",
+          "ek@@@@kk..",
+          ".kddlll@wk",
+          "ek@@@@kk..",
+          "ek@k......",
+          ".k........"
+        ],
+        "palette": {
+          "@": "empire",
+          "k": "#0b0f1a",
+          "d": "#3a4256",
+          "l": "#c9d2e3",
+          "w": "#7ff4ff",
+          "e": "#ffb347"
+        }
+      },
+      "frigate": {
+        "rows": [
+          "..kk.........",
+          ".e@@@k.......",
+          "ek@ddd@@@k...",
+          "ek@lllll@@@wk",
+          "ek@ddd@@@k...",
+          ".e@@@k.......",
+          "..kk........."
+        ],
+        "palette": {
+          "@": "empire",
+          "k": "#0b0f1a",
+          "d": "#3a4256",
+          "l": "#c9d2e3",
+          "w": "#7ff4ff",
+          "e": "#ffb347"
+        }
+      },
+      "transport": {
+        "rows": [
+          "..kkkkkkkk....",
+          ".k@@d@@d@@k...",
+          "ek@ldllldl@kk.",
+          "ek@ldllldl@@wk",
+          "ek@ldllldl@kk.",
+          ".k@@d@@d@@k...",
+          "..kkkkkkkk...."
+        ],
+        "palette": {
+          "@": "empire",
+          "k": "#0b0f1a",
+          "d": "#3a4256",
+          "l": "#c9d2e3",
+          "w": "#7ff4ff",
+          "e": "#ffb347"
+        }
+      },
+      "cruiser": {
+        "rows": [
+          "...kk............",
+          "..k@@k...........",
+          "ek@@dd@@kkk......",
+          "ek@llllll@@@kk...",
+          "ek@ddddddd@@@@wwk",
+          "ek@llllll@@@kk...",
+          "ek@@dd@@kkk......",
+          "..k@@k...........",
+          "...kk............"
+        ],
+        "palette": {
+          "@": "empire",
+          "k": "#0b0f1a",
+          "d": "#3a4256",
+          "l": "#c9d2e3",
+          "w": "#7ff4ff",
+          "e": "#ffb347"
+        }
+      },
+      "battleship": {
+        "rows": [
+          "....kkk..............",
+          "...k@@@k.............",
+          "..k@@dd@@kkkk........",
+          "ek@@llllll@@@@kk.....",
+          "ek@ddddddddddd@@@kk..",
+          "ek@lllllllllll@@@@wwk",
+          "ek@ddddddddddd@@@kk..",
+          "ek@@llllll@@@@kk.....",
+          "..k@@dd@@kkkk........",
+          "...k@@@k.............",
+          "....kkk.............."
+        ],
+        "palette": {
+          "@": "empire",
+          "k": "#0b0f1a",
+          "d": "#3a4256",
+          "l": "#c9d2e3",
+          "w": "#7ff4ff",
+          "e": "#ffb347"
+        }
+      },
+      "dreadnought": {
+        "rows": [
+          ".....kkkk................",
+          "....k@@@@k...............",
+          "...k@@dd@@kkkkk..........",
+          "..k@@llllll@@@@@kk.......",
+          "ek@@ddddddddddd@@@@kk....",
+          "ek@lllllllllllllll@@@kk..",
+          "ek@ddddddddddddddd@@@@wwk",
+          "ek@lllllllllllllll@@@kk..",
+          "ek@@ddddddddddd@@@@kk....",
+          "..k@@llllll@@@@@kk.......",
+          "...k@@dd@@kkkkk..........",
+          "....k@@@@k...............",
+          ".....kkkk................"
+        ],
+        "palette": {
+          "@": "empire",
+          "k": "#0b0f1a",
+          "d": "#3a4256",
+          "l": "#c9d2e3",
+          "w": "#7ff4ff",
+          "e": "#ffb347"
+        }
+      }
+    }
+  },
+  "species": [
+    {
+      "id": "terran",
+      "name": "Terrans",
+      "description": "Adaptable traders and diplomats.",
+      "traits": [
+        "+25% credits",
+        "+10% research"
+      ],
+      "effects": {
+        "creditsPercent": 25,
+        "researchPercent": 10
+      }
+    },
+    {
+      "id": "saurak",
+      "name": "Saurak",
+      "description": "Cold-blooded and endlessly prolific.",
+      "traits": [
+        "+50% population growth"
+      ],
+      "effects": {
+        "growthPercent": 50
+      }
+    },
+    {
+      "id": "felari",
+      "name": "Felari",
+      "description": "Proud hunters and ace pilots.",
+      "traits": [
+        "+15% weapon damage"
+      ],
+      "effects": {
+        "damagePercent": 15
+      }
+    },
+    {
+      "id": "kraal",
+      "name": "Kraal",
+      "description": "A hive that never stops working.",
+      "traits": [
+        "+30% industry"
+      ],
+      "effects": {
+        "industryPercent": 30
+      }
+    },
+    {
+      "id": "ursoni",
+      "name": "Ursoni",
+      "description": "Massive, fearless soldiers.",
+      "traits": [
+        "+60% troop strength"
+      ],
+      "effects": {
+        "groundPercent": 60
+      }
+    },
+    {
+      "id": "aviari",
+      "name": "Aviari",
+      "description": "Born to the void; their ships are swift.",
+      "traits": [
+        "+30 ship speed"
+      ],
+      "effects": {
+        "speed": 30
+      }
+    },
+    {
+      "id": "mekkan",
+      "name": "Mekkan",
+      "description": "Machine minds in armored shells.",
+      "traits": [
+        "+15% industry",
+        "+25% colony defenses"
+      ],
+      "effects": {
+        "industryPercent": 15,
+        "defensePercent": 25
+      }
+    },
+    {
+      "id": "psyrrh",
+      "name": "Psyrrh",
+      "description": "Telepathic scholars of great intellect.",
+      "traits": [
+        "+40% research",
+        "-15% population growth"
+      ],
+      "effects": {
+        "researchPercent": 40,
+        "growthPercent": -15
+      }
+    },
+    {
+      "id": "lithari",
+      "name": "Lithari",
+      "description": "Living stone that thrives on dead worlds.",
+      "traits": [
+        "Can settle hostile worlds (-30 habitability needed)",
+        "-30% population growth"
+      ],
+      "effects": {
+        "minHabitability": -30,
+        "growthPercent": -30
       }
     }
   ]

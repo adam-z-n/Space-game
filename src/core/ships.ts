@@ -166,6 +166,18 @@ export function fleetStrength(pack: ContentPack, state: GameState, fleet: Fleet)
   return Math.round(total);
 }
 
+/** The hull of a fleet's largest ship (most slots, then structure): what the fleet looks like from afar. */
+export function flagshipHull(pack: ContentPack, state: GameState, fleet: Fleet): string {
+  const empire = state.empires[fleet.empireId]!;
+  let best: string | null = null;
+  for (const ship of fleet.ships) {
+    const hull = getHull(pack, getDesign(empire, ship.designId).hull);
+    const current = best ? getHull(pack, best) : null;
+    if (!current || hull.slots > current.slots || (hull.slots === current.slots && hull.structure > current.structure)) best = hull.id;
+  }
+  return best ?? pack.hulls[0]!.id;
+}
+
 /** Recompute cached speed and sensor range. Out-of-supply fleets are slowed. */
 export function refreshFleetStats(pack: ContentPack, state: GameState, fleet: Fleet): void {
   const stats = fleetShipStats(pack, state, fleet);

@@ -132,7 +132,7 @@ describe("save migration", () => {
     const json = readFileSync(new URL("./fixtures/save-v2-m2.json", import.meta.url), "utf8");
     const loaded = deserializeSave(json, defaultPack());
     const state = loaded.state;
-    expect(state.version).toBe(6);
+    expect(state.version).toBe(7);
     expect(state.turn).toBe(7);
     // Every empire gets its capital on its homeworld; fleets map to ship templates.
     for (const empire of state.empires) {

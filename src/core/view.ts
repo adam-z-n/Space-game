@@ -2,7 +2,7 @@ import type { BattleReport, Body, BodyId, ColonyId, EmpireId, FleetId, FleetPosi
 import { colonyOnBody, fleetPosition } from "./state";
 import type { ContentPack } from "../content/schema";
 import { availableTechs, colonizeBlocker } from "./economy";
-import { fleetArmed, fleetCanColonize, fleetMaxSupply, fleetStrength } from "./ships";
+import { flagshipHull, fleetArmed, fleetCanColonize, fleetMaxSupply, fleetStrength } from "./ships";
 import { suppliedSystems } from "./supply";
 import { defendingTroops } from "./defense";
 import { positionPoint, sensorSources } from "./vision";
@@ -53,6 +53,8 @@ export interface FleetView {
   /** Turn the position was observed; less than the current turn means last-known only. */
   seenTurn: number;
   ships: number;
+  /** Hull of the largest ship, for drawing the fleet. */
+  hull: string;
   strength: number;
   armed: boolean;
   // Own fleets only:
@@ -155,6 +157,7 @@ export function empireView(state: GameState, pack: ContentPack, viewerId: Empire
       ...positionPoint(state, position),
       seenTurn: state.turn,
       ships: fleet.ships.length,
+      hull: flagshipHull(pack, state, fleet),
       strength: fleetStrength(pack, state, fleet),
       armed: fleetArmed(pack, state, fleet),
       route: [...fleet.route],
@@ -175,6 +178,7 @@ export function empireView(state: GameState, pack: ContentPack, viewerId: Empire
       ...positionPoint(state, position),
       seenTurn: s.turn,
       ships: s.ships,
+      hull: s.hull,
       strength: s.strength,
       armed: s.armed,
       route: null,
@@ -236,6 +240,7 @@ export function omniscientView(state: GameState, pack: ContentPack, viewerId: Em
         ...positionPoint(state, position),
         seenTurn: state.turn,
         ships: f.ships.length,
+        hull: flagshipHull(pack, state, f),
         strength: fleetStrength(pack, state, f),
         armed: fleetArmed(pack, state, f),
         route: [...f.route],

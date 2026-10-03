@@ -135,6 +135,16 @@ export function migrateState(state: GameState, pack: ContentPack): GameState {
     old.version = 6;
   }
 
+  if (old.version === 6) {
+    // v7 added species. Match empires to the pack's templates by name where possible.
+    for (const empire of migrated.empires) {
+      const template = pack.empires.find((t) => t.name === empire.name);
+      empire.species = template?.species ?? pack.species[0]!.id;
+      for (const sighting of empire.sightings) sighting.hull = sighting.hull ?? pack.hulls[0]!.id;
+    }
+    old.version = 7;
+  }
+
   if (startVersion !== migrated.version) {
     for (const empire of migrated.empires) refreshEmpireStats(migrated, pack, empire);
     updateSightings(migrated, pack, null, migrated.turn);

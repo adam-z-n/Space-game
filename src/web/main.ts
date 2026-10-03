@@ -32,12 +32,15 @@ import { defaultPack } from "../content/defaultPack";
 import { onAppBackground } from "../platform/lifecycle";
 import { LocalSaveStore } from "../platform/storage";
 import { GalaxyMap, type MapTarget, type RoutePreview } from "./map";
+import { applyTheme } from "./theme";
+import { spriteIcon } from "./sprites";
 import { button, h, turnsText } from "./dom";
 import { colonyPanel, empirePanel, gameOverPanel, researchPanel, resourceBar, type PanelContext } from "./economyPanels";
 import { battlePanel, designerPanel, designsPanel, fleetDetail, startDraft, type ShipContext } from "./shipPanels";
 
 const AUTOSAVE = "autosave";
 const pack = defaultPack();
+applyTheme(pack);
 const store = new LocalSaveStore();
 const root = document.getElementById("app")!;
 
@@ -88,10 +91,33 @@ async function showSetup(message?: string): Promise<void> {
   describeDifficulty();
   const error = h("p", { className: "error", textContent: message ?? "" });
 
+  // Empire picker: one card per playable empire, showing its species, traits and a ship in its colors.
+  let chosen = 0;
+  const empires = h("div", { className: "empire-grid" });
+  const drawEmpires = () => {
+    empires.replaceChildren(
+      ...pack.empires.map((e, i) => {
+        const species = pack.species.find((s) => s.id === e.species)!;
+        const card = button("", () => {
+          chosen = i;
+          drawEmpires();
+        }, { className: `empire-card${i === chosen ? " on" : ""}`, ariaPressed: String(i === chosen) });
+        card.append(
+          spriteIcon(pack, "frigate", e.color, 3),
+          h("div", { className: "empire-name", textContent: e.name }),
+          h("div", { className: "muted small", textContent: `${species.name}: ${species.description}` }),
+          h("div", { className: "small trait", textContent: species.traits.join(" · ") }),
+        );
+        return card;
+      }),
+    );
+  };
+  drawEmpires();
+
   const start = button(
     "Start new game",
     () => {
-      const settings: GameSettings = { seed: seed.value.trim(), galaxySize: size.value, aiCount: Number(ai.value), difficulty: difficulty.value };
+      const settings: GameSettings = { seed: seed.value.trim(), galaxySize: size.value, aiCount: Number(ai.value), difficulty: difficulty.value, playerEmpire: chosen };
       try {
         startGame(Game.create(settings, pack));
       } catch (e) {
@@ -110,9 +136,12 @@ async function showSetup(message?: string): Promise<void> {
     h(
       "div",
       { className: "setup" },
+      h("div", { className: "title-art" }, spriteIcon(pack, "dreadnought", pack.presentation.colors.accent, 4)),
       h("h1", { textContent: "Space 4X" }),
-      h("p", { textContent: "Milestone 6 preview: colony defenses, invasions, minefields and support ships." }),
+      h("p", { textContent: "A turn-based space empire game. Milestone 6 preview." }),
       saved ? button("Continue", () => loadAndStart(saved), { className: "primary" }) : null,
+      h("h3", { textContent: "Choose your empire" }),
+      empires,
       h("label", {}, "Galaxy seed", h("div", { className: "row" }, seed, button("Random", () => (seed.value = randomSeed()), { type: "button" }))),
       h("label", {}, "Galaxy size", size),
       h("label", {}, "AI empires", ai),
@@ -258,6 +287,8 @@ function startGame(game: Game): void {
     empireName: (id) => empire(id).name,
     empireColor: (id) => empire(id).color,
     systemName: (id) => systemName(id),
+    // Ships you fought were seen up close, so their hulls can be shown; defenses have no sprite.
+    hullOf: (_shipId, empireId, designName) => game.state.empires[empireId]?.designs.find((d) => d.name === designName)?.hull ?? null,
   };
   const openBattle = (battleId: number) => {
     ui.battleId = battleId;

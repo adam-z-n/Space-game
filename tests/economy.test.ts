@@ -49,7 +49,7 @@ describe("starting position", () => {
   });
 
   it("names ships per template", () => {
-    expect(fresh().fleets.filter((f) => f.empireId === 0).map((f) => f.name)).toEqual(["Scout 1", "Frigate 1", "Colony Ship 1"]);
+    expect(fresh().fleets.filter((f) => f.empireId === 0).map((f) => f.name)).toEqual(["Scout 1", "Destroyer 1", "Colony Ship 1"]);
   });
 });
 
@@ -66,6 +66,7 @@ describe("workers and output", () => {
 
   it("computes the capital's output from workers, capitol and planet", () => {
     const s = fresh();
+    s.empires[0]!.species = "saurak"; // growth trait only, so the economy numbers are the base ones
     const out = colonyOutput(s, pack, capital(s));
     // 5 pop balanced on a terran world: 2 farmers, 2 industry, 1 research; base industry 2;
     // capitol +2 industry, +2 research, +3 credits, +3 food; tax is half a credit per pop.

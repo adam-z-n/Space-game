@@ -12,6 +12,10 @@ export const testPack = loadContentPack({
     { id: "test60", name: "Test 60", description: "", slots: 2, structure: 10, cost: 1, upkeep: 0, speed: 60, sensorRange: 0, evasion: 0, endurance: 99 },
     { id: "test100", name: "Test 100", description: "", slots: 2, structure: 10, cost: 1, upkeep: 0, speed: 100, sensorRange: 120, evasion: 0, endurance: 99 },
   ],
+  presentation: {
+    ...raw.presentation,
+    hullSprites: { ...raw.presentation.hullSprites, test60: raw.presentation.hullSprites.corvette, test100: raw.presentation.hullSprites.corvette },
+  },
 });
 
 /** Give every empire the test designs and return a one-ship fleet of `hull`. */

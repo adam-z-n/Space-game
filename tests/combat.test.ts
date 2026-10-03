@@ -74,7 +74,7 @@ describe("ship designs", () => {
     expect(create({ components: ["laser", "laser", "laser", "laser"] })).toMatchObject({ ok: false, error: "only 3 slots" });
     expect(create({ hull: "cruiser" })).toMatchObject({ ok: false, error: "hull not available" });
     expect(create({ components: ["torpedo"] })).toMatchObject({ ok: false, error: expect.stringMatching(/not available/) });
-    expect(create({ name: "Frigate" })).toMatchObject({ ok: false, error: "a design with that name exists" });
+    expect(create({ name: "Destroyer" })).toMatchObject({ ok: false, error: "a design with that name exists" });
     const t = run(s, { type: "createDesign", empireId: 0, design: { name: "Lancer", hull: "frigate", components: ["mass_driver", "mass_driver", "armor_plating"], formation: "front" } });
     const lancer = t.empires[0]!.designs.find((d) => d.name === "Lancer")!;
     expect(lancer.id).toMatch(/^design-/);

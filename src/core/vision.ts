@@ -1,6 +1,6 @@
 import type { ContentPack } from "../content/schema";
 import { laneLength } from "./graph";
-import { fleetArmed, fleetStrength } from "./ships";
+import { flagshipHull, fleetArmed, fleetStrength } from "./ships";
 import { defendingTroops } from "./defense";
 import { fleetPosition, type EmpireId, type FleetPosition, type FleetSighting, type GameEvent, type GameState } from "./state";
 
@@ -74,6 +74,7 @@ export function updateSightings(state: GameState, pack: ContentPack, events: Gam
         name: fleet.name,
         ...pos,
         ships: fleet.ships.length,
+        hull: flagshipHull(pack, state, fleet),
         strength: fleetStrength(pack, state, fleet),
         armed: fleetArmed(pack, state, fleet),
         turn: state.turn,

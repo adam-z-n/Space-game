@@ -37,12 +37,17 @@ describe("AI setup", () => {
 describe("AI behaviour", () => {
   it("plays long games without invalid commands, expands, and stays solvent", () => {
     const game = Game.create({ seed: "ai-long", galaxySize: "small", aiCount: 3, allAI: true, turnLimit: 999 }, pack);
-    for (let i = 0; i < 120; i++) game.endTurn();
+    const peak = new Map<number, number>();
+    for (let i = 0; i < 120; i++) {
+      game.endTurn();
+      for (const e of game.state.empires) peak.set(e.id, Math.max(peak.get(e.id) ?? 0, game.state.colonies.filter((c) => c.empireId === e.id).length));
+    }
     expect(game.aiRejections).toEqual([]);
     for (const empire of game.state.empires) {
-      expect(game.state.colonies.filter((c) => c.empireId === empire.id).length).toBeGreaterThan(1);
+      // With conquest an empire may lose colonies later, but every one should have expanded.
+      expect(peak.get(empire.id)).toBeGreaterThan(1);
       expect(empire.credits).toBeGreaterThan(-100);
-      expect(empire.techs.length).toBeGreaterThan(8);
+      if (!empire.eliminated) expect(empire.techs.length).toBeGreaterThan(8);
     }
   });
 
@@ -79,7 +84,7 @@ describe("AI behaviour", () => {
     const ai = s.empires[1]!;
     const intruder = newFleet(s, pack, s.empires[0]!, ["frigate", "frigate", "frigate", "frigate"], ai.homeSystemId);
     s.fleets.push(intruder);
-    ai.sightings.push({ fleetId: intruder.id, empireId: 0, name: intruder.name, systemId: ai.homeSystemId, nextSystemId: null, progress: 0, ships: 4, strength: 200, armed: true, turn: s.turn });
+    ai.sightings.push({ fleetId: intruder.id, empireId: 0, name: intruder.name, systemId: ai.homeSystemId, nextSystemId: null, progress: 0, ships: 4, hull: "frigate", strength: 200, armed: true, turn: s.turn });
     const strategy = decideStrategy(buildContext(s, pack, 1));
     expect(strategy.posture).toBe("defend");
     expect(strategy.threat).toBe(200);
