@@ -1,0 +1,9 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`Rng > pins known output so engine changes can't silently alter seeds 1`] = `
+[
+  2552599020,
+  4051961473,
+  1304961606,
+]
+`;

@@ -1,0 +1,10 @@
+{
+  // The simulation core must run headless: no DOM, no Node APIs.
+  // Typechecking it alone with a bare ES lib catches accidental UI/platform imports.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "lib": ["ES2022"],
+    "types": []
+  },
+  "include": ["src/core", "src/content", "content"]
+}

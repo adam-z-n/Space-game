@@ -1,0 +1,320 @@
+{
+  "id": "default",
+  "name": "Placeholder Sci-Fi",
+  "version": "0.1.0",
+  "galaxySizes": [
+    {
+      "id": "small",
+      "name": "Small",
+      "systems": 24,
+      "radiusX": 580,
+      "radiusY": 410,
+      "minStarDistance": 110
+    },
+    {
+      "id": "medium",
+      "name": "Medium",
+      "systems": 48,
+      "radiusX": 820,
+      "radiusY": 580,
+      "minStarDistance": 110
+    },
+    {
+      "id": "large",
+      "name": "Large",
+      "systems": 80,
+      "radiusX": 1050,
+      "radiusY": 750,
+      "minStarDistance": 110
+    }
+  ],
+  "starTypes": [
+    {
+      "id": "yellow",
+      "name": "Yellow Dwarf",
+      "color": "#ffd76a",
+      "weight": 30,
+      "minBodies": 1,
+      "maxBodies": 5
+    },
+    {
+      "id": "orange",
+      "name": "Orange Dwarf",
+      "color": "#ff9f4a",
+      "weight": 25,
+      "minBodies": 1,
+      "maxBodies": 4
+    },
+    {
+      "id": "red",
+      "name": "Red Dwarf",
+      "color": "#ff5a4a",
+      "weight": 25,
+      "minBodies": 0,
+      "maxBodies": 3
+    },
+    {
+      "id": "white",
+      "name": "White Star",
+      "color": "#e8f0ff",
+      "weight": 12,
+      "minBodies": 0,
+      "maxBodies": 4
+    },
+    {
+      "id": "blue",
+      "name": "Blue Giant",
+      "color": "#6aa8ff",
+      "weight": 8,
+      "minBodies": 0,
+      "maxBodies": 3
+    }
+  ],
+  "bodyKindWeights": {
+    "planet": 60,
+    "asteroids": 18,
+    "gasGiant": 17,
+    "anomaly": 5
+  },
+  "planetTypes": [
+    {
+      "id": "terran",
+      "name": "Terran",
+      "habitability": 100,
+      "weight": 8
+    },
+    {
+      "id": "ocean",
+      "name": "Ocean",
+      "habitability": 85,
+      "weight": 8
+    },
+    {
+      "id": "arid",
+      "name": "Arid",
+      "habitability": 60,
+      "weight": 14
+    },
+    {
+      "id": "tundra",
+      "name": "Tundra",
+      "habitability": 50,
+      "weight": 14
+    },
+    {
+      "id": "jungle",
+      "name": "Jungle",
+      "habitability": 70,
+      "weight": 8
+    },
+    {
+      "id": "barren",
+      "name": "Barren",
+      "habitability": 10,
+      "weight": 24
+    },
+    {
+      "id": "toxic",
+      "name": "Toxic",
+      "habitability": 5,
+      "weight": 14
+    },
+    {
+      "id": "volcanic",
+      "name": "Volcanic",
+      "habitability": 5,
+      "weight": 10
+    }
+  ],
+  "planetSizes": [
+    {
+      "id": "tiny",
+      "name": "Tiny",
+      "capacity": 2,
+      "weight": 15
+    },
+    {
+      "id": "small",
+      "name": "Small",
+      "capacity": 4,
+      "weight": 30
+    },
+    {
+      "id": "medium",
+      "name": "Medium",
+      "capacity": 6,
+      "weight": 30
+    },
+    {
+      "id": "large",
+      "name": "Large",
+      "capacity": 8,
+      "weight": 18
+    },
+    {
+      "id": "huge",
+      "name": "Huge",
+      "capacity": 10,
+      "weight": 7
+    }
+  ],
+  "richness": [
+    {
+      "id": "poor",
+      "name": "Poor",
+      "yieldPercent": 60,
+      "weight": 25
+    },
+    {
+      "id": "normal",
+      "name": "Normal",
+      "yieldPercent": 100,
+      "weight": 55
+    },
+    {
+      "id": "rich",
+      "name": "Rich",
+      "yieldPercent": 150,
+      "weight": 15
+    },
+    {
+      "id": "ultraRich",
+      "name": "Ultra Rich",
+      "yieldPercent": 200,
+      "weight": 5
+    }
+  ],
+  "systemNames": [
+    "Achernar",
+    "Adara",
+    "Aldhibah",
+    "Alcor",
+    "Alkaid",
+    "Alnair",
+    "Altais",
+    "Ankaa",
+    "Antares",
+    "Arcturus",
+    "Ascella",
+    "Aspidiske",
+    "Atria",
+    "Avior",
+    "Bellatrix",
+    "Betria",
+    "Caph",
+    "Castor",
+    "Cebalrai",
+    "Chara",
+    "Cursa",
+    "Dabih",
+    "Deneb",
+    "Diadem",
+    "Diphda",
+    "Dubhe",
+    "Elnath",
+    "Eltanin",
+    "Enif",
+    "Errai",
+    "Fomalhaut",
+    "Furud",
+    "Gacrux",
+    "Gienah",
+    "Gomeisa",
+    "Hadar",
+    "Hamal",
+    "Heze",
+    "Homam",
+    "Izar",
+    "Kajam",
+    "Kochab",
+    "Kornephoros",
+    "Lesath",
+    "Maia",
+    "Markab",
+    "Matar",
+    "Menkar",
+    "Merak",
+    "Miaplacidus",
+    "Mimosa",
+    "Mintaka",
+    "Mirach",
+    "Mirfak",
+    "Muphrid",
+    "Naos",
+    "Nashira",
+    "Nihal",
+    "Nunki",
+    "Okul",
+    "Peacock",
+    "Phact",
+    "Phecda",
+    "Polaris",
+    "Porrima",
+    "Rasalgethi",
+    "Regor",
+    "Rigel",
+    "Ruchbah",
+    "Sabik",
+    "Sadr",
+    "Saiph",
+    "Sargas",
+    "Scheat",
+    "Seginus",
+    "Shaula",
+    "Sirrah",
+    "Skat",
+    "Suhail",
+    "Talitha",
+    "Tarazed",
+    "Thuban",
+    "Unuk",
+    "Vega",
+    "Wasat",
+    "Wezen",
+    "Yildun",
+    "Zaniah",
+    "Zaurak",
+    "Zosma"
+  ],
+  "empires": [
+    {
+      "name": "Terran Accord",
+      "color": "#4fc3f7"
+    },
+    {
+      "name": "Vex Hegemony",
+      "color": "#ef5350"
+    },
+    {
+      "name": "Sylari Concord",
+      "color": "#66bb6a"
+    },
+    {
+      "name": "Korrath Dominion",
+      "color": "#ffa726"
+    },
+    {
+      "name": "Nym Collective",
+      "color": "#ab47bc"
+    },
+    {
+      "name": "Ossian League",
+      "color": "#fdd835"
+    }
+  ],
+  "start": {
+    "homeworldPlanetType": "terran",
+    "homeworldSize": "medium",
+    "homeworldRichness": "normal",
+    "fleets": [
+      {
+        "name": "Scout Wing",
+        "speed": 140
+      },
+      {
+        "name": "Home Fleet",
+        "speed": 100
+      }
+    ]
+  }
+}
