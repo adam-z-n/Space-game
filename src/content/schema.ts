@@ -87,31 +87,72 @@ export const EffectsSchema = z
     speed: z.number().int(),
     /** Added to every ship's and colony's sensor range. */
     sensorRange: z.number().int(),
+    /** Added to the supply range of every colony (lane distance). */
+    supplyRange: z.number().int(),
+    /** Added to every ship's endurance (turns of onboard supply). */
+    endurance: z.number().int(),
+    /** Added to every weapon's damage, in percent. */
+    damagePercent: z.number().int(),
   })
   .partial()
   .strict();
 export type Effects = z.infer<typeof EffectsSchema>;
 
 export const SHIP_ROLES = ["combat", "transport", "recon", "support"] as const;
+export type ShipRole = (typeof SHIP_ROLES)[number];
+/** Who takes fire first: front line ships are targeted most, support least. */
+export const FORMATIONS = ["front", "screen", "support"] as const;
+export type Formation = (typeof FORMATIONS)[number];
 
-const ShipTemplate = z.object({
+const Hull = z.object({
   id,
   name: z.string().min(1),
-  role: z.enum(SHIP_ROLES),
   description: z.string(),
-  /** Industry to build. */
+  slots: z.number().int().min(1).max(12),
+  /** Hit points before armor. */
+  structure: z.number().int().positive(),
   cost: z.number().int().positive(),
   /** Credits per turn. */
   upkeep: z.number().int().nonnegative(),
-  /** Distance units per turn. */
   speed: z.number().int().positive(),
-  /** Distance within which this ship sees other fleets. */
   sensorRange: z.number().int().nonnegative(),
-  /** Can found a colony (consumed in the process). */
-  colonize: z.boolean().default(false),
-  /** Tech needed to build it. */
+  /** Percent subtracted from enemy hit chance. */
+  evasion: z.number().int().min(0).max(90),
+  /** Turns a ship can operate outside supply. */
+  endurance: z.number().int().nonnegative(),
   requires: id.optional(),
 });
+
+export const COMPONENT_KINDS = ["weapon", "armor", "shield", "engine", "sensor", "colony", "fuel"] as const;
+
+const Component = z.object({
+  id,
+  name: z.string().min(1),
+  kind: z.enum(COMPONENT_KINDS),
+  description: z.string(),
+  cost: z.number().int().nonnegative(),
+  /** Weapons: damage per hit and percent chance to hit. */
+  damage: z.number().int().nonnegative().default(0),
+  accuracy: z.number().int().min(0).max(100).default(0),
+  /** Armor: extra hit points. */
+  hp: z.number().int().nonnegative().default(0),
+  /** Shields: damage blocked per hit. */
+  shield: z.number().int().nonnegative().default(0),
+  speed: z.number().int().nonnegative().default(0),
+  sensorRange: z.number().int().nonnegative().default(0),
+  /** Fuel: extra turns of supply for the whole fleet. */
+  fuel: z.number().int().nonnegative().default(0),
+  requires: id.optional(),
+});
+
+const Design = z.object({
+  id,
+  name: z.string().min(1),
+  hull: id,
+  components: z.array(id),
+  formation: z.enum(FORMATIONS),
+});
+export type DesignData = z.infer<typeof Design>;
 
 const Building = z.object({
   id,
@@ -137,6 +178,24 @@ const Tech = z.object({
 
 const ResearchField = z.object({ id, name: z.string().min(1) });
 
+const Combat = z.object({
+  rounds: z.number().int().positive(),
+  /** Damage dealt and taken, in percent, by stance. */
+  stanceDamage: z.object({ aggressive: z.number().int(), balanced: z.number().int(), cautious: z.number().int() }),
+  stanceDefense: z.object({ aggressive: z.number().int(), balanced: z.number().int(), cautious: z.number().int() }),
+  /** Relative chance each formation is picked as a target. */
+  formationWeight: z.object({ front: z.number().int().positive(), screen: z.number().int().positive(), support: z.number().int().positive() }),
+  /** Damage penalty, in percent, for fleets out of supply. */
+  outOfSupplyDamagePercent: z.number().int().min(0).max(100),
+  /** Speed penalty, in percent, for fleets out of supply. */
+  outOfSupplySpeedPercent: z.number().int().min(0).max(100),
+  /** Hit points lost per turn (percent of max) while out of supply. */
+  attritionPercent: z.number().int().min(0).max(100),
+  /** Hit points repaired per turn (percent of max): in supply, and at a friendly colony. */
+  repairPercent: z.number().int().min(0).max(100),
+  dockRepairPercent: z.number().int().min(0).max(100),
+});
+
 const Economy = z.object({
   startingCredits: z.number().int(),
   startingFood: z.number().int().nonnegative(),
@@ -161,6 +220,9 @@ const Economy = z.object({
   /** Planets below this habitability can't be colonized. */
   minHabitability: z.number().int().min(0).max(100),
   colonySensorRange: z.number().int().nonnegative(),
+  /** Lane distance within which colonies supply fleets. */
+  colonySupplyRange: z.number().int().nonnegative(),
+  capitalSupplyRange: z.number().int().nonnegative(),
   capitalSensorRange: z.number().int().nonnegative(),
   foodStockCap: z.number().int().nonnegative(),
   /** Share of industry turned into credits when a colony has nothing to build. */
@@ -172,7 +234,8 @@ const Economy = z.object({
 });
 
 const StartingFleet = z.object({
-  template: id,
+  /** Design ids from startingDesigns; each becomes one ship. */
+  ships: z.array(id).min(1),
 });
 
 export const ContentPackSchema = z
@@ -197,7 +260,11 @@ export const ContentPackSchema = z
     researchFields: z.array(ResearchField).min(1),
     techs: z.array(Tech),
     buildings: z.array(Building),
-    shipTemplates: z.array(ShipTemplate).min(1),
+    combat: Combat,
+    hulls: z.array(Hull).min(1),
+    components: z.array(Component).min(1),
+    /** Designs every empire starts with. */
+    startingDesigns: z.array(Design).min(1),
     start: z.object({
       homeworldPlanetType: id,
       homeworldSize: id,
@@ -223,7 +290,9 @@ export const ContentPackSchema = z
     unique("researchFields", pack.researchFields.map((f) => f.id));
     unique("techs", pack.techs.map((t) => t.id));
     unique("buildings", pack.buildings.map((b) => b.id));
-    unique("shipTemplates", pack.shipTemplates.map((t) => t.id));
+    unique("hulls", pack.hulls.map((t) => t.id));
+    unique("components", pack.components.map((t) => t.id));
+    unique("startingDesigns", pack.startingDesigns.map((t) => t.id));
 
     const techIds = new Set(pack.techs.map((t) => t.id));
     const fieldIds = new Set(pack.researchFields.map((f) => f.id));
@@ -248,16 +317,27 @@ export const ContentPackSchema = z
     pack.buildings.forEach((b, i) => {
       if (b.requires && !techIds.has(b.requires)) issue(["buildings", i, "requires"], `unknown tech "${b.requires}"`);
     });
-    pack.shipTemplates.forEach((t, i) => {
-      if (t.requires && !techIds.has(t.requires)) issue(["shipTemplates", i, "requires"], `unknown tech "${t.requires}"`);
+    pack.hulls.forEach((t, i) => {
+      if (t.requires && !techIds.has(t.requires)) issue(["hulls", i, "requires"], `unknown tech "${t.requires}"`);
+    });
+    pack.components.forEach((t, i) => {
+      if (t.requires && !techIds.has(t.requires)) issue(["components", i, "requires"], `unknown tech "${t.requires}"`);
+    });
+    const hullById = new Map(pack.hulls.map((h) => [h.id, h]));
+    const componentIds = new Set(pack.components.map((c) => c.id));
+    pack.startingDesigns.forEach((d, i) => {
+      const hull = hullById.get(d.hull);
+      if (!hull) issue(["startingDesigns", i, "hull"], `unknown hull "${d.hull}"`);
+      else if (d.components.length > hull.slots) issue(["startingDesigns", i], `${d.id}: ${d.components.length} components but ${hull.slots} slots`);
+      for (const c of d.components) if (!componentIds.has(c)) issue(["startingDesigns", i, "components"], `unknown component "${c}"`);
     });
     const buildingIds = new Set(pack.buildings.map((b) => b.id));
     pack.start.capitalBuildings.forEach((b, i) => {
       if (!buildingIds.has(b)) issue(["start", "capitalBuildings", i], `unknown building "${b}"`);
     });
-    const templateIds = new Set(pack.shipTemplates.map((t) => t.id));
+    const designIds = new Set(pack.startingDesigns.map((t) => t.id));
     pack.start.fleets.forEach((f, i) => {
-      if (!templateIds.has(f.template)) issue(["start", "fleets", i, "template"], `unknown ship template "${f.template}"`);
+      for (const d of f.ships) if (!designIds.has(d)) issue(["start", "fleets", i, "ships"], `unknown design "${d}"`);
     });
 
     const refs: [string, string, { id: string }[]][] = [

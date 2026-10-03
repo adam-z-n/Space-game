@@ -26,6 +26,8 @@ export interface MapScene {
   selectedSystem: SystemId | null;
   selectedFleet: FleetId | null;
   preview: RoutePreview | null;
+  /** Draw the player's supply network. */
+  showSupply: boolean;
 }
 
 export type MapTarget = { kind: "system"; id: SystemId } | { kind: "fleet"; id: FleetId };
@@ -354,10 +356,15 @@ export class GalaxyMap {
     }
     parts.push(`</g>`);
 
+    const supplied = new Set(scene.showSupply ? view.supplied : []);
+    const myColor = color(view.viewerId);
     for (const lane of view.lanes) {
       const a = systems[lane.a]!;
       const b = systems[lane.b]!;
       parts.push(`<line class="lane" x1="${a.x}" y1="${a.y}" x2="${b.x}" y2="${b.y}" stroke-width="${px(1.5)}"/>`);
+      if (supplied.has(lane.a) && supplied.has(lane.b)) {
+        parts.push(`<line class="supply-lane" x1="${a.x}" y1="${a.y}" x2="${b.x}" y2="${b.y}" stroke="${myColor}" stroke-width="${px(5)}"/>`);
+      }
     }
 
     // Standing orders of the player's fleets.
@@ -396,6 +403,7 @@ export class GalaxyMap {
         const dash = stale ? ` stroke-dasharray="${px(3)} ${px(3)}"` : "";
         parts.push(`<circle cx="${system.x}" cy="${system.y}" r="${r}" fill="none" stroke="${color(empireId)}" stroke-width="${px(2.5)}"${dash}/>`);
         if (mine.some((c) => c.capital)) parts.push(`<circle cx="${system.x}" cy="${system.y}" r="${r + px(4)}" fill="none" stroke="${color(empireId)}" stroke-width="${px(1)}"${dash}/>`);
+        if (mine.some((c) => c.blockaded)) parts.push(`<circle class="blockade" cx="${system.x}" cy="${system.y}" r="${r + px(9)}" stroke-width="${px(2)}" stroke-dasharray="${px(2)} ${px(4)}"/>`);
       });
       parts.push(`<circle cx="${system.x}" cy="${system.y}" r="${starRadius}" fill="${starType?.color ?? "#fff"}" opacity="${opacity}"/>`);
       if (system.id === scene.selectedSystem) {
@@ -425,6 +433,8 @@ export class GalaxyMap {
         `<path d="M${fx} ${fy - size} L${fx + size * 0.8} ${fy + size * 0.7} L${fx} ${fy + size * 0.2} L${fx - size * 0.8} ${fy + size * 0.7} Z" fill="${fill}" stroke="${stroke}" stroke-width="${px(stale ? 1.5 : 1)}" ${stale ? 'opacity="0.7"' : ""}/>`,
       );
       if (fleet.own && fleet.holding) parts.push(`<circle cx="${fx}" cy="${fy + size + px(4)}" r="${px(2)}" fill="${color(fleet.empireId)}"/>`);
+      if (fleet.ships > 1) parts.push(`<text class="fleet-count" x="${fx + size * 0.9}" y="${fy - size * 0.6}" font-size="${px(10)}">${fleet.ships}</text>`);
+      if (fleet.own && fleet.supply === 0) parts.push(`<circle class="dry" cx="${fx}" cy="${fy}" r="${px(12)}" stroke-width="${px(1.5)}"/>`);
     }
 
     parts.push(this.renderLabels(scene, starRadius));

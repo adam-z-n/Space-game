@@ -1,4 +1,6 @@
+import type { ContentPack } from "../content/schema";
 import { laneLength } from "./graph";
+import { fleetArmed, fleetStrength } from "./ships";
 import { fleetPosition, type EmpireId, type FleetPosition, type FleetSighting, type GameEvent, type GameState } from "./state";
 
 /**
@@ -51,7 +53,7 @@ export function inSensorRange(sources: readonly SensorSource[], p: Point): boole
  * stamped with state.turn; others keep their older entry. Sightings of fleets
  * that no longer exist are dropped once they come back into view.
  */
-export function updateSightings(state: GameState, events: GameEvent[] | null, eventTurn: number): void {
+export function updateSightings(state: GameState, pack: ContentPack, events: GameEvent[] | null, eventTurn: number): void {
   for (const empire of state.empires) {
     const sources = sensorSources(state, empire.id);
     const byId = new Map(empire.sightings.map((s) => [s.fleetId, s]));
@@ -63,7 +65,16 @@ export function updateSightings(state: GameState, events: GameEvent[] | null, ev
       if (events && (!previous || previous.turn < state.turn - 1)) {
         events.push({ type: "fleetSighted", turn: eventTurn, empireId: empire.id, ownerId: fleet.empireId, fleetId: fleet.id, systemId: pos.systemId });
       }
-      byId.set(fleet.id, { fleetId: fleet.id, empireId: fleet.empireId, name: fleet.name, ...pos, turn: state.turn });
+      byId.set(fleet.id, {
+        fleetId: fleet.id,
+        empireId: fleet.empireId,
+        name: fleet.name,
+        ...pos,
+        ships: fleet.ships.length,
+        strength: fleetStrength(pack, state, fleet),
+        armed: fleetArmed(pack, state, fleet),
+        turn: state.turn,
+      });
     }
     // A stale sighting whose spot is now in view but empty: the fleet has moved on.
     for (const [id, sighting] of byId) {

@@ -538,3 +538,66 @@ button.small-button {
   width: 100%;
   margin-top: 6px;
 }
+
+.supply-lane {
+  opacity: 0.12;
+  stroke-linecap: round;
+}
+
+.fleet-count {
+  fill: var(--text);
+  font-weight: 700;
+  paint-order: stroke;
+  stroke: var(--bg);
+  stroke-width: 3px;
+  pointer-events: none;
+}
+
+.dry,
+.blockade {
+  fill: none;
+  stroke: var(--danger);
+}
+
+.danger-text {
+  color: var(--danger);
+}
+
+.segmented.wrap {
+  flex-wrap: wrap;
+}
+
+.segmented.wrap button {
+  flex: 1 1 40%;
+}
+
+.battle-side {
+  background: #ffffff08;
+  border-radius: 8px;
+  padding: 8px;
+}
+
+.battle-ships {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(90px, 1fr));
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.battle-ship.dead {
+  opacity: 0.35;
+  text-decoration: line-through;
+}
+
+.sheet input {
+  width: 100%;
+  margin-bottom: 6px;
+}
+
+.orders-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 8px;
+}

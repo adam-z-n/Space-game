@@ -39,6 +39,7 @@ for (const galaxySize of sizes) {
   const credits: number[] = [];
   const firstColonyTurn: number[] = [];
   const eventCounts = new Map<string, number>();
+  let shipsLostInBattle = 0;
 
   for (let g = 0; g < games; g++) {
     const settings: GameSettings = { seed: `sim-${galaxySize}-${g}`, galaxySize, aiCount: Number(values.ai), allAI: true };
@@ -60,6 +61,7 @@ for (const galaxySize of sizes) {
     for (let t = 0; t < turns; t++) {
       const events: GameEvent[] = game.endTurn();
       for (const e of events) eventCounts.set(e.type, (eventCounts.get(e.type) ?? 0) + 1);
+      for (const b of game.state.lastBattles) shipsLostInBattle += b.results.reduce((n, r) => n + r.shipsLost, 0);
       for (const c of game.state.colonies) if (!c.capital && !firstColony.has(c.empireId)) firstColony.set(c.empireId, game.state.turn);
     }
     msPerTurn.push((performance.now() - start) / turns);
@@ -97,6 +99,8 @@ for (const galaxySize of sizes) {
   const perEmpireGame = games * (Number(values.ai) + 1);
   const ev = (k: string) => fmt((eventCounts.get(k) ?? 0) / perEmpireGame);
   console.log(`  per empire per game  ships ${ev("shipCompleted")}  buildings ${ev("buildingCompleted")}  starving turns ${ev("starvation")}  debt turns ${ev("inDebt")}`);
+  console.log(`  military per empire  battles ${ev("battle")}  blockades ${ev("blockaded")}  intercepted ${ev("fleetIntercepted")}  ran dry ${ev("outOfSupply")}  attrition ${ev("attrition")}`);
+  console.log(`  ships lost in battle ${fmt(shipsLostInBattle / perEmpireGame)} per empire per game`);
 }
 
 console.log(failures === 0 ? "\nAll replays matched." : `\n${failures} replay mismatches.`);

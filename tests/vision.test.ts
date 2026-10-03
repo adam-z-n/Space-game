@@ -11,8 +11,9 @@ import {
   type GameState,
 } from "../src/core";
 import { defaultPack } from "../src/content/defaultPack";
+import { testFleet, testPack } from "./helpers";
 
-const pack = defaultPack();
+const pack = testPack;
 
 /**
  * A line galaxy 0 - 1 - 2 - 3 - 4, lanes 100 long, systems 100 apart.
@@ -32,8 +33,8 @@ function lineState(): GameState {
   // No colonies: only the fleets' own sensors matter here.
   state.colonies = [];
   state.fleets = [
-    { id: 100, empireId: 0, name: "Blue", templateId: "scout", speed: 100, sensorRange: 120, systemId: 0, route: [], progress: 0, holding: false },
-    { id: 200, empireId: 1, name: "Red", templateId: "scout", speed: 100, sensorRange: 120, systemId: 4, route: [], progress: 0, holding: false },
+    testFleet(state, { id: 100, empireId: 0, systemId: 0, hull: "test100", name: "Blue" }),
+    testFleet(state, { id: 200, empireId: 1, systemId: 4, hull: "test100", name: "Red" }),
   ];
   return state;
 }
@@ -52,7 +53,7 @@ const end: Command = { type: "endTurn" };
 
 describe("fog of war", () => {
   it("hides fleets outside sensor range", () => {
-    const view = empireView(lineState(), 0);
+    const view = empireView(lineState(), pack, 0);
     expect(view.fleets.map((f) => f.id)).toEqual([100]);
   });
 
@@ -71,7 +72,7 @@ describe("fog of war", () => {
     let s = run(lineState(), move(1, 200, 2), end, end, move(0, 100, 1), end);
     const seen = s.turn;
     s = run(s, move(1, 200, 4), move(0, 100, 0), end, end); // both pull back out of range
-    const view = empireView(s, 0);
+    const view = empireView(s, pack, 0);
     const red = view.fleets.find((f) => f.id === 200)!;
     expect(red).toMatchObject({ own: false, seenTurn: seen, position: { systemId: 2 } });
     expect(red.route).toBeNull();
@@ -87,7 +88,7 @@ describe("fog of war", () => {
   });
 
   it("reveals bodies only for explored systems", () => {
-    const view = empireView(lineState(), 0);
+    const view = empireView(lineState(), pack, 0);
     expect(view.systems[0]!.bodies).not.toBeNull();
     expect(view.systems[2]!.bodies).toBeNull();
     expect(view.systems[4]!.colonies).toEqual([]);
@@ -95,7 +96,7 @@ describe("fog of war", () => {
 
   it("never exposes another empire's orders", () => {
     const s = run(lineState(), move(1, 200, 0), end, end, end); // red at 1, in range, still under orders
-    const red = empireView(s, 0).fleets.find((f) => f.id === 200);
+    const red = empireView(s, pack, 0).fleets.find((f) => f.id === 200);
     expect(red).toBeDefined();
     expect(JSON.stringify(red)).not.toContain("route\":[");
   });
@@ -129,9 +130,9 @@ describe("orders", () => {
 describe("save migration", () => {
   it("loads a real Milestone 2 save and keeps playing", () => {
     const json = readFileSync(new URL("./fixtures/save-v2-m2.json", import.meta.url), "utf8");
-    const loaded = deserializeSave(json, pack);
+    const loaded = deserializeSave(json, defaultPack());
     const state = loaded.state;
-    expect(state.version).toBe(3);
+    expect(state.version).toBe(4);
     expect(state.turn).toBe(7);
     // Every empire gets its capital on its homeworld; fleets map to ship templates.
     for (const empire of state.empires) {
@@ -139,7 +140,8 @@ describe("save migration", () => {
       expect(capital.systemId).toBe(empire.homeSystemId);
       expect(capital.buildings).toEqual(["capitol"]);
     }
-    expect(new Set(state.fleets.map((f) => f.templateId))).toEqual(new Set(["scout", "frigate"]));
+    expect(new Set(state.fleets.flatMap((f) => f.ships.map((s) => s.designId)))).toEqual(new Set(["scout", "frigate"]));
+    expect(state.empires.every((e) => e.designs.length === defaultPack().startingDesigns.length)).toBe(true);
     expect(state.fleets.every((f) => f.speed > 0 && f.sensorRange > 0)).toBe(true);
     for (let i = 0; i < 5; i++) loaded.endTurn();
     expect(loaded.state.turn).toBe(12);

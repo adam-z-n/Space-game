@@ -5,7 +5,25 @@ A turn-based space empire game for phones. See [docs/GAME_DESIGN.md](docs/GAME_D
 The game is built web-first in TypeScript: it runs as a mobile web app for playtesting, and will be wrapped
 with Capacitor for the iOS and Android app stores later using the same code.
 
-## Status: Milestone 3
+## Status: Milestone 4
+
+**Milestone 4: ship design, fleets, supply, combat**
+
+- Ship designs: pick a hull (slots, structure, speed, evasion, endurance), fill slots with weapons, armor,
+  shields, engines, sensors, colony modules or fuel tanks, and set a formation role. Designs can be copied and retired.
+- Fleets hold many ships; merge and detach in the fleet sheet. Fleet speed is the slowest ship.
+- Supply: colonies project supply along lanes (capital further than other colonies; techs extend it).
+  Outside supply a fleet burns a turn of onboard supply per turn; once empty it is slowed, deals half damage
+  and loses hull each turn. Tankers add endurance. Supplied fleets repair, faster when docked at a colony.
+- Blockades: an enemy warship in orbit with no defender cuts a colony's supply and trade.
+- Interception: armed fleets on engage orders stop enemy fleets entering their system.
+- Combat is auto-resolved over several rounds with seeded randomness: per-fleet mission (engage/evade),
+  stance, target priority and retreat threshold; formation roles decide who draws fire; shields, armor and
+  evasion matter. Each battle has a report with a round-by-round replay.
+- Pre-battle odds when previewing a move, based only on what your sensors have seen (and how old that intel is),
+  plus warnings about enemy fleets that will stop you on the way.
+- Weapons, defense, hull and logistics techs; the placeholder AI designs warships, guards its space,
+  intercepts weaker intruders and blockades rival colonies.
 
 **Milestone 3: colonies, economy, research**
 
@@ -42,7 +60,7 @@ with Capacitor for the iOS and Android app stores later using the same code.
 - Headless tests and a batch simulation runner
 - A preview web app with autosave and save export/import
 
-Not yet: ship design, supply, combat, defenses, invasion. Those are later milestones.
+Not yet: orbital and planetary defenses, invasion, repair tenders and minelayers (Milestone 6), and a real AI (Milestone 5).
 
 ## Play it
 
@@ -70,11 +88,14 @@ npm run build      # production web build in dist/
 | --- | --- |
 | `src/core/` | The simulation: state, RNG, galaxy generation, commands, turn resolution, fog of war, AI, saves. No UI or platform code. |
 | `src/core/economy.ts` | Colony output, production, research, food, credits and growth. The UI's forecasts call the same functions. |
+| `src/core/ships.ts` | Designs, design stats, fleet stats and strength. |
+| `src/core/supply.ts` | Supply networks, onboard supply, repair, attrition, blockades. |
+| `src/core/combat.ts` | Battle resolution and battle reports. |
 | `src/core/view.ts` | What one empire may know. The UI renders only this, so fog of war can't leak. |
 | `src/content/` | Content pack schema and loader. |
 | `content/default/pack.json` | The placeholder content pack (stars, planets, names, empires, starting fleets). |
 | `src/platform/` | Save storage and app lifecycle. The only code that changes for the native app. |
-| `src/web/` | The web UI: galaxy map, HUD, and colony/research/empire screens. |
+| `src/web/` | The web UI: galaxy map, HUD, colony/research/empire screens, ship designer, fleet orders, battle replays. |
 | `tests/` | Unit tests. |
 | `scripts/sim.ts` | Headless batch runner. |
 
@@ -95,4 +116,7 @@ These keep games replayable and multiplayer-ready:
 - Galaxy sizes: about 24 / 48 / 80 systems (tunable in the content pack).
 - Resources: industry, research, food, credits.
 - Colony management uses focus presets rather than per-worker sliders, to keep it one-thumb friendly.
+- Every empire is hostile to every other; diplomacy is out of scope for v1.
+- Fleet orders in v1: engage/evade, stance, target priority and retreat threshold. Patrol, escort and raid
+  missions are deferred; blockades happen automatically when a warship sits at an enemy colony.
 - First theme: undecided; a generic placeholder pack is used for now.

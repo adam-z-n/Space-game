@@ -1,7 +1,10 @@
-import type { ContentPack } from "../content/schema";
+import type { ContentPack, DesignData } from "../content/schema";
 import { buildAdjacency, findPath, laneLength } from "./graph";
 import {
   FOCUSES,
+  MISSIONS,
+  STANCES,
+  TARGET_PRIORITIES,
   cloneState,
   colonyOnBody,
   findColony,
@@ -14,11 +17,14 @@ import {
   type Fleet,
   type FleetId,
   type Focus,
+  type FleetOrders,
   type GameState,
+  type ShipId,
   type QueueItem,
   type SystemId,
 } from "./state";
-import { buildBlocker, buyCost, colonizeBlocker, getShipTemplate, itemCost, newColony, techAvailable } from "./economy";
+import { buildBlocker, buyCost, colonizeBlocker, itemCost, newColony, techAvailable } from "./economy";
+import { designBlocker, fleetCanColonize, fleetMaxSupply, fleetShipStats, refreshFleetStats } from "./ships";
 import { resolveTurn } from "./turn";
 
 /**
@@ -42,6 +48,15 @@ export type Command =
   /** Pay credits to finish the colony's current build; it completes when the turn resolves. */
   | { type: "buyBuild"; empireId: EmpireId; colonyId: ColonyId }
   | { type: "setResearch"; empireId: EmpireId; techId: string }
+  /** Move every ship of `fleetId` into `intoFleetId` (same system, both stopped). */
+  | { type: "mergeFleets"; empireId: EmpireId; fleetId: FleetId; intoFleetId: FleetId }
+  /** Detach ships into a new fleet in the same system. */
+  | { type: "splitFleet"; empireId: EmpireId; fleetId: FleetId; shipIds: ShipId[] }
+  | { type: "setFleetOrders"; empireId: EmpireId; fleetId: FleetId; orders: FleetOrders }
+  | { type: "renameFleet"; empireId: EmpireId; fleetId: FleetId; name: string }
+  | { type: "createDesign"; empireId: EmpireId; design: Omit<DesignData, "id"> }
+  /** Hide a design from build lists. Ships already built are unaffected. */
+  | { type: "retireDesign"; empireId: EmpireId; designId: string }
   /** Ends the orders phase for everyone and resolves the turn. */
   | { type: "endTurn" };
 
@@ -109,6 +124,7 @@ export function validateCommand(state: GameState, command: Command, pack: Conten
     case "moveFleet": {
       const fleet = ownFleet(state, command.empireId, command.fleetId);
       if (typeof fleet === "string") return fleet;
+      if (fleet.speed <= 0) return "fleet cannot move";
       const plan = planMove(state, command.fleetId, command.destinationId);
       return typeof plan === "string" ? plan : null;
     }
@@ -121,7 +137,7 @@ export function validateCommand(state: GameState, command: Command, pack: Conten
     case "colonize": {
       const fleet = ownFleet(state, command.empireId, command.fleetId);
       if (typeof fleet === "string") return fleet;
-      if (!getShipTemplate(pack, fleet.templateId).colonize) return "not a colony ship";
+      if (!fleetCanColonize(pack, state, fleet)) return "fleet has no colony ship";
       if (isInTransit(fleet)) return "fleet is between systems";
       const body = state.galaxy.systems[fleet.systemId]!.bodies.find((b) => b.id === command.bodyId);
       if (!body) return "planet is not in the fleet's system";
@@ -148,10 +164,49 @@ export function validateCommand(state: GameState, command: Command, pack: Conten
     case "buyBuild": {
       const colony = ownColony(state, command.empireId, command.colonyId);
       if (typeof colony === "string") return colony;
-      const cost = buyCost(pack, colony);
+      const cost = buyCost(pack, state.empires[command.empireId]!, colony);
       if (cost === null) return "nothing to buy";
       if (state.empires[command.empireId]!.credits < cost) return "not enough credits";
       return null;
+    }
+    case "mergeFleets": {
+      const from = ownFleet(state, command.empireId, command.fleetId);
+      if (typeof from === "string") return from;
+      const into = ownFleet(state, command.empireId, command.intoFleetId);
+      if (typeof into === "string") return into;
+      if (from.id === into.id) return "same fleet";
+      if (isInTransit(from) || isInTransit(into) || from.systemId !== into.systemId) return "fleets must be stopped in the same system";
+      return null;
+    }
+    case "splitFleet": {
+      const fleet = ownFleet(state, command.empireId, command.fleetId);
+      if (typeof fleet === "string") return fleet;
+      if (isInTransit(fleet)) return "fleet is between systems";
+      const ids = new Set(command.shipIds);
+      if (ids.size === 0 || ids.size !== command.shipIds.length) return "pick ships to detach";
+      if (![...ids].every((id) => fleet.ships.some((s) => s.id === id))) return "ship not in fleet";
+      if (ids.size === fleet.ships.length) return "can't detach every ship";
+      return null;
+    }
+    case "setFleetOrders": {
+      const fleet = ownFleet(state, command.empireId, command.fleetId);
+      if (typeof fleet === "string") return fleet;
+      const o = command.orders;
+      if (!MISSIONS.includes(o.mission) || !STANCES.includes(o.stance) || !TARGET_PRIORITIES.includes(o.targetPriority)) return "invalid orders";
+      if (!Number.isInteger(o.retreatPercent) || o.retreatPercent < 0 || o.retreatPercent > 100) return "retreat threshold must be 0-100";
+      return null;
+    }
+    case "renameFleet": {
+      const fleet = ownFleet(state, command.empireId, command.fleetId);
+      if (typeof fleet === "string") return fleet;
+      const name = command.name.trim();
+      return name.length > 0 && name.length <= 30 ? null : "name must be 1-30 characters";
+    }
+    case "createDesign":
+      return designBlocker(pack, state.empires[command.empireId]!, command.design);
+    case "retireDesign": {
+      const design = state.empires[command.empireId]!.designs.find((d) => d.id === command.designId);
+      return design && !design.obsolete ? null : "no such design";
     }
     case "setResearch":
       return techAvailable(pack, state.empires[command.empireId]!, command.techId) ? null : "tech not available";
@@ -185,7 +240,12 @@ export function applyCommand(state: GameState, command: Command, pack: ContentPa
       const fleet = findFleet(next, command.fleetId)!;
       const empire = next.empires[command.empireId]!;
       next.colonies.push(newColony(next, empire, fleet.systemId, command.bodyId, pack.economy.colonyPopulation, false));
-      next.fleets = next.fleets.filter((f) => f.id !== fleet.id);
+      // The first colony ship in the fleet is used up.
+      const stats = fleetShipStats(pack, next, fleet);
+      const used = fleet.ships[stats.findIndex((s) => s.colonize)]!;
+      fleet.ships = fleet.ships.filter((s) => s.id !== used.id);
+      if (fleet.ships.length === 0) next.fleets = next.fleets.filter((f) => f.id !== fleet.id);
+      else refreshFleetStats(pack, next, fleet);
       break;
     }
     case "setFocus":
@@ -208,10 +268,67 @@ export function applyCommand(state: GameState, command: Command, pack: ContentPa
     }
     case "buyBuild": {
       const colony = findColony(next, command.colonyId)!;
-      next.empires[command.empireId]!.credits -= buyCost(pack, colony)!;
-      colony.progress = itemCost(pack, colony.queue[0]!);
+      const empire = next.empires[command.empireId]!;
+      empire.credits -= buyCost(pack, empire, colony)!;
+      colony.progress = itemCost(pack, empire, colony.queue[0]!);
       break;
     }
+    case "mergeFleets": {
+      const from = findFleet(next, command.fleetId)!;
+      const into = findFleet(next, command.intoFleetId)!;
+      // Merged fleets carry the lower supply of the two, capped at the new maximum.
+      into.ships.push(...from.ships);
+      into.supply = Math.min(into.supply, from.supply, fleetMaxSupply(pack, next, into));
+      into.holding = into.holding && from.holding;
+      next.fleets = next.fleets.filter((f) => f.id !== from.id);
+      refreshFleetStats(pack, next, into);
+      break;
+    }
+    case "splitFleet": {
+      const fleet = findFleet(next, command.fleetId)!;
+      const empire = next.empires[command.empireId]!;
+      const ids = new Set(command.shipIds);
+      const detached = fleet.ships.filter((s) => ids.has(s.id));
+      fleet.ships = fleet.ships.filter((s) => !ids.has(s.id));
+      const count = (empire.shipsBuilt["__fleet"] ?? 0) + 1;
+      empire.shipsBuilt["__fleet"] = count;
+      const created: Fleet = {
+        ...fleet,
+        id: next.nextId++,
+        name: `Task Force ${count}`,
+        ships: detached,
+        route: [],
+        holding: false,
+        orders: { ...fleet.orders },
+      };
+      created.supply = Math.min(fleet.supply, fleetMaxSupply(pack, next, created));
+      fleet.supply = Math.min(fleet.supply, fleetMaxSupply(pack, next, fleet));
+      refreshFleetStats(pack, next, fleet);
+      refreshFleetStats(pack, next, created);
+      next.fleets.push(created);
+      break;
+    }
+    case "setFleetOrders":
+      findFleet(next, command.fleetId)!.orders = { ...command.orders };
+      break;
+    case "renameFleet":
+      findFleet(next, command.fleetId)!.name = command.name.trim();
+      break;
+    case "createDesign": {
+      const d = command.design;
+      next.empires[command.empireId]!.designs.push({
+        id: `design-${next.nextId++}`,
+        name: d.name.trim(),
+        hull: d.hull,
+        components: [...d.components],
+        formation: d.formation,
+        obsolete: false,
+      });
+      break;
+    }
+    case "retireDesign":
+      next.empires[command.empireId]!.designs.find((d) => d.id === command.designId)!.obsolete = true;
+      break;
     case "setResearch":
       next.empires[command.empireId]!.research.current = command.techId;
       break;

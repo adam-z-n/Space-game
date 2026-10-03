@@ -2,9 +2,10 @@ import type { ContentPack } from "../content/schema";
 import { hashString } from "./rng";
 import { Game } from "./game";
 import type { Command } from "./commands";
-import { STATE_VERSION, type GameState } from "./state";
+import { STATE_VERSION, type Fleet, type GameState } from "./state";
 import { updateSightings } from "./vision";
-import { newColony, refreshEmpireStats } from "./economy";
+import { empireEffects, newColony, refreshEmpireStats } from "./economy";
+import { defaultOrders, designStats, fleetArmed, fleetMaxSupply, startingDesigns } from "./ships";
 
 export const SAVE_FORMAT = 1;
 
@@ -50,17 +51,18 @@ export function deserializeSave(json: string, pack: ContentPack): Game {
 export function migrateState(state: GameState, pack: ContentPack): GameState {
   // Older states don't match today's types; migrate them as plain JSON.
   const old = state as unknown as { version: number; empires: Record<string, unknown>[]; fleets: Record<string, unknown>[]; colonies?: unknown[] };
+  const migrated = old as unknown as GameState;
+  const startVersion = old.version;
 
   if (old.version === 1) {
-    // v2 added fog of war (sensor ranges, sightings) and fleet hold orders. v3 recomputes sensors.
+    // v2 added fog of war (sightings) and fleet hold orders.
     for (const empire of old.empires) empire.sightings = [];
     for (const fleet of old.fleets) fleet.holding = false;
     old.version = 2;
   }
 
   if (old.version === 2) {
-    // v3 adds colonies, the economy and research, and ties fleets to ship templates.
-    const migrated = old as unknown as GameState;
+    // v3 added colonies, the economy and research, and tied fleets to ship templates.
     migrated.colonies = [];
     for (const empire of old.empires) {
       delete empire.homeSensorRange;
@@ -76,20 +78,40 @@ export function migrateState(state: GameState, pack: ContentPack): GameState {
       });
     }
     const legacyTemplates: Record<string, string> = { "Scout Wing": "scout", "Home Fleet": "frigate" };
-    for (const fleet of old.fleets) fleet.templateId = legacyTemplates[fleet.name as string] ?? pack.shipTemplates[0]!.id;
+    for (const fleet of old.fleets) fleet.templateId = legacyTemplates[fleet.name as string] ?? "frigate";
     for (const empire of migrated.empires) {
       const home = migrated.galaxy.systems[empire.homeSystemId]!;
       const capital = newColony(migrated, empire, home.id, home.bodies[0]!.id, pack.economy.capitalPopulation, true);
       capital.buildings = [...pack.start.capitalBuildings];
       migrated.colonies.push(capital);
-      refreshEmpireStats(migrated, pack, empire);
     }
     old.version = 3;
-    updateSightings(migrated, null, migrated.turn);
   }
 
-  if (state.version !== STATE_VERSION) throw new Error(`unsupported state version ${state.version}`);
-  return state;
+  if (old.version === 3) {
+    // v4 replaced ship templates with designs and multi-ship fleets, and added supply and combat.
+    for (const empire of migrated.empires) empire.designs = startingDesigns(pack);
+    for (const colony of migrated.colonies) colony.blockaded = false;
+    migrated.lastBattles = [];
+    for (const raw of old.fleets) {
+      const fleet = raw as unknown as Fleet & { templateId?: string };
+      const empire = migrated.empires[fleet.empireId]!;
+      const designId = empire.designs.some((d) => d.id === fleet.templateId) ? fleet.templateId! : "frigate";
+      delete fleet.templateId;
+      const maxHp = designStats(pack, empire.designs.find((d) => d.id === designId)!, empireEffects(pack, empire)).maxHp;
+      fleet.ships = [{ id: migrated.nextId++, designId, hp: maxHp }];
+      fleet.orders = defaultOrders(fleetArmed(pack, migrated, fleet));
+      fleet.supply = fleetMaxSupply(pack, migrated, fleet);
+    }
+    old.version = 4;
+  }
+
+  if (startVersion !== migrated.version) {
+    for (const empire of migrated.empires) refreshEmpireStats(migrated, pack, empire);
+    updateSightings(migrated, pack, null, migrated.turn);
+  }
+  if (migrated.version !== STATE_VERSION) throw new Error(`unsupported state version ${migrated.version}`);
+  return migrated;
 }
 
 /** Stable fingerprint of a state, for determinism checks. */
