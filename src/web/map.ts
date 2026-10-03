@@ -356,6 +356,11 @@ export class GalaxyMap {
     }
     parts.push(`</g>`);
 
+    // Own minefields: a dotted ring around the system.
+    for (const field of view.minefields) {
+      const sys = systems[field.systemId]!;
+      parts.push(`<circle class="minefield" cx="${sys.x}" cy="${sys.y}" r="${px(30)}" stroke="${color(view.viewerId)}" stroke-width="${px(1.5)}" stroke-dasharray="${px(1)} ${px(5)}"/>`);
+    }
     const supplied = new Set(scene.showSupply ? view.supplied : []);
     const myColor = color(view.viewerId);
     for (const lane of view.lanes) {

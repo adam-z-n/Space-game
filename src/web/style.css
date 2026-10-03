@@ -606,3 +606,12 @@ button.danger {
   color: var(--danger);
   border-color: #ef535066;
 }
+
+.minefield {
+  fill: none;
+  opacity: 0.8;
+}
+
+.defense-box {
+  margin-top: 6px;
+}

@@ -9,6 +9,7 @@ import {
   deserializeSave,
   findColony,
   findFleet,
+  fleetTroops,
   estimateOdds,
   fleetCanColonize,
   fleetStrength,
@@ -110,7 +111,7 @@ async function showSetup(message?: string): Promise<void> {
       "div",
       { className: "setup" },
       h("h1", { textContent: "Space 4X" }),
-      h("p", { textContent: "Milestone 5 preview: AI rivals with personalities, difficulty levels and victory." }),
+      h("p", { textContent: "Milestone 6 preview: colony defenses, invasions, minefields and support ships." }),
       saved ? button("Continue", () => loadAndStart(saved), { className: "primary" }) : null,
       h("label", {}, "Galaxy seed", h("div", { className: "row" }, seed, button("Random", () => (seed.value = randomSeed()), { type: "button" }))),
       h("label", {}, "Galaxy size", size),
@@ -399,6 +400,18 @@ function startGame(game: Game): void {
         return `${fleetView(e.fleetId)?.name ?? "A fleet"} was stopped by enemies at ${systemName(e.systemId)}`;
       case "blockaded":
         return `${colonyName(e.colonyId)} is blockaded: no supply or trade`;
+      case "invasion": {
+        const mine = e.attackerId === game.playerId;
+        const name = colonyName(e.colonyId);
+        if (mine) return e.captured ? `Captured ${name}! (${e.attackingTroops} troops vs ${e.defendingTroops})` : `Invasion of ${name} repelled (${e.attackingTroops} troops vs ${e.defendingTroops})`;
+        return e.captured ? `${empire(e.attackerId).name} captured ${name}` : `Repelled ${empire(e.attackerId).name}'s landing on ${name}`;
+      }
+      case "defensesDown":
+        return `${colonyName(e.colonyId)}'s orbital defenses are down`;
+      case "mineHits":
+        return `Mines hit ${e.hits} ship${e.hits > 1 ? "s" : ""} near ${systemName(e.systemId)}${e.shipsLost ? `, ${e.shipsLost} lost` : ""}`;
+      case "capitalMoved":
+        return `Capital moved to ${colonyName(e.colonyId)}`;
       case "empireEliminated":
         return e.eliminatedId === game.playerId ? "Your empire has fallen" : `${empire(e.eliminatedId).name} has been eliminated`;
       case "gameOver":
@@ -598,6 +611,30 @@ function startGame(game: Game): void {
     return h("div", { className: cls, textContent: parts.join(" ") });
   }
 
+  /** Invade buttons for a troop-carrying fleet at, or heading to, a known rival colony. */
+  function invasionControls(fleet: FleetView): HTMLElement | null {
+    const real = findFleet(game.state, fleet.id);
+    if (!real) return null;
+    const troops = fleetTroops(game.state, pack, real);
+    if (troops === 0) return null;
+    const where = real.route.length > 0 ? real.route[real.route.length - 1]! : real.systemId;
+    const targets = view.systems[where]!.colonies.filter((c) => !c.own);
+    const box = h("div", { className: "column" }, h("div", { className: "small", textContent: `Carrying ${troops} ground troops` }));
+    const pending = targets.find((c) => c.colonyId === real.invadeColonyId);
+    if (pending) {
+      box.append(
+        h("div", { className: "warn-text small", textContent: `Will land on ${pending.name} once its orbital defenses are down (defenders ~${pending.troops}).` }),
+        button("Cancel invasion", () => ctx.issue({ type: "invade", empireId: game.playerId, fleetId: real.id, colonyId: null })),
+      );
+    } else {
+      for (const c of targets) {
+        const odds = troops > c.troops * 1.3 ? "good odds" : troops > c.troops ? "close" : "likely to fail";
+        box.append(button(`Invade ${c.name} · ${troops} vs ~${c.troops} (${odds})`, () => ctx.issue({ type: "invade", empireId: game.playerId, fleetId: real.id, colonyId: c.colonyId }), { className: "primary" }));
+      }
+    }
+    return box;
+  }
+
   function fleetSheet(): HTMLElement | null {
     const fleet = fleetView(ui.selectedFleet);
     if (!fleet) return null;
@@ -619,6 +656,7 @@ function startGame(game: Game): void {
     const settleRow = settle.length
       ? h("div", { className: "column" }, ...settle.map((o) => button(`Colonize ${o.name} · max pop ${o.maxPop}`, () => colonize(o.fleetId, o.bodyId), { className: "primary" })))
       : null;
+    const invasion = fleet.own ? invasionControls(fleet) : null;
     const intel = fleet.own ? null : h("div", { className: "muted small", textContent: `${fleet.ships} ship${fleet.ships > 1 ? "s" : ""}${fleet.armed ? ` · strength ~${fleet.strength}` : " · unarmed"}` });
     return h(
       "div",
@@ -627,6 +665,7 @@ function startGame(game: Game): void {
       h("div", { className: "sub", textContent: `${owner.name} · ${fleetStatus(fleet)}` }),
       intel,
       settleRow,
+      invasion,
       fleet.own ? fleetDetail(shipCtx, fleet.id) : null,
       fleet.own ? h("div", { className: "hint", textContent: "Tap a star to set a destination, or drag from the fleet." }) : null,
       fleet.own ? actions : null,
@@ -666,6 +705,9 @@ function startGame(game: Game): void {
           const stale = !colony.own && colony.seenTurn < view.turn ? ` (turn ${colony.seenTurn})` : "";
           row.firstChild!.appendChild(
             h("div", { className: "small" }, h("span", { className: "swatch", style: `background:${owner.color}` }), `${colony.capital ? "★ " : ""}${colony.name} · pop ${colony.population}${stale}`),
+          );
+          row.firstChild!.appendChild(
+            h("div", { className: "muted small", textContent: `${colony.defenseHp > 0 ? `defenses ${colony.defenseHp} hp` : "defenses down"} · ~${colony.troops} troops${colony.blockaded ? " · blockaded" : ""}` }),
           );
           if (colony.own) {
             row.className = "tappable";

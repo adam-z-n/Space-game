@@ -17,6 +17,8 @@ export interface FleetInfo {
   armed: boolean;
   colonize: boolean;
   recon: boolean;
+  /** Ground troops aboard (0 for most fleets). */
+  troops: number;
   maxSupply: number;
   /** Current hit points as a fraction of full, in percent. */
   hpPercent: number;
@@ -84,6 +86,7 @@ export function buildContext(state: GameState, pack: ContentPack, empireId: Empi
         armed: fleetArmed(pack, state, fleet),
         colonize: fleetCanColonize(pack, state, fleet),
         recon: stats.every((s) => s.role === "recon"),
+        troops: stats.reduce((n, s) => n + s.troops, 0),
         maxSupply: fleetMaxSupply(pack, state, fleet),
         hpPercent: maxHp > 0 ? Math.floor((hp * 100) / maxHp) : 0,
         idle: fleet.progress === 0 && fleet.route.length === 0,

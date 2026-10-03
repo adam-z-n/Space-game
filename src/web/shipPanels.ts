@@ -50,7 +50,8 @@ export function designSummary(pack: ContentPack, empire: Empire, design: Pick<Sh
   for (const id of design.components) counts.set(id, (counts.get(id) ?? 0) + 1);
   const parts = [...counts].map(([id, n]) => `${n > 1 ? `${n}× ` : ""}${getComponent(pack, id).name}`).join(", ") || "empty";
   const attack = stats.armed ? ` · ${stats.damagePerRound.toFixed(1)} dmg/round` : "";
-  return `${getHull(pack, design.hull).name}: ${parts} · ${stats.maxHp} hp${stats.shield ? ` · shield ${stats.shield}` : ""}${attack} · speed ${stats.speed}`;
+  const extras = [stats.troops ? `${stats.troops} troops` : "", stats.repair ? `repairs ${stats.repair}%/turn` : "", stats.mines ? `lays ${stats.mines} mines/turn` : ""].filter(Boolean);
+  return `${getHull(pack, design.hull).name}: ${parts} · ${stats.maxHp} hp${stats.shield ? ` · shield ${stats.shield}` : ""}${attack} · speed ${stats.speed}${extras.length ? ` · ${extras.join(" · ")}` : ""}`;
 }
 
 // ---------- designs list ----------

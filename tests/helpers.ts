@@ -35,6 +35,7 @@ export function testFleet(state: GameState, opts: { id: number; empireId: number
     route: [],
     progress: 0,
     holding: false,
+    invadeColonyId: null,
   };
 }
 

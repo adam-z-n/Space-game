@@ -41,6 +41,9 @@ for (const galaxySize of sizes) {
   const reasons = new Map<string, number>();
   const events = new Map<string, number>();
   const baseline = { games: 0, wins: 0 };
+  let landings = 0;
+  let captures = 0;
+  let capitalMoves = 0;
   const byPersonality = new Map<string, { games: number; wins: number; score: number; colonies: number; debtTurns: number; battles: number }>();
 
   for (let g = 0; g < games; g++) {
@@ -70,6 +73,11 @@ for (const galaxySize of sizes) {
       turns++;
       for (const e of evs) {
         events.set(e.type, (events.get(e.type) ?? 0) + 1);
+        if (e.type === "invasion" && e.empireId === e.attackerId) {
+          landings++;
+          if (e.captured) captures++;
+        }
+        if (e.type === "capitalMoved") capitalMoves++;
         if (e.type === "inDebt") debt.set(e.empireId, (debt.get(e.empireId) ?? 0) + 1);
         if (e.type === "battle") battles.set(e.empireId, (battles.get(e.empireId) ?? 0) + 1);
       }
@@ -115,6 +123,8 @@ for (const galaxySize of sizes) {
   console.log(`  treasury at end      ${range(stats.credits)}`);
   console.log(`  per empire per game  battles ${ev("battle")}  blockades ${ev("blockaded")}  intercepted ${ev("fleetIntercepted")}  debt turns ${ev("inDebt")}  starving ${ev("starvation")}`);
   console.log(`  ships lost in battle ${fmt(stats.shipsLost / perEmpire)} per empire per game`);
+  // Invasion events go to both sides, so count each landing once (from the attacker's copy).
+  console.log(`  invasions            ${fmt(landings / games)} per game, ${fmt(captures / games)} colonies captured per game, defenses knocked out ${ev("defensesDown")} per empire, mine hits ${ev("mineHits")} per empire, capitals lost ${fmt(capitalMoves / games)} per game`);
   console.log(`  resolution time      ${avg(stats.msPerTurn).toFixed(1)} ms per turn (including AI)`);
   console.log(`  AI command rejections ${stats.rejections}`);
   const proxy = baseline.games ? fmt((baseline.wins * 100) / baseline.games) : "-";
