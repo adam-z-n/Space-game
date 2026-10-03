@@ -117,6 +117,24 @@ export function migrateState(state: GameState, pack: ContentPack): GameState {
     old.version = 5;
   }
 
+  if (old.version === 5) {
+    // v6 added colony defenses, troops, invasion orders, minefields and new starting designs.
+    for (const colony of migrated.colonies) {
+      colony.defenseHp = 0; // refills from buildings over the next turns
+      colony.troops = 0;
+    }
+    for (const fleet of migrated.fleets) fleet.invadeColonyId = null;
+    for (const empire of migrated.empires) {
+      for (const sighting of empire.colonySightings) {
+        sighting.defenseHp = 0;
+        sighting.troops = 0;
+      }
+      for (const design of startingDesigns(pack)) if (!empire.designs.some((d) => d.id === design.id)) empire.designs.push(design);
+    }
+    migrated.minefields = [];
+    old.version = 6;
+  }
+
   if (startVersion !== migrated.version) {
     for (const empire of migrated.empires) refreshEmpireStats(migrated, pack, empire);
     updateSightings(migrated, pack, null, migrated.turn);

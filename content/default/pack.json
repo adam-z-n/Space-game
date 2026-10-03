@@ -82,56 +82,64 @@
       "name": "Terran",
       "habitability": 100,
       "weight": 8,
-      "foodYield": 3
+      "foodYield": 3,
+      "groundDefensePercent": 0
     },
     {
       "id": "ocean",
       "name": "Ocean",
       "habitability": 85,
       "weight": 8,
-      "foodYield": 3
+      "foodYield": 3,
+      "groundDefensePercent": 10
     },
     {
       "id": "arid",
       "name": "Arid",
       "habitability": 60,
       "weight": 14,
-      "foodYield": 2
+      "foodYield": 2,
+      "groundDefensePercent": 10
     },
     {
       "id": "tundra",
       "name": "Tundra",
       "habitability": 50,
       "weight": 14,
-      "foodYield": 2
+      "foodYield": 2,
+      "groundDefensePercent": 20
     },
     {
       "id": "jungle",
       "name": "Jungle",
       "habitability": 70,
       "weight": 8,
-      "foodYield": 3
+      "foodYield": 3,
+      "groundDefensePercent": 30
     },
     {
       "id": "barren",
       "name": "Barren",
       "habitability": 10,
       "weight": 24,
-      "foodYield": 0
+      "foodYield": 0,
+      "groundDefensePercent": 0
     },
     {
       "id": "toxic",
       "name": "Toxic",
       "habitability": 5,
       "weight": 14,
-      "foodYield": 0
+      "foodYield": 0,
+      "groundDefensePercent": 40
     },
     {
       "id": "volcanic",
       "name": "Volcanic",
       "habitability": 5,
       "weight": 10,
-      "foodYield": 0
+      "foodYield": 0,
+      "groundDefensePercent": 30
     }
   ],
   "planetSizes": [
@@ -315,7 +323,9 @@
     "homeworldSize": "medium",
     "homeworldRichness": "normal",
     "capitalBuildings": [
-      "capitol"
+      "capitol",
+      "defense_platform",
+      "garrison"
     ],
     "fleets": [
       {
@@ -694,6 +704,74 @@
         "supplyRange": 150
       },
       "description": "+150 supply range for every colony."
+    },
+    {
+      "id": "planetary_defense",
+      "name": "Planetary Defense",
+      "field": "defense",
+      "cost": 70,
+      "requires": [],
+      "effects": {
+        "defensePercent": 15
+      },
+      "description": "+15% colony defenses. Unlocks Ground Batteries."
+    },
+    {
+      "id": "orbital_fortresses",
+      "name": "Orbital Fortresses",
+      "field": "defense",
+      "cost": 240,
+      "requires": [
+        "planetary_defense"
+      ],
+      "effects": {
+        "defensePercent": 15
+      },
+      "description": "+15% colony defenses. Unlocks the Orbital Fortress."
+    },
+    {
+      "id": "ground_forces",
+      "name": "Ground Forces",
+      "field": "weapons",
+      "cost": 80,
+      "requires": [],
+      "effects": {
+        "groundPercent": 25
+      },
+      "description": "+25% troop strength, attacking and defending."
+    },
+    {
+      "id": "powered_armor",
+      "name": "Powered Armor",
+      "field": "weapons",
+      "cost": 220,
+      "requires": [
+        "ground_forces"
+      ],
+      "effects": {
+        "groundPercent": 35
+      },
+      "description": "+35% troop strength."
+    },
+    {
+      "id": "mine_warfare",
+      "name": "Mine Warfare",
+      "field": "logistics",
+      "cost": 90,
+      "requires": [],
+      "effects": {},
+      "description": "Unlocks Minefields and the Mine Layer."
+    },
+    {
+      "id": "field_repair",
+      "name": "Field Repair",
+      "field": "engineering",
+      "cost": 110,
+      "requires": [
+        "automation"
+      ],
+      "effects": {},
+      "description": "Unlocks the Repair Bay for repair tenders."
     }
   ],
   "buildings": [
@@ -804,6 +882,115 @@
       "requires": "trade_networks",
       "description": "+4 credits.",
       "buildable": true
+    },
+    {
+      "id": "defense_platform",
+      "name": "Defense Platform",
+      "cost": 40,
+      "upkeep": 1,
+      "description": "Orbital platform: 40 hp, two 4-damage guns.",
+      "effects": {},
+      "defense": {
+        "hp": 40,
+        "weapons": [
+          {
+            "damage": 4,
+            "accuracy": 70,
+            "count": 2
+          }
+        ]
+      },
+      "buildable": true
+    },
+    {
+      "id": "ground_battery",
+      "name": "Ground Battery",
+      "cost": 30,
+      "upkeep": 1,
+      "description": "Surface guns: 20 hp, one 7-damage gun.",
+      "effects": {},
+      "defense": {
+        "hp": 20,
+        "weapons": [
+          {
+            "damage": 7,
+            "accuracy": 60,
+            "count": 1
+          }
+        ]
+      },
+      "requires": "planetary_defense",
+      "buildable": true
+    },
+    {
+      "id": "shield_generator",
+      "name": "Shield Generator",
+      "cost": 60,
+      "upkeep": 2,
+      "description": "Blocks 2 damage per hit on this colony's defenses.",
+      "effects": {},
+      "defense": {
+        "shield": 2
+      },
+      "requires": "deflector_shields",
+      "buildable": true
+    },
+    {
+      "id": "garrison",
+      "name": "Garrison",
+      "cost": 25,
+      "upkeep": 1,
+      "description": "+8 ground troops.",
+      "effects": {},
+      "defense": {
+        "troops": 8
+      },
+      "buildable": true
+    },
+    {
+      "id": "minefield",
+      "name": "Minefield",
+      "cost": 30,
+      "upkeep": 1,
+      "description": "Keeps 30 mine strength in this system.",
+      "effects": {},
+      "defense": {
+        "mines": 30
+      },
+      "requires": "mine_warfare",
+      "buildable": true
+    },
+    {
+      "id": "sensor_station",
+      "name": "Sensor Station",
+      "cost": 25,
+      "upkeep": 0,
+      "description": "+120 sensor range for this colony.",
+      "effects": {
+        "sensorRange": 120
+      },
+      "defense": {},
+      "buildable": true
+    },
+    {
+      "id": "orbital_fortress",
+      "name": "Orbital Fortress",
+      "cost": 120,
+      "upkeep": 3,
+      "description": "120 hp, three 8-damage guns.",
+      "effects": {},
+      "defense": {
+        "hp": 120,
+        "weapons": [
+          {
+            "damage": 8,
+            "accuracy": 70,
+            "count": 3
+          }
+        ]
+      },
+      "requires": "orbital_fortresses",
+      "buildable": true
     }
   ],
   "combat": {
@@ -827,7 +1014,14 @@
     "outOfSupplySpeedPercent": 33,
     "attritionPercent": 10,
     "repairPercent": 10,
-    "dockRepairPercent": 25
+    "dockRepairPercent": 25,
+    "militiaPerPop": 1,
+    "garrisonRegenPercent": 20,
+    "defenseRepairPercent": 15,
+    "captureLossPercent": 25,
+    "mineHitPercent": 30,
+    "mineDamage": 6,
+    "maxMines": 60
   },
   "hulls": [
     {
@@ -1002,6 +1196,32 @@
       "description": "+4 turns of supply for the whole fleet.",
       "cost": 4,
       "fuel": 4
+    },
+    {
+      "id": "troop_bay",
+      "name": "Troop Bay",
+      "kind": "troops",
+      "description": "Carries 5 ground troops for invasions.",
+      "cost": 6,
+      "troops": 5
+    },
+    {
+      "id": "repair_bay",
+      "name": "Repair Bay",
+      "kind": "repair",
+      "description": "Repairs 15% of every ship's hull per turn, even outside supply.",
+      "cost": 8,
+      "repair": 15,
+      "requires": "field_repair"
+    },
+    {
+      "id": "mine_layer",
+      "name": "Mine Layer",
+      "kind": "mines",
+      "description": "Lays 10 mine strength per turn where the fleet waits.",
+      "cost": 6,
+      "mines": 10,
+      "requires": "mine_warfare"
     }
   ],
   "startingDesigns": [
@@ -1045,11 +1265,42 @@
         "fuel_tank"
       ],
       "formation": "support"
+    },
+    {
+      "id": "troop_transport",
+      "name": "Troop Transport",
+      "hull": "transport",
+      "components": [
+        "troop_bay",
+        "troop_bay"
+      ],
+      "formation": "support"
+    },
+    {
+      "id": "repair_tender",
+      "name": "Repair Tender",
+      "hull": "transport",
+      "components": [
+        "repair_bay",
+        "armor_plating"
+      ],
+      "formation": "support"
+    },
+    {
+      "id": "minelayer",
+      "name": "Minelayer",
+      "hull": "frigate",
+      "components": [
+        "mine_layer",
+        "mine_layer",
+        "armor_plating"
+      ],
+      "formation": "screen"
     }
   ],
   "victory": {
     "turnLimit": 200,
-    "dominationPercent": 40,
+    "dominationPercent": 50,
     "dominationMinTurn": 50,
     "score": {
       "population": 10,

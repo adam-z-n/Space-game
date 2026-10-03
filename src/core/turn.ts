@@ -3,6 +3,7 @@ import { laneLength } from "./graph";
 import { updateSightings } from "./vision";
 import { resolveEconomy } from "./economy";
 import { checkVictory } from "./victory";
+import { regenerateDefenses, resolveInvasions, resolveMines } from "./defense";
 import { resolveCombat } from "./combat";
 import { fleetArmed } from "./ships";
 import { resolveSupply, updateBlockades } from "./supply";
@@ -17,11 +18,13 @@ export function resolveTurn(state: GameState, pack: ContentPack): void {
   const events: GameEvent[] = [];
   resolveMovement(state, pack, events);
   resolveSupply(state, pack, events);
+  resolveMines(state, pack, events);
   resolveCombat(state, pack, events);
   resolveInvasions(state, pack, events);
   // Blockades are settled by combat: re-check before the economy runs.
   updateBlockades(state, pack, null);
   resolveEconomy(state, pack, events);
+  regenerateDefenses(state, pack);
   const resolved = state.turn;
   state.turn += 1;
   updateSightings(state, pack, events, resolved);
@@ -77,6 +80,5 @@ function resolveMovement(state: GameState, pack: ContentPack, events: GameEvent[
   }
 }
 
-// Milestone 6 fills this in.
-function resolveInvasions(_state: GameState, _pack: ContentPack, _events: GameEvent[]): void {}
+
 

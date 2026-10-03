@@ -155,8 +155,11 @@ describe("supply", () => {
     expect(fleetMaxSupply(pack, s, fleet)).toBe(6 + 8);
   });
 
-  it("an enemy warship in orbit blockades a colony: no supply, no trade", () => {
+  it("an enemy warship in orbit blockades an undefended colony: no supply, no trade", () => {
     let s = line();
+    const home = s.colonies.find((c) => c.empireId === 0)!;
+    home.buildings = ["capitol"];
+    home.defenseHp = 0;
     addFleet(s, 1, ["frigate"], 0);
     s = run(s, end);
     const capital = s.colonies.find((c) => c.empireId === 0)!;

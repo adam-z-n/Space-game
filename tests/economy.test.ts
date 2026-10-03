@@ -40,7 +40,9 @@ describe("starting position", () => {
     const s = fresh();
     for (const empire of s.empires) {
       const cap = capital(s, empire.id);
-      expect(cap).toMatchObject({ systemId: empire.homeSystemId, population: pack.economy.capitalPopulation, buildings: ["capitol"] });
+      expect(cap).toMatchObject({ systemId: empire.homeSystemId, population: pack.economy.capitalPopulation, buildings: pack.start.capitalBuildings });
+      expect(cap.defenseHp).toBeGreaterThan(0);
+      expect(cap.troops).toBeGreaterThan(0);
       expect(s.fleets.filter((f) => f.empireId === empire.id).map((f) => f.ships.map((x) => x.designId))).toEqual([["scout"], ["frigate", "frigate"], ["colony_ship"]]);
       expect(empire.credits).toBe(pack.economy.startingCredits);
     }

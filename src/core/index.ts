@@ -15,3 +15,4 @@ export * from "./ships";
 export * from "./supply";
 export * from "./combat";
 export * from "./victory";
+export * from "./defense";

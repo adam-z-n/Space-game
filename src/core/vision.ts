@@ -1,6 +1,7 @@
 import type { ContentPack } from "../content/schema";
 import { laneLength } from "./graph";
 import { fleetArmed, fleetStrength } from "./ships";
+import { defendingTroops } from "./defense";
 import { fleetPosition, type EmpireId, type FleetPosition, type FleetSighting, type GameEvent, type GameState } from "./state";
 
 /**
@@ -26,13 +27,15 @@ interface SensorSource extends Point {
   range: number;
 }
 
-export function sensorSources(state: GameState, empireId: EmpireId): SensorSource[] {
+export function sensorSources(state: GameState, pack: ContentPack, empireId: EmpireId): SensorSource[] {
   const empire = state.empires[empireId]!;
   const sources: SensorSource[] = [];
   for (const colony of state.colonies) {
     if (colony.empireId !== empireId) continue;
     const system = state.galaxy.systems[colony.systemId]!;
-    sources.push({ x: system.x, y: system.y, range: colony.capital ? empire.capitalSensorRange : empire.colonySensorRange });
+    // Sensor stations add to this colony only.
+    const station = colony.buildings.reduce((n, id) => n + (pack.buildings.find((b) => b.id === id)?.effects.sensorRange ?? 0), 0);
+    sources.push({ x: system.x, y: system.y, range: (colony.capital ? empire.capitalSensorRange : empire.colonySensorRange) + station });
   }
   for (const fleet of state.fleets) {
     if (fleet.empireId === empireId) sources.push({ ...positionPoint(state, fleetPosition(fleet)), range: fleet.sensorRange });
@@ -55,7 +58,7 @@ export function inSensorRange(sources: readonly SensorSource[], p: Point): boole
  */
 export function updateSightings(state: GameState, pack: ContentPack, events: GameEvent[] | null, eventTurn: number): void {
   for (const empire of state.empires) {
-    const sources = sensorSources(state, empire.id);
+    const sources = sensorSources(state, pack, empire.id);
     const byId = new Map(empire.sightings.map((s) => [s.fleetId, s]));
     for (const fleet of state.fleets) {
       if (fleet.empireId === empire.id) continue;
@@ -98,6 +101,8 @@ export function updateSightings(state: GameState, pack: ContentPack, events: Gam
         bodyId: colony.bodyId,
         name: colony.name,
         population: colony.population,
+        defenseHp: colony.defenseHp,
+        troops: defendingTroops(state, pack, colony),
         turn: state.turn,
       });
     }

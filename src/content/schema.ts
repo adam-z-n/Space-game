@@ -39,6 +39,8 @@ const PlanetType = z.object({
   habitability: z.number().int().min(0).max(100),
   /** Food produced per farmer. 0 means colonies here can't feed themselves. */
   foodYield: z.number().int().nonnegative(),
+  /** Bonus to defending troops, in percent: rough terrain is hard to take. */
+  groundDefensePercent: z.number().int().nonnegative().default(0),
   weight,
 });
 
@@ -93,6 +95,10 @@ export const EffectsSchema = z
     endurance: z.number().int(),
     /** Added to every weapon's damage, in percent. */
     damagePercent: z.number().int(),
+    /** Added to troop strength (attacking and defending), in percent. */
+    groundPercent: z.number().int(),
+    /** Added to colony defense hit points and weapon damage, in percent. */
+    defensePercent: z.number().int(),
   })
   .partial()
   .strict();
@@ -123,7 +129,7 @@ const Hull = z.object({
   requires: id.optional(),
 });
 
-export const COMPONENT_KINDS = ["weapon", "armor", "shield", "engine", "sensor", "colony", "fuel"] as const;
+export const COMPONENT_KINDS = ["weapon", "armor", "shield", "engine", "sensor", "colony", "fuel", "troops", "repair", "mines"] as const;
 
 const Component = z.object({
   id,
@@ -142,6 +148,12 @@ const Component = z.object({
   sensorRange: z.number().int().nonnegative().default(0),
   /** Fuel: extra turns of supply for the whole fleet. */
   fuel: z.number().int().nonnegative().default(0),
+  /** Troops: ground troops carried for invasions. */
+  troops: z.number().int().nonnegative().default(0),
+  /** Repair: percent of every ship's hull repaired each turn, even outside supply. */
+  repair: z.number().int().nonnegative().default(0),
+  /** Mines: mine strength laid per turn in the system the ship stays in. */
+  mines: z.number().int().nonnegative().default(0),
   requires: id.optional(),
 });
 
@@ -154,6 +166,23 @@ const Design = z.object({
 });
 export type DesignData = z.infer<typeof Design>;
 
+/** What a building adds to its colony's defenses. */
+const DefenseSchema = z
+  .object({
+    /** Orbital defense hit points. */
+    hp: z.number().int().nonnegative(),
+    /** Damage blocked per hit on the defenses. */
+    shield: z.number().int().nonnegative(),
+    weapons: z.array(z.object({ damage: z.number().int().positive(), accuracy: z.number().int().min(1).max(100), count: z.number().int().positive() })),
+    /** Garrison troops. */
+    troops: z.number().int().nonnegative(),
+    /** Minefield strength kept up in the colony's system. */
+    mines: z.number().int().nonnegative(),
+  })
+  .partial()
+  .strict();
+export type DefenseData = z.infer<typeof DefenseSchema>;
+
 const Building = z.object({
   id,
   name: z.string().min(1),
@@ -161,6 +190,7 @@ const Building = z.object({
   cost: z.number().int().positive(),
   upkeep: z.number().int().nonnegative(),
   effects: EffectsSchema,
+  defense: DefenseSchema.default({}),
   requires: id.optional(),
   /** Only granted to capitals at game start, never built. */
   buildable: z.boolean().default(true),
@@ -180,6 +210,18 @@ const ResearchField = z.object({ id, name: z.string().min(1) });
 
 const Combat = z.object({
   rounds: z.number().int().positive(),
+  /** Militia troops every colony raises per population. */
+  militiaPerPop: z.number().int().nonnegative(),
+  /** Garrison troops and orbital defense hit points restored per turn, in percent of max. */
+  garrisonRegenPercent: z.number().int().min(0).max(100),
+  defenseRepairPercent: z.number().int().min(0).max(100),
+  /** Population lost when a colony changes hands, in percent. */
+  captureLossPercent: z.number().int().min(0).max(100),
+  /** Each hostile ship in a minefield has this chance per turn to hit a mine, which deals mineDamage. */
+  mineHitPercent: z.number().int().min(0).max(100),
+  mineDamage: z.number().int().nonnegative(),
+  /** Most mine strength one empire can keep in a system. */
+  maxMines: z.number().int().nonnegative(),
   /** Damage dealt and taken, in percent, by stance. */
   stanceDamage: z.object({ aggressive: z.number().int(), balanced: z.number().int(), cautious: z.number().int() }),
   stanceDefense: z.object({ aggressive: z.number().int(), balanced: z.number().int(), cautious: z.number().int() }),

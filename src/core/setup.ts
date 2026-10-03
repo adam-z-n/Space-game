@@ -3,6 +3,7 @@ import { generateGalaxy, installHomeworld, pickHomeSystems } from "./galaxy";
 import { Rng } from "./rng";
 import { updateSightings } from "./vision";
 import { newColony } from "./economy";
+import { colonyDefense } from "./defense";
 import { newFleet, startingDesigns } from "./ships";
 import { STATE_VERSION, type Empire, type GameSettings, type GameState } from "./state";
 
@@ -85,11 +86,15 @@ export function createInitialState(settings: GameSettings, pack: ContentPack): G
     lastTurnEvents: [],
     lastBattles: [],
     outcome: null,
+    minefields: [],
   };
 
   for (const empire of empires) {
     const capital = newColony(state, empire, empire.homeSystemId, homeworldIds[empire.id]!, pack.economy.capitalPopulation, true);
     capital.buildings = [...pack.start.capitalBuildings];
+    const defense = colonyDefense(pack, empire, capital);
+    capital.defenseHp = defense.maxHp;
+    capital.troops = defense.maxTroops;
     state.colonies.push(capital);
     for (const start of pack.start.fleets) state.fleets.push(newFleet(state, pack, empire, start.ships, empire.homeSystemId));
   }

@@ -46,6 +46,10 @@ export function relocateCapitals(state: GameState, systems: number[]): void {
   state.colonies = state.colonies.filter((c) => c.capital && c.empireId < systems.length);
   for (const colony of state.colonies) {
     colony.systemId = systems[colony.empireId]!;
+    // No defenses either: they would shoot at test fleets.
+    colony.buildings = colony.buildings.filter((id) => id === "capitol");
+    colony.defenseHp = 0;
+    colony.troops = 0;
     const system = state.galaxy.systems[colony.systemId]!;
     if (!system.bodies.some((b) => b.id === colony.bodyId)) {
       system.bodies.push({ id: colony.bodyId, kind: "planet", planetType: "terran", size: "medium", richness: "normal" });

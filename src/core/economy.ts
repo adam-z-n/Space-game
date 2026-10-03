@@ -31,6 +31,8 @@ const EFFECT_KEYS = [
   "supplyRange",
   "endurance",
   "damagePercent",
+  "groundPercent",
+  "defensePercent",
 ] as const;
 export type Totals = Record<(typeof EFFECT_KEYS)[number], number>;
 
@@ -84,6 +86,7 @@ export function planetStats(pack: ContentPack, body: Body) {
     foodYield: type?.foodYield ?? 0,
     capacity: size?.capacity ?? 0,
     yieldPercent: richness?.yieldPercent ?? 100,
+    groundDefense: type?.groundDefensePercent ?? 0,
   };
 }
 
@@ -309,6 +312,8 @@ export function newColony(state: GameState, empire: Empire, systemId: number, bo
     queue: [],
     progress: 0,
     blockaded: false,
+    defenseHp: 0,
+    troops: 0,
   };
 }
 

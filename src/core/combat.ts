@@ -4,7 +4,8 @@ import { buildAdjacency, shortestPaths } from "./graph";
 import { Rng } from "./rng";
 import { designStats, fleetArmed, getDesign, refreshFleetStats, type DesignStats } from "./ships";
 import { suppliedSystems } from "./supply";
-import type { BattleReport, BattleShot, EmpireId, Fleet, FleetId, GameEvent, GameState, Ship, SystemId } from "./state";
+import type { BattleReport, BattleShot, Colony, EmpireId, Fleet, FleetId, GameEvent, GameState, Ship, SystemId } from "./state";
+import { colonyDefense, type ColonyDefense } from "./defense";
 
 /**
  * Auto-resolved combat. A battle happens in any system holding ships of two
@@ -38,20 +39,83 @@ export function resolveCombat(state: GameState, pack: ContentPack, events: GameE
   const systems = [...bySystem.keys()].sort((a, b) => a - b);
   for (const systemId of systems) {
     const fleets = bySystem.get(systemId)!.sort((a, b) => a.id - b.id);
-    const empires = new Set(fleets.map((f) => f.empireId));
+    // Colonies with standing defenses take part as a ship that never retreats.
+    const defended = state.colonies
+      .filter((c) => c.systemId === systemId && c.defenseHp > 0)
+      .sort((a, b) => a.id - b.id)
+      .map((colony) => ({ colony, defense: colonyDefense(pack, state.empires[colony.empireId]!, colony) }));
+    const empires = new Set([...fleets.map((f) => f.empireId), ...defended.map((d) => d.colony.empireId)]);
     if (empires.size < 2) continue;
-    const triggers = fleets.some((f) => f.orders.mission === "engage" && fleetArmed(pack, state, f));
-    if (!triggers) continue;
-    fight(state, pack, rng, systemId, fleets, events);
+    const fleetTriggers = fleets.some((f) => f.orders.mission === "engage" && fleetArmed(pack, state, f));
+    const guns = defended.filter((d) => d.defense.weapons.length > 0 && fleets.some((f) => f.empireId !== d.colony.empireId));
+    if (!fleetTriggers && guns.length === 0) continue;
+    fight(state, pack, rng, systemId, fleets, defended, events);
   }
   state.rngState = rng.state;
   state.fleets = state.fleets.filter((f) => f.ships.length > 0);
 }
 
-function fight(state: GameState, pack: ContentPack, rng: Rng, systemId: SystemId, fleets: Fleet[], events: GameEvent[]): void {
+function fight(
+  state: GameState,
+  pack: ContentPack,
+  rng: Rng,
+  systemId: SystemId,
+  shipFleets: Fleet[],
+  defended: { colony: Colony; defense: ColonyDefense }[],
+  events: GameEvent[],
+): void {
   const cfg = pack.combat;
   const combatants = new Map<number, Combatant>();
-  for (const fleet of fleets) {
+  // A stand-in fleet per defended colony: id is the negated colony id, its one "ship" uses the colony id.
+  const stations = new Map<FleetId, Colony>();
+  const defenseFleets: Fleet[] = defended.map(({ colony, defense }) => {
+    const fleet: Fleet = {
+      id: -colony.id,
+      empireId: colony.empireId,
+      name: `Defenses of ${colony.name}`,
+      ships: [{ id: colony.id, designId: "", hp: colony.defenseHp }],
+      orders: { mission: "engage", stance: "balanced", targetPriority: "warships", retreatPercent: 100 },
+      supply: 1,
+      speed: 0,
+      sensorRange: 0,
+      systemId,
+      route: [],
+      progress: 0,
+      holding: true,
+      invadeColonyId: null,
+    };
+    stations.set(fleet.id, colony);
+    combatants.set(colony.id, {
+      ship: fleet.ships[0]!,
+      fleet,
+      stats: {
+        cost: 0,
+        upkeep: 0,
+        maxHp: defense.maxHp,
+        shield: defense.shield,
+        weapons: defense.weapons,
+        speed: 0,
+        sensorRange: 0,
+        evasion: 0,
+        endurance: 0,
+        fuel: 0,
+        troops: 0,
+        repair: 0,
+        mines: 0,
+        colonize: false,
+        armed: defense.weapons.length > 0,
+        role: "combat",
+        damagePerRound: defense.weapons.reduce((n, w) => n + (w.damage * w.accuracy) / 100, 0),
+      },
+      designName: `Defenses of ${colony.name}`,
+      formation: "front",
+      depleted: false,
+    });
+    return fleet;
+  });
+  const fleets = [...shipFleets, ...defenseFleets];
+  const armed = (f: Fleet) => f.ships.some((s) => combatants.get(s.id)!.stats.armed);
+  for (const fleet of shipFleets) {
     const empire = state.empires[fleet.empireId]!;
     const fx = empireEffects(pack, empire);
     for (const ship of fleet.ships) {
@@ -91,7 +155,7 @@ function fight(state: GameState, pack: ContentPack, rng: Rng, systemId: SystemId
   for (let round = 0; round < cfg.rounds; round++) {
     const fighting = active();
     const sides = new Set(fighting.map((f) => f.empireId));
-    if (sides.size < 2 || !fighting.some((f) => fleetArmed(pack, state, f))) break;
+    if (sides.size < 2 || !fighting.some(armed)) break;
 
     const shots: BattleShot[] = [];
     for (const fleet of fighting) {
@@ -133,7 +197,8 @@ function fight(state: GameState, pack: ContentPack, rng: Rng, systemId: SystemId
       const start = startHp.get(fleet.id)!;
       const now = fleet.ships.reduce((n, s) => n + s.hp, 0);
       const lostPercent = start > 0 ? Math.floor(((start - now) * 100) / start) : 0;
-      const evading = fleet.orders.mission === "evade" || !fleetArmed(pack, state, fleet);
+      if (stations.has(fleet.id)) continue; // defenses never withdraw
+      const evading = fleet.orders.mission === "evade" || !armed(fleet);
       if (evading || (fleet.orders.retreatPercent < 100 && lostPercent >= fleet.orders.retreatPercent)) {
         retreated.add(fleet.id);
         withdrew.push(fleet.id);
@@ -160,8 +225,16 @@ function fight(state: GameState, pack: ContentPack, rng: Rng, systemId: SystemId
   }
   state.lastBattles.push(report);
 
+  // Damage to defenses carries over; they repair slowly between battles.
+  for (const [id, colony] of stations) {
+    const station = fleets.find((f) => f.id === id)!;
+    const hp = station.ships[0]?.hp ?? 0;
+    colony.defenseHp = Math.max(0, hp);
+    if (colony.defenseHp === 0) events.push({ type: "defensesDown", turn: state.turn, empireId: colony.empireId, colonyId: colony.id, systemId });
+  }
+
   // Retreating fleets head for the nearest friendly supplied system.
-  for (const fleet of fleets) {
+  for (const fleet of shipFleets) {
     if (retreated.has(fleet.id) && fleet.ships.length > 0) {
       fleet.route = retreatRoute(state, pack, fleet);
       fleet.holding = false;
