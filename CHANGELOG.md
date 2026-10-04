@@ -1,6 +1,6 @@
 # Changelog
 
-## 1.1.0 (in progress)
+## 1.1.0
 
 Map and planning:
 
@@ -51,6 +51,24 @@ Combat and tactics:
 - A failed invasion costs the defenders garrison and militia, which take turns to recover; garrisons refill more slowly.
 - Battle replays show the range each round, ships shut down by cyber attack, and missiles shot down.
 - The ship designer explains each formation and shows maneuver; components too big for a hull are marked.
+
+Strategic map:
+
+- Bigger galaxies: 32, 64 and 100 systems (were 24, 48 and 80); about 30% of systems have no planets at all,
+  only asteroid fields, gas giants, anomalies or nothing.
+- Outposts (Outpost Construction, then Asteroid Mining and Forward Depots), built by Outpost Ships on asteroid
+  fields and gas giants:
+  - Combat outposts: guns and 60 hit points, fire on enemy ships, stop ships passing through and extend sensors.
+  - Mining outposts: +4 credits a turn, but no defenses: any armed enemy fleet in the system destroys them
+    unless your own warships or a combat outpost guard it.
+  - Supply depots: upgrade a combat outpost for 60 credits to supply and repair your fleets nearby.
+- Special operations (Special Operations and Cloaking):
+  - Cloaking Devices (small hulls only): a fleet made only of cloaked ships is seen only at a third of normal
+    sensor range, slips past blockades and stays out of battle unless set to engage.
+  - Commando Teams sabotage a rival colony each turn in orbit: knock out half its orbital defenses, halve its
+    garrison and scatter its militia, or wreck a building. A failed raid costs a ship. The Infiltrator design
+    combines both.
+- The AI builds outposts in its supply network.
 
 ## 1.0.0
 

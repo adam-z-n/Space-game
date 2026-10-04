@@ -6,26 +6,29 @@
     {
       "id": "small",
       "name": "Small",
-      "systems": 24,
-      "radiusX": 580,
-      "radiusY": 410,
-      "minStarDistance": 110
+      "systems": 32,
+      "radiusX": 660,
+      "radiusY": 470,
+      "minStarDistance": 110,
+      "emptyPercent": 30
     },
     {
       "id": "medium",
       "name": "Medium",
-      "systems": 48,
-      "radiusX": 820,
-      "radiusY": 580,
-      "minStarDistance": 110
+      "systems": 64,
+      "radiusX": 950,
+      "radiusY": 670,
+      "minStarDistance": 110,
+      "emptyPercent": 30
     },
     {
       "id": "large",
       "name": "Large",
-      "systems": 80,
-      "radiusX": 1050,
-      "radiusY": 750,
-      "minStarDistance": 110
+      "systems": 100,
+      "radiusX": 1180,
+      "radiusY": 840,
+      "minStarDistance": 110,
+      "emptyPercent": 30
     }
   ],
   "starTypes": [
@@ -202,62 +205,88 @@
   ],
   "systemNames": [
     "Achernar",
+    "Acrux",
     "Adara",
-    "Aldhibah",
+    "Albireo",
     "Alcor",
+    "Aldhibah",
+    "Algol",
+    "Alhena",
     "Alkaid",
     "Alnair",
+    "Alphard",
+    "Alpheratz",
     "Altais",
+    "Aludra",
     "Ankaa",
     "Antares",
     "Arcturus",
     "Ascella",
+    "Asellus",
     "Aspidiske",
     "Atria",
     "Avior",
+    "Becrux",
     "Bellatrix",
     "Betria",
+    "Botein",
+    "Canopus",
+    "Capella",
     "Caph",
     "Castor",
     "Cebalrai",
+    "Celaeno",
     "Chara",
+    "Chort",
     "Cursa",
     "Dabih",
     "Deneb",
+    "Denebola",
     "Diadem",
     "Diphda",
     "Dubhe",
+    "Electra",
     "Elnath",
     "Eltanin",
     "Enif",
     "Errai",
+    "Fawaris",
     "Fomalhaut",
     "Furud",
     "Gacrux",
+    "Gemma",
     "Gienah",
     "Gomeisa",
+    "Grumium",
     "Hadar",
     "Hamal",
     "Heze",
     "Homam",
     "Izar",
+    "Jabbah",
     "Kajam",
+    "Kitalpha",
     "Kochab",
     "Kornephoros",
     "Lesath",
+    "Lucida",
     "Maia",
+    "Marfik",
     "Markab",
     "Matar",
     "Menkar",
+    "Menkent",
     "Merak",
     "Miaplacidus",
     "Mimosa",
     "Mintaka",
     "Mirach",
     "Mirfak",
+    "Mizar",
     "Muphrid",
     "Naos",
     "Nashira",
+    "Nembus",
     "Nihal",
     "Nunki",
     "Okul",
@@ -265,32 +294,41 @@
     "Phact",
     "Phecda",
     "Polaris",
+    "Pollux",
     "Porrima",
+    "Procyon",
     "Rasalgethi",
     "Regor",
     "Rigel",
     "Ruchbah",
     "Sabik",
+    "Sadalmelik",
     "Sadr",
     "Saiph",
     "Sargas",
     "Scheat",
     "Seginus",
     "Shaula",
+    "Sheratan",
     "Sirrah",
     "Skat",
+    "Spica",
     "Suhail",
     "Talitha",
     "Tarazed",
+    "Tejat",
     "Thuban",
+    "Toliman",
     "Unuk",
     "Vega",
+    "Vindemiatrix",
     "Wasat",
     "Wezen",
     "Yildun",
     "Zaniah",
     "Zaurak",
-    "Zosma"
+    "Zosma",
+    "Zubenelgenubi"
   ],
   "empires": [
     {
@@ -671,6 +709,17 @@
       "description": "Unlocks the Cyber Warfare Suite and the Hardened Firewall."
     },
     {
+      "id": "cloaking",
+      "name": "Cloaking",
+      "field": "sensors",
+      "cost": 280,
+      "requires": [
+        "electronic_warfare"
+      ],
+      "effects": {},
+      "description": "Unlocks the Cloaking Device for small ships."
+    },
+    {
       "id": "colonial_administration",
       "name": "Colonial Administration",
       "field": "logistics",
@@ -902,6 +951,18 @@
       "description": "+150 supply range for every colony."
     },
     {
+      "id": "forward_depots",
+      "name": "Forward Depots",
+      "field": "logistics",
+      "cost": 150,
+      "requires": [
+        "supply_lines",
+        "outpost_construction"
+      ],
+      "effects": {},
+      "description": "Upgrade combat outposts to supply depots that supply and repair your fleets."
+    },
+    {
       "id": "planetary_defense",
       "name": "Planetary Defense",
       "field": "defense",
@@ -950,6 +1011,17 @@
       "description": "+35% troop strength."
     },
     {
+      "id": "special_operations",
+      "name": "Special Operations",
+      "field": "weapons",
+      "cost": 160,
+      "requires": [
+        "ground_forces"
+      ],
+      "effects": {},
+      "description": "Unlocks Commando Teams for sabotage missions."
+    },
+    {
       "id": "mine_warfare",
       "name": "Mine Warfare",
       "field": "logistics",
@@ -968,6 +1040,26 @@
       ],
       "effects": {},
       "description": "Unlocks the Repair Bay for repair tenders."
+    },
+    {
+      "id": "outpost_construction",
+      "name": "Outpost Construction",
+      "field": "engineering",
+      "cost": 80,
+      "requires": [],
+      "effects": {},
+      "description": "Unlocks the Outpost Kit: combat outposts on asteroid fields and gas giants."
+    },
+    {
+      "id": "asteroid_mining",
+      "name": "Asteroid Mining",
+      "field": "engineering",
+      "cost": 130,
+      "requires": [
+        "outpost_construction"
+      ],
+      "effects": {},
+      "description": "Mining outposts on asteroid fields: income, but no defenses."
     },
     {
       "id": "dreadnought_hulls",
@@ -1223,6 +1315,46 @@
       "buildable": true
     }
   ],
+  "outposts": {
+    "combat": {
+      "name": "Combat Outpost",
+      "description": "Guns and sensors on an asteroid field or gas giant: fires on enemy ships, stops ships passing through, extends sensor coverage.",
+      "hp": 60,
+      "weapons": [
+        {
+          "damage": 5,
+          "accuracy": 70,
+          "count": 2
+        }
+      ],
+      "sensorRange": 220,
+      "upkeep": 1,
+      "bodies": [
+        "asteroids",
+        "gasGiant"
+      ],
+      "requires": "outpost_construction"
+    },
+    "mining": {
+      "name": "Mining Outpost",
+      "description": "Mines an asteroid field for credits. It has no defenses: any armed enemy fleet in the system destroys it.",
+      "credits": 4,
+      "sensorRange": 80,
+      "upkeep": 0,
+      "bodies": [
+        "asteroids"
+      ],
+      "requires": "asteroid_mining"
+    },
+    "depot": {
+      "name": "Supply Depot",
+      "description": "A combat outpost upgraded to supply your fleets nearby and repair them as at a colony.",
+      "cost": 60,
+      "upkeep": 1,
+      "supplyRange": 200,
+      "requires": "forward_depots"
+    }
+  },
   "combat": {
     "rounds": 6,
     "stanceDamage": {
@@ -1659,6 +1791,33 @@
       "bombard": 10,
       "minSlots": 5,
       "requires": "orbital_bombardment"
+    },
+    {
+      "id": "outpost_kit",
+      "name": "Outpost Kit",
+      "kind": "outpost",
+      "description": "Builds an outpost on an asteroid field or gas giant; the ship is used up.",
+      "cost": 20,
+      "requires": "outpost_construction"
+    },
+    {
+      "id": "commando_team",
+      "name": "Commando Team",
+      "kind": "commandos",
+      "description": "Special forces for sabotage: hit a rival colony's defenses, garrison or buildings.",
+      "cost": 8,
+      "commandos": 1,
+      "requires": "special_operations"
+    },
+    {
+      "id": "cloaking_device",
+      "name": "Cloaking Device",
+      "kind": "electronics",
+      "description": "A fleet made only of cloaked ships is seen only at a third of normal sensor range, slips past blockades and avoids battle unless it attacks. Hulls of 3 slots or fewer.",
+      "cost": 12,
+      "stealth": 1,
+      "maxSlots": 3,
+      "requires": "cloaking"
     }
   ],
   "startingDesigns": [
@@ -1733,6 +1892,26 @@
         "armor_plating"
       ],
       "formation": "screen"
+    },
+    {
+      "id": "outpost_ship",
+      "name": "Outpost Ship",
+      "hull": "transport",
+      "components": [
+        "outpost_kit",
+        "armor_plating"
+      ],
+      "formation": "support"
+    },
+    {
+      "id": "infiltrator",
+      "name": "Infiltrator",
+      "hull": "corvette",
+      "components": [
+        "cloaking_device",
+        "commando_team"
+      ],
+      "formation": "support"
     }
   ],
   "victory": {

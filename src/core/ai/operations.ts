@@ -1,4 +1,5 @@
-import { colonyOnBody, type FleetOrders, type SystemId } from "../state";
+import { colonyOnBody, type FleetOrders, type OutpostKind, type SystemId } from "../state";
+import { outpostBlocker } from "../outposts";
 import { fleetAt, moveTo, withinReach, type AiContext, type FleetInfo } from "./context";
 import type { Strategy } from "./strategy";
 
@@ -10,6 +11,7 @@ export function planOperations(ctx: AiContext, strategy: Strategy): void {
   setStandingOrders(ctx);
   resupply(ctx);
   colonize(ctx, strategy);
+  buildOutposts(ctx);
   scout(ctx);
   defend(ctx, strategy);
   invade(ctx);
@@ -276,5 +278,46 @@ function gather(ctx: AiContext): void {
     if (systemId !== home && !ctx.colonies.some((c) => c.systemId === systemId) && !ctx.supplied.has(systemId)) {
       ctx.commands.push({ type: "moveFleet", empireId: ctx.id, fleetId: anchor.fleet.id, destinationId: home });
     }
+  }
+}
+
+/**
+ * Outpost targets inside the empire's supply network: free asteroid fields
+ * (mining when researched, else combat) and gas giants (combat), away from danger.
+ */
+export function outpostTargets(ctx: AiContext): { systemId: SystemId; bodyId: number; kind: OutpostKind }[] {
+  const danger = dangerZones(ctx);
+  const rivals = new Set(ctx.rivalColonies.map((c) => c.systemId));
+  const targets: { systemId: SystemId; bodyId: number; kind: OutpostKind }[] = [];
+  for (const systemId of [...ctx.supplied].sort((a, b) => a - b)) {
+    if (danger.has(systemId) || rivals.has(systemId) || !ctx.empire.explored.includes(systemId)) continue;
+    for (const body of ctx.state.galaxy.systems[systemId]!.bodies) {
+      const kind = (["mining", "combat"] as const).find((k) => outpostBlocker(ctx.state, ctx.pack, ctx.empire, body, k) === null);
+      if (kind) targets.push({ systemId, bodyId: body.id, kind });
+    }
+  }
+  return targets;
+}
+
+function buildOutposts(ctx: AiContext): void {
+  const builders = ctx.fleets.filter((f) => f.outpost && free(ctx, f));
+  if (builders.length === 0) return;
+  const targets = outpostTargets(ctx);
+  const claimed = new Set<number>();
+  for (const info of builders) {
+    if (info.fleet.progress > 0) continue;
+    const at = info.fleet.systemId;
+    const here = targets.find((t) => t.systemId === at && !claimed.has(t.bodyId));
+    ctx.busy.add(info.fleet.id);
+    if (here) {
+      claimed.add(here.bodyId);
+      ctx.commands.push({ type: "buildOutpost", empireId: ctx.id, fleetId: info.fleet.id, bodyId: here.bodyId, kind: here.kind });
+      continue;
+    }
+    const open = targets.filter((t) => !claimed.has(t.bodyId));
+    const dest = nearest(ctx, at, open.map((t) => t.systemId));
+    if (dest === null) continue;
+    claimed.add(open.find((t) => t.systemId === dest)!.bodyId);
+    moveTo(ctx, info, dest);
   }
 }

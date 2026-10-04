@@ -4,6 +4,8 @@ import { knownAdjacency } from "./vision";
 import {
   FOCUSES,
   MISSIONS,
+  OUTPOST_KINDS,
+  SABOTAGE_MISSIONS,
   STANCES,
   TARGET_PRIORITIES,
   cloneState,
@@ -20,6 +22,9 @@ import {
   type Focus,
   type FleetOrders,
   type GameState,
+  type Outpost,
+  type OutpostKind,
+  type SabotageMission,
   type ShipId,
   type QueueItem,
   type SystemId,
@@ -27,6 +32,7 @@ import {
 import { buildBlocker, buyCost, colonizeBlocker, empireEffects, itemCost, newColony, techAvailable } from "./economy";
 import { designBlocker, designStats, fleetCanColonize, fleetMaxSupply, fleetShipStats, getDesign, refreshFleetStats } from "./ships";
 import { suppliedSystems } from "./supply";
+import { outpostBlocker, outpostDefense, outpostTechOk } from "./outposts";
 import { colonyDefense, fleetTroops } from "./defense";
 import { resolveTurn } from "./turn";
 
@@ -67,6 +73,12 @@ export type Command =
   | { type: "invade"; empireId: EmpireId; fleetId: FleetId; colonyId: ColonyId | null }
   /** Order a fleet with bomb bays to bombard a known rival colony in orbit each turn its defenses are down; null cancels. */
   | { type: "bombard"; empireId: EmpireId; fleetId: FleetId; colonyId: ColonyId | null }
+  /** Use an outpost ship in its current system to build an outpost on an asteroid field or gas giant. */
+  | { type: "buildOutpost"; empireId: EmpireId; fleetId: FleetId; bodyId: BodyId; kind: OutpostKind }
+  /** Pay credits to turn a combat outpost into a supply depot. */
+  | { type: "upgradeOutpost"; empireId: EmpireId; outpostId: number }
+  /** Send a fleet's commandos against a known rival colony in (or on the way to) its system; null cancels. */
+  | { type: "sabotage"; empireId: EmpireId; fleetId: FleetId; colonyId: ColonyId | null; mission: SabotageMission }
   /** Scrap a fleet to stop paying its upkeep. Inside supply, part of its build cost comes back as credits. */
   | { type: "disbandFleet"; empireId: EmpireId; fleetId: FleetId }
   /** Demolish a building for part of its cost back; its upkeep stops. */
@@ -276,6 +288,36 @@ export function validateCommand(state: GameState, command: Command, pack: Conten
       if (destination !== known.systemId) return "fleet must be at or heading for that system";
       return null;
     }
+    case "buildOutpost": {
+      const fleet = ownFleet(state, command.empireId, command.fleetId);
+      if (typeof fleet === "string") return fleet;
+      if (!fleetShipStats(pack, state, fleet).some((s) => s.outpost)) return "fleet has no outpost kit";
+      if (isInTransit(fleet)) return "fleet is between systems";
+      if (!OUTPOST_KINDS.includes(command.kind)) return `unknown outpost type ${command.kind}`;
+      const body = state.galaxy.systems[fleet.systemId]!.bodies.find((b) => b.id === command.bodyId);
+      if (!body) return "that body is not in the fleet's system";
+      return outpostBlocker(state, pack, state.empires[command.empireId]!, body, command.kind);
+    }
+    case "upgradeOutpost": {
+      const outpost = state.outposts.find((o) => o.id === command.outpostId);
+      if (!outpost || outpost.empireId !== command.empireId) return "no such outpost";
+      if (outpost.kind !== "combat" || outpost.depot) return "only combat outposts can become depots";
+      const empire = state.empires[command.empireId]!;
+      if (!outpostTechOk(pack, empire, "depot")) return "depots need research";
+      return empire.credits >= pack.outposts.depot.cost ? null : "not enough credits";
+    }
+    case "sabotage": {
+      const fleet = ownFleet(state, command.empireId, command.fleetId);
+      if (typeof fleet === "string") return fleet;
+      if (command.colonyId === null) return null;
+      if (!SABOTAGE_MISSIONS.includes(command.mission)) return `unknown mission ${command.mission}`;
+      if (!fleetShipStats(pack, state, fleet).some((s) => s.commandos > 0)) return "fleet carries no commandos";
+      const known = state.empires[command.empireId]!.colonySightings.find((c) => c.colonyId === command.colonyId);
+      if (!known) return "no known rival colony there";
+      const destination = fleet.route.length > 0 ? fleet.route[fleet.route.length - 1] : fleet.systemId;
+      if (destination !== known.systemId) return "fleet must be at or heading for that system";
+      return null;
+    }
     case "endTurn":
       return state.outcome ? "the game is over" : null;
     default:
@@ -299,6 +341,7 @@ export function applyCommand(state: GameState, command: Command, pack: ContentPa
       fleet.holding = false;
       fleet.invadeColonyId = null; // re-issue after moving
       fleet.bombardColonyId = null;
+      fleet.sabotage = null;
       break;
     }
     case "setHold":
@@ -422,6 +465,29 @@ export function applyCommand(state: GameState, command: Command, pack: ContentPa
       break;
     case "bombard":
       findFleet(next, command.fleetId)!.bombardColonyId = command.colonyId;
+      break;
+    case "buildOutpost": {
+      const fleet = findFleet(next, command.fleetId)!;
+      const empire = next.empires[command.empireId]!;
+      const outpost: Outpost = { id: next.nextId++, empireId: empire.id, systemId: fleet.systemId, bodyId: command.bodyId, kind: command.kind, depot: false, defenseHp: 0 };
+      outpost.defenseHp = outpostDefense(pack, empire, outpost).maxHp;
+      next.outposts.push(outpost);
+      // The first outpost ship in the fleet is used up.
+      const stats = fleetShipStats(pack, next, fleet);
+      const used = fleet.ships[stats.findIndex((s) => s.outpost)]!;
+      fleet.ships = fleet.ships.filter((s) => s.id !== used.id);
+      if (fleet.ships.length === 0) next.fleets = next.fleets.filter((f) => f.id !== fleet.id);
+      else refreshFleetStats(pack, next, fleet);
+      break;
+    }
+    case "upgradeOutpost": {
+      const outpost = next.outposts.find((o) => o.id === command.outpostId)!;
+      outpost.depot = true;
+      next.empires[command.empireId]!.credits -= pack.outposts.depot.cost;
+      break;
+    }
+    case "sabotage":
+      findFleet(next, command.fleetId)!.sabotage = command.colonyId === null ? null : { colonyId: command.colonyId, mission: command.mission };
       break;
     case "retireDesign":
       next.empires[command.empireId]!.designs.find((d) => d.id === command.designId)!.obsolete = true;

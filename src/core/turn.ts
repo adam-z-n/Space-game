@@ -3,9 +3,10 @@ import { laneLength } from "./graph";
 import { updateSightings } from "./vision";
 import { resolveEconomy } from "./economy";
 import { checkVictory } from "./victory";
-import { colonyDefense, regenerateDefenses, resolveBombardment, resolveInvasions, resolveMines } from "./defense";
+import { colonyDefense, regenerateDefenses, resolveBombardment, resolveInvasions, resolveMines, resolveSabotage } from "./defense";
 import { resolveCombat } from "./combat";
-import { fleetArmed } from "./ships";
+import { fleetArmed, fleetStealthy } from "./ships";
+import { regenerateOutposts, resolveOutpostRaids } from "./outposts";
 import { resolveSupply, updateBlockades } from "./supply";
 import type { EmpireId, GameEvent, GameState, SystemId } from "./state";
 
@@ -20,12 +21,15 @@ export function resolveTurn(state: GameState, pack: ContentPack): void {
   resolveSupply(state, pack, events);
   resolveMines(state, pack, events);
   resolveCombat(state, pack, events);
+  resolveOutpostRaids(state, pack, events);
   resolveBombardment(state, pack, events);
+  resolveSabotage(state, pack, events);
   resolveInvasions(state, pack, events);
   // Blockades are settled by combat (defenses knocked out): re-check before the economy runs.
   updateBlockades(state, pack, events);
   resolveEconomy(state, pack, events);
   regenerateDefenses(state, pack);
+  regenerateOutposts(state, pack);
   const resolved = state.turn;
   state.turn += 1;
   updateSightings(state, pack, events, resolved);
@@ -57,9 +61,12 @@ function resolveMovement(state: GameState, pack: ContentPack, events: GameEvent[
   for (const colony of state.colonies) {
     if (colony.defenseHp > 0 && colonyDefense(pack, state.empires[colony.empireId]!, colony).weapons.length > 0) guard(colony.systemId, colony.empireId);
   }
+  for (const outpost of state.outposts) if (outpost.kind === "combat" && outpost.defenseHp > 0) guard(outpost.systemId, outpost.empireId);
   const fleets = state.fleets.slice().sort((a, b) => a.id - b.id);
   for (const fleet of fleets) {
     if (fleet.route.length === 0) continue;
+    // Cloaked fleets slip past guards.
+    const cloaked = fleetStealthy(pack, state, fleet);
     let budget = fleet.speed;
     while (budget > 0 && fleet.route.length > 0) {
       const next = fleet.route[0]!;
@@ -73,7 +80,7 @@ function resolveMovement(state: GameState, pack: ContentPack, events: GameEvent[
         fleet.route.shift();
         fleet.progress = 0;
         markExplored(state, fleet.empireId, next, events);
-        const guarded = [...(guards.get(next) ?? [])].some((e) => e !== fleet.empireId);
+        const guarded = !cloaked && [...(guards.get(next) ?? [])].some((e) => e !== fleet.empireId);
         if (guarded && fleet.route.length > 0) {
           events.push({ type: "fleetIntercepted", turn: state.turn, empireId: fleet.empireId, fleetId: fleet.id, systemId: next });
           budget = 0;

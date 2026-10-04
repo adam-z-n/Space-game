@@ -96,6 +96,7 @@ export function createInitialState(settings: GameSettings, pack: ContentPack): G
     lastBattles: [],
     outcome: null,
     minefields: [],
+    outposts: [],
   };
 
   for (const empire of empires) {

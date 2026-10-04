@@ -1,6 +1,7 @@
 import type { ContentPack } from "../content/schema";
 import { buildAdjacency, knownLanes, laneLength, type Neighbor } from "./graph";
-import { flagshipHull, fleetArmed, fleetStrength } from "./ships";
+import { flagshipHull, fleetArmed, fleetStealthy, fleetStrength } from "./ships";
+import { outpostSensorRange } from "./outposts";
 import { defendingTroops } from "./defense";
 import { fleetPosition, type EmpireId, type FleetPosition, type FleetSighting, type GameEvent, type GameState } from "./state";
 
@@ -14,6 +15,9 @@ export interface Point {
   x: number;
   y: number;
 }
+
+/** Share of sensor range, in percent, at which cloaked fleets are detected. */
+export const STEALTH_DETECTION_PERCENT = 33;
 
 export function positionPoint(state: GameState, pos: FleetPosition): Point {
   const from = state.galaxy.systems[pos.systemId]!;
@@ -39,6 +43,11 @@ export function sensorSources(state: GameState, pack: ContentPack, empireId: Emp
   }
   for (const fleet of state.fleets) {
     if (fleet.empireId === empireId) sources.push({ ...positionPoint(state, fleetPosition(fleet)), range: fleet.sensorRange });
+  }
+  for (const outpost of state.outposts) {
+    if (outpost.empireId !== empireId) continue;
+    const system = state.galaxy.systems[outpost.systemId]!;
+    sources.push({ x: system.x, y: system.y, range: outpostSensorRange(pack, empire, outpost) });
   }
   return sources;
 }
@@ -83,10 +92,13 @@ export function updateSightings(state: GameState, pack: ContentPack, events: Gam
     const sources = sensorSources(state, pack, empire.id);
     updateCharts(state, empire.id, sources);
     const byId = new Map(empire.sightings.map((s) => [s.fleetId, s]));
+    // Cloaked fleets show up only well inside sensor range.
+    const close = sources.map((s) => ({ ...s, range: Math.floor((s.range * STEALTH_DETECTION_PERCENT) / 100) }));
     for (const fleet of state.fleets) {
       if (fleet.empireId === empire.id) continue;
       const pos = fleetPosition(fleet);
-      if (!inSensorRange(sources, positionPoint(state, pos))) continue;
+      const stealthy = fleetStealthy(pack, state, fleet);
+      if (!inSensorRange(stealthy ? close : sources, positionPoint(state, pos))) continue;
       const previous = byId.get(fleet.id);
       if (events && (!previous || previous.turn < state.turn - 1)) {
         events.push({ type: "fleetSighted", turn: eventTurn, empireId: empire.id, ownerId: fleet.empireId, fleetId: fleet.id, systemId: pos.systemId });

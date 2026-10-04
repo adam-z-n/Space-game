@@ -283,3 +283,62 @@ export function resolveBombardment(state: GameState, pack: ContentPack, events: 
   }
   state.rngState = rng.state;
 }
+
+/** Chance, in percent, that a commando raid succeeds against a colony. */
+export function sabotageChance(state: GameState, pack: ContentPack, commandos: number, colony: Colony): number {
+  return sabotageOdds(commandos, defendingTroops(state, pack, colony));
+}
+
+/** Raid odds from commando teams and defending troops (so the UI can estimate from sightings). */
+export function sabotageOdds(commandos: number, defenders: number): number {
+  return Math.max(10, Math.min(85, 30 + commandos * 15 - Math.floor(defenders / 2)));
+}
+
+/**
+ * Special operations phase (after bombardment, before invasions): fleets with
+ * commandos ordered to sabotage a rival colony in their system strike once a
+ * turn. Success knocks out half the orbital defenses, halves the garrison and
+ * scatters militia, or wrecks a building. Failure costs a commando ship.
+ */
+export function resolveSabotage(state: GameState, pack: ContentPack, events: GameEvent[]): void {
+  const rng = new Rng(state.rngState);
+  for (const fleet of state.fleets.slice().sort((a, b) => a.id - b.id)) {
+    const order = fleet.sabotage;
+    if (!order) continue;
+    const colony = state.colonies.find((c) => c.id === order.colonyId);
+    if (!colony || colony.empireId === fleet.empireId) {
+      fleet.sabotage = null;
+      continue;
+    }
+    if (fleet.progress > 0 || fleet.systemId !== colony.systemId) continue;
+    const stats = fleetShipStats(pack, state, fleet);
+    const commandos = stats.reduce((n, s) => n + s.commandos, 0);
+    if (commandos === 0) continue;
+    const success = rng.int(1, 100) <= sabotageChance(state, pack, commandos, colony);
+    if (success) {
+      if (order.mission === "defenses") {
+        const max = colonyDefense(pack, state.empires[colony.empireId]!, colony).maxHp;
+        colony.defenseHp = Math.max(0, colony.defenseHp - Math.ceil(max / 2));
+      } else if (order.mission === "garrison") {
+        colony.troops = Math.floor(colony.troops / 2);
+        colony.militiaLosses = Math.min(colony.population * pack.combat.militiaPerPop, colony.militiaLosses + Math.ceil((colony.population * pack.combat.militiaPerPop) / 3));
+      } else {
+        const targets = colony.buildings.filter((id) => getBuilding(pack, id).buildable);
+        if (targets.length > 0) {
+          const hit = rng.pick(targets);
+          colony.buildings.splice(colony.buildings.indexOf(hit), 1);
+        }
+      }
+    } else {
+      // The team is caught: one of the ships carrying commandos is lost.
+      const index = stats.findIndex((s) => s.commandos > 0);
+      fleet.ships.splice(index, 1);
+      refreshFleetStats(pack, state, fleet);
+    }
+    for (const empireId of [fleet.empireId, colony.empireId]) {
+      events.push({ type: "sabotage", turn: state.turn, empireId, attackerId: fleet.empireId, colonyId: colony.id, systemId: colony.systemId, mission: order.mission, success });
+    }
+  }
+  state.rngState = rng.state;
+  state.fleets = state.fleets.filter((f) => f.ships.length > 0);
+}

@@ -22,6 +22,12 @@ import {
   planMove,
   scrapValue,
   serializeSave,
+  OUTPOST_KINDS,
+  SABOTAGE_MISSIONS,
+  outpostBlocker,
+  outpostName,
+  outpostTechOk,
+  sabotageOdds,
   type ColonyId,
   type EmpireView,
   type FleetId,
@@ -459,6 +465,13 @@ function startGame(game: Game): void {
         return `Mines hit ${e.hits} ship${e.hits > 1 ? "s" : ""} near ${systemName(e.systemId)}${e.shipsLost ? `, ${e.shipsLost} lost` : ""}`;
       case "capitalMoved":
         return `Capital moved to ${colonyName(e.colonyId)}`;
+      case "outpostLost":
+        return `Lost a ${pack.outposts[e.kind].name} at ${systemName(e.systemId)}`;
+      case "sabotage": {
+        const what = { defenses: "orbital defenses", garrison: "garrison", buildings: "buildings" }[e.mission];
+        if (e.attackerId === game.playerId) return e.success ? `Commandos struck ${colonyName(e.colonyId)}'s ${what}` : `Commandos caught at ${colonyName(e.colonyId)}: a ship was lost`;
+        return e.success ? `Saboteurs struck ${colonyName(e.colonyId)}'s ${what}` : `Caught saboteurs at ${colonyName(e.colonyId)}`;
+      }
       case "bombarded": {
         const lost = `${e.populationLost} population${e.buildingLost ? ` and its ${pack.buildings.find((b) => b.id === e.buildingLost)?.name}` : ""}`;
         return e.attackerId === game.playerId ? `Bombarded ${colonyName(e.colonyId)}: ${lost} lost` : `${empire(e.attackerId).name} bombarded ${colonyName(e.colonyId)}: ${lost} lost`;
@@ -696,6 +709,40 @@ function startGame(game: Game): void {
     return box;
   }
 
+  /** Commando raids for a fleet carrying special forces at (or heading for) a rival colony. */
+  function sabotageControls(fleet: FleetView): HTMLElement | null {
+    const real = findFleet(game.state, fleet.id);
+    if (!real) return null;
+    const stats = fleetShipStats(pack, game.state, real);
+    const commandos = stats.reduce((n, s) => n + s.commandos, 0);
+    if (commandos === 0) return null;
+    const cloaked = stats.every((s) => s.stealth);
+    const where = real.route.length > 0 ? real.route[real.route.length - 1]! : real.systemId;
+    const targets = view.systems[where]!.colonies.filter((c) => !c.own);
+    const box = h(
+      "div",
+      { className: "column" },
+      h("div", { className: "small", textContent: `${commandos} commando team${commandos > 1 ? "s" : ""}${cloaked ? " · cloaked: hard to see, slips past blockades" : ""}` }),
+    );
+    const labels = { defenses: "defenses", garrison: "garrison", buildings: "a building" } as const;
+    const pending = real.sabotage ? targets.find((c) => c.colonyId === real.sabotage!.colonyId) : undefined;
+    if (pending && real.sabotage) {
+      box.append(
+        h("div", { className: "warn-text small", textContent: `Sabotaging ${pending.name}'s ${labels[real.sabotage.mission]} each turn in orbit.` }),
+        button("Call off", () => ctx.issue({ type: "sabotage", empireId: game.playerId, fleetId: real.id, colonyId: null, mission: "defenses" })),
+      );
+      return box;
+    }
+    for (const c of targets) {
+      // Odds from the defenders the player last saw.
+      const odds = sabotageOdds(commandos, c.troops);
+      for (const mission of SABOTAGE_MISSIONS) {
+        box.append(button(`Sabotage ${c.name}: ${labels[mission]} (~${odds}%)`, () => ctx.issue({ type: "sabotage", empireId: game.playerId, fleetId: real.id, colonyId: c.colonyId, mission })));
+      }
+    }
+    return targets.length > 0 || cloaked ? box : null;
+  }
+
   function invasionControls(fleet: FleetView): HTMLElement | null {
     const real = findFleet(game.state, fleet.id);
     if (!real) return null;
@@ -750,6 +797,7 @@ function startGame(game: Game): void {
       : null;
     const invasion = fleet.own ? invasionControls(fleet) : null;
     const bombing = fleet.own ? bombardControls(fleet) : null;
+    const commandos = fleet.own ? sabotageControls(fleet) : null;
     const intel = fleet.own ? null : h("div", { className: "muted small", textContent: `${fleet.ships} ship${fleet.ships > 1 ? "s" : ""}${fleet.armed ? ` · strength ~${fleet.strength}` : " · unarmed"}` });
     return h(
       "div",
@@ -760,9 +808,27 @@ function startGame(game: Game): void {
       settleRow,
       invasion,
       bombing,
+      commandos,
       fleet.own ? fleetDetail(shipCtx, fleet.id) : null,
       fleet.own ? h("div", { className: "hint", textContent: "Tap a star to set a destination, or drag from the fleet." }) : null,
       fleet.own ? actions : null,
+    );
+  }
+
+  /** Buttons for building outposts on a body with an own outpost ship stopped in its system. */
+  function outpostBuilders(systemId: SystemId, bodyId: number): HTMLElement[] {
+    const body = game.state.galaxy.systems[systemId]!.bodies.find((b) => b.id === bodyId);
+    if (!body || body.kind === "planet") return [];
+    const builder = game.state.fleets.find(
+      (f) => f.empireId === game.playerId && f.systemId === systemId && f.progress === 0 && fleetShipStats(pack, game.state, f).some((s) => s.outpost),
+    );
+    if (!builder) return [];
+    const me = game.state.empires[game.playerId]!;
+    return OUTPOST_KINDS.filter((kind) => outpostBlocker(game.state, pack, me, body, kind) === null).map((kind) =>
+      button(`Build ${pack.outposts[kind].name}`, () => ctx.issue({ type: "buildOutpost", empireId: game.playerId, fleetId: builder.id, bodyId, kind }), {
+        className: "primary small-button",
+        title: pack.outposts[kind].description,
+      }),
     );
   }
 
@@ -809,8 +875,26 @@ function startGame(game: Game): void {
             detail = h("span", { textContent: "Manage ›" });
           }
         }
+        const outpost = system.outposts.find((o) => o.bodyId === body.id);
+        if (outpost) {
+          const real = game.state.outposts.find((o) => o.id === outpost.id);
+          const name = real ? outpostName(pack, real) : pack.outposts[outpost.kind].name;
+          row.firstChild!.appendChild(
+            h("div", { className: "small" }, h("span", { className: "swatch", style: `background:${empire(outpost.empireId).color}` }), `${name}${outpost.kind === "combat" ? ` · ${outpost.defenseHp} hp` : ""}`),
+          );
+          if (outpost.own && outpost.kind === "combat" && !outpost.depot && outpostTechOk(pack, game.state.empires[game.playerId]!, "depot")) {
+            detail = button(`Make depot · ${pack.outposts.depot.cost} ¢`, () => ctx.issue({ type: "upgradeOutpost", empireId: game.playerId, outpostId: outpost.id }), { className: "small-button", title: pack.outposts.depot.description });
+          }
+        }
+        const builders = outpostBuilders(system.id, body.id);
         const option = settle.get(body.id);
-        row.append(option ? button(`Colonize · max ${option.maxPop}`, () => colonize(option.fleetId, option.bodyId), { className: "primary small-button" }) : detail);
+        row.append(
+          option
+            ? button(`Colonize · max ${option.maxPop}`, () => colonize(option.fleetId, option.bodyId), { className: "primary small-button" })
+            : builders.length
+              ? h("span", { className: "column" }, ...builders)
+              : detail,
+        );
         bodies.append(row);
       }
     }

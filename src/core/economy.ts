@@ -2,6 +2,7 @@ import type { ContentPack, Effects } from "../content/schema";
 import type { Colony, Empire, EmpireId, Focus, GameEvent, GameState, QueueItem, StarSystem } from "./state";
 import { colonyOnBody, getSystem } from "./state";
 import { designBuildable, designStats, getDesign, newFleet, refreshFleetStats } from "./ships";
+import { outpostFinances } from "./outposts";
 
 /**
  * Colonies, production, research, food, credits and growth.
@@ -204,6 +205,9 @@ export interface EmpireEconomy {
   shipUpkeep: number;
   /** Industry converted to credits by colonies with empty queues. */
   idleCredits: number;
+  /** Credits from mining outposts, and upkeep paid for all outposts. */
+  miningIncome: number;
+  outpostUpkeep: number;
   /** Food above the reserve sold this turn, and the credits it brings. */
   foodSold: number;
   foodSales: number;
@@ -222,6 +226,8 @@ export function empireEconomy(state: GameState, pack: ContentPack, empireId: Emp
     buildingUpkeep: 0,
     shipUpkeep: 0,
     idleCredits: 0,
+    miningIncome: 0,
+    outpostUpkeep: 0,
     foodSold: 0,
     foodSales: 0,
     netCredits: 0,
@@ -250,7 +256,10 @@ export function empireEconomy(state: GameState, pack: ContentPack, empireId: Emp
   const keep = Math.min(empire.foodReserve, pack.economy.foodStockCap);
   totals.foodSold = Math.max(0, stock - keep);
   totals.foodSales = Math.floor((totals.foodSold * pack.economy.foodSalePercent) / 100);
-  totals.netCredits = totals.income + totals.idleCredits + totals.foodSales - totals.buildingUpkeep - totals.shipUpkeep;
+  const outposts = outpostFinances(state, pack, empireId);
+  totals.miningIncome = outposts.income;
+  totals.outpostUpkeep = outposts.upkeep;
+  totals.netCredits = totals.income + totals.idleCredits + totals.foodSales + totals.miningIncome - totals.buildingUpkeep - totals.shipUpkeep - totals.outpostUpkeep;
   return totals;
 }
 

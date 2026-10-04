@@ -5,7 +5,7 @@ import type { BodyKind, Formation } from "../content/schema";
  * so it can be cloned, saved, hashed, and sent over a network unchanged.
  */
 
-export const STATE_VERSION = 10;
+export const STATE_VERSION = 11;
 
 export type SystemId = number;
 export type EmpireId = number;
@@ -143,6 +143,25 @@ export interface Colony {
   militiaLosses: number;
 }
 
+export const OUTPOST_KINDS = ["combat", "mining"] as const;
+export type OutpostKind = (typeof OUTPOST_KINDS)[number];
+
+/** An outpost on an asteroid field or gas giant: no population, built by an outpost ship. */
+export interface Outpost {
+  id: number;
+  empireId: EmpireId;
+  systemId: SystemId;
+  bodyId: BodyId;
+  kind: OutpostKind;
+  /** A combat outpost upgraded to a supply depot. */
+  depot: boolean;
+  /** Defense hit points (combat outposts); 0 means destroyed. */
+  defenseHp: number;
+}
+
+export const SABOTAGE_MISSIONS = ["defenses", "garrison", "buildings"] as const;
+export type SabotageMission = (typeof SABOTAGE_MISSIONS)[number];
+
 export interface ColonySighting {
   colonyId: ColonyId;
   empireId: EmpireId;
@@ -233,6 +252,8 @@ export interface Fleet {
   invadeColonyId: ColonyId | null;
   /** Bomb this colony from orbit each turn while its orbital defenses are down. */
   bombardColonyId: ColonyId | null;
+  /** Commandos aboard strike this colony each turn the fleet is in its system. */
+  sabotage: { colonyId: ColonyId; mission: SabotageMission } | null;
 }
 
 export type GameEvent =
@@ -270,6 +291,9 @@ export type GameEvent =
   | { type: "defensesDown"; turn: number; empireId: EmpireId; colonyId: ColonyId; systemId: SystemId }
   /** Sent to both sides. */
   | { type: "bombarded"; turn: number; empireId: EmpireId; attackerId: EmpireId; colonyId: ColonyId; systemId: SystemId; populationLost: number; buildingLost: string | null }
+  | { type: "outpostLost"; turn: number; empireId: EmpireId; systemId: SystemId; kind: OutpostKind }
+  /** Sent to both sides. */
+  | { type: "sabotage"; turn: number; empireId: EmpireId; attackerId: EmpireId; colonyId: ColonyId; systemId: SystemId; mission: SabotageMission; success: boolean }
   | { type: "mineHits"; turn: number; empireId: EmpireId; systemId: SystemId; hits: number; shipsLost: number }
   | { type: "capitalMoved"; turn: number; empireId: EmpireId; colonyId: ColonyId; systemId: SystemId }
   | { type: "gameOver"; turn: number; empireId: EmpireId; winnerId: EmpireId; reason: GameOutcome["reason"] };
@@ -337,6 +361,7 @@ export interface GameState {
   outcome: GameOutcome | null;
   /** Mines each empire keeps in a system; they hit other empires' ships that stop there. */
   minefields: Minefield[];
+  outposts: Outpost[];
 }
 
 export function getSystem(state: GameState, id: SystemId): StarSystem {

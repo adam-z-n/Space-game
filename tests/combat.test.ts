@@ -290,5 +290,5 @@ describe("all-AI games with combat", () => {
       b.endTurn();
     }
     expect(JSON.stringify(a.state)).toBe(JSON.stringify(b.state));
-  });
+  }, 30_000); // two full AI games
 });

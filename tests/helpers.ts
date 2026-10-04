@@ -43,6 +43,7 @@ export function testFleet(state: GameState, opts: { id: number; empireId: number
     holding: false,
     invadeColonyId: null,
     bombardColonyId: null,
+    sabotage: null,
   };
 }
 
