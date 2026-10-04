@@ -53,12 +53,13 @@ function line(): GameState {
 const enemyCapital = (s: GameState) => s.colonies.find((c) => c.empireId === 1 && c.systemId === 4)!;
 
 describe("colony defenses", () => {
-  it("come from buildings: capitals start with a platform and a garrison", () => {
+  it("come from buildings and the colony's own batteries: capitals start with a platform and a garrison", () => {
     const s = line();
     const cap = enemyCapital(s);
-    expect(colonyDefense(pack, s.empires[1]!, cap)).toMatchObject({ maxHp: 40, shield: 0, maxTroops: 8, mines: 0 });
-    expect(colonyDefense(pack, s.empires[1]!, cap).weapons).toHaveLength(2);
-    expect(cap.defenseHp).toBe(40);
+    // Platform 40 hp and two guns, plus planetary batteries: 4 hp per population and a gun per 3 population.
+    expect(colonyDefense(pack, s.empires[1]!, cap)).toMatchObject({ maxHp: 40 + 5 * 4, shield: 0, maxTroops: 8, mines: 0 });
+    expect(colonyDefense(pack, s.empires[1]!, cap).weapons).toHaveLength(2 + 1);
+    expect(cap.defenseHp).toBe(60);
     expect(defendingTroops(s, pack, cap)).toBe(8 + 5); // garrison + militia, no terrain bonus on terran
   });
 
@@ -68,7 +69,9 @@ describe("colony defenses", () => {
     s = run(s, end);
     const report = s.lastBattles[0]!;
     expect(report.ships.some((x) => x.designName.startsWith("Defenses of"))).toBe(true);
-    expect(enemyCapital(s).defenseHp).toBeLessThan(40);
+    // The defenses took hits (they repair a little at the end of the turn).
+    const hits = report.rounds.flatMap((r) => r.shots).filter((x) => x.target === enemyCapital(s).id && x.damage > 0);
+    expect(hits.length).toBeGreaterThan(0);
     expect(enemyCapital(s).blockaded).toBe(false);
   });
 
@@ -143,7 +146,7 @@ describe("invasion", () => {
     expect(s.lastTurnEvents).toContainEqual(expect.objectContaining({ type: "invasion", captured: false, empireId: 0 }));
   });
 
-  it("waits while orbital defenses still stand", () => {
+  it("can't land while orbital defenses still stand: the transports withdraw under fire", () => {
     let s = besieged(4);
     const cap = enemyCapital(s);
     cap.buildings.push("defense_platform");
@@ -151,7 +154,9 @@ describe("invasion", () => {
     s = run(s, { type: "invade", empireId: 0, fleetId: s.fleets[0]!.id, colonyId: cap.id }, end);
     expect(s.colonies.find((c) => c.id === cap.id)!.empireId).toBe(1);
     expect(s.lastTurnEvents.some((e) => e.type === "invasion")).toBe(false);
-    expect(s.fleets.find((f) => f.empireId === 0)?.invadeColonyId).toBe(cap.id);
+    const transports = s.fleets.find((f) => f.empireId === 0)!;
+    expect(transports.invadeColonyId).toBeNull();
+    expect(transports.route.length).toBeGreaterThan(0);
   });
 
   it("moving cancels the order", () => {

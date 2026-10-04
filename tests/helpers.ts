@@ -9,9 +9,11 @@ export const testPack = loadContentPack({
   ...raw,
   hulls: [
     ...raw.hulls,
-    { id: "test60", name: "Test 60", description: "", slots: 2, structure: 10, cost: 1, upkeep: 0, speed: 60, sensorRange: 0, evasion: 0, endurance: 99 },
-    { id: "test100", name: "Test 100", description: "", slots: 2, structure: 10, cost: 1, upkeep: 0, speed: 100, sensorRange: 120, evasion: 0, endurance: 99 },
+    { id: "test60", name: "Test 60", description: "", slots: 2, structure: 10, cost: 1, upkeep: 0, speed: 60, sensorRange: 0, evasion: 0, maneuver: 2, endurance: 99 },
+    { id: "test100", name: "Test 100", description: "", slots: 2, structure: 10, cost: 1, upkeep: 0, speed: 100, sensorRange: 120, evasion: 0, maneuver: 2, endurance: 99 },
   ],
+  // No planetary batteries: they would shoot at the unarmed test fleets.
+  combat: { ...raw.combat, colonyDefenseHpPerPop: 0, colonyPopPerGun: 1000 },
   presentation: {
     ...raw.presentation,
     hullSprites: { ...raw.presentation.hullSprites, test60: raw.presentation.hullSprites.corvette, test100: raw.presentation.hullSprites.corvette },
@@ -40,6 +42,7 @@ export function testFleet(state: GameState, opts: { id: number; empireId: number
     progress: 0,
     holding: false,
     invadeColonyId: null,
+    bombardColonyId: null,
   };
 }
 

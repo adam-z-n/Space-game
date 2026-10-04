@@ -1,9 +1,9 @@
 import type { ContentPack, Formation } from "../content/schema";
 import { empireEffects } from "./economy";
-import { buildAdjacency, shortestPaths } from "./graph";
+import { shortestPaths } from "./graph";
+import { knownAdjacency } from "./vision";
 import { Rng } from "./rng";
-import { designStats, fleetArmed, getDesign, refreshFleetStats, type DesignStats } from "./ships";
-import { suppliedSystems } from "./supply";
+import { designStats, fleetArmed, getDesign, refreshFleetStats, type DesignStats, type Weapon } from "./ships";
 import type { BattleReport, BattleShot, Colony, EmpireId, Fleet, FleetId, GameEvent, GameState, Ship, SystemId } from "./state";
 import { colonyDefense, type ColonyDefense } from "./defense";
 
@@ -83,30 +83,13 @@ function fight(
       progress: 0,
       holding: true,
       invadeColonyId: null,
+      bombardColonyId: null,
     };
     stations.set(fleet.id, colony);
     combatants.set(colony.id, {
       ship: fleet.ships[0]!,
       fleet,
-      stats: {
-        cost: 0,
-        upkeep: 0,
-        maxHp: defense.maxHp,
-        shield: defense.shield,
-        weapons: defense.weapons,
-        speed: 0,
-        sensorRange: 0,
-        evasion: 0,
-        endurance: 0,
-        fuel: 0,
-        troops: 0,
-        repair: 0,
-        mines: 0,
-        colonize: false,
-        armed: defense.weapons.length > 0,
-        role: "combat",
-        damagePerRound: defense.weapons.reduce((n, w) => n + (w.damage * w.accuracy) / 100, 0),
-      },
+      stats: stationStats(defense),
       designName: `Defenses of ${colony.name}`,
       formation: "front",
       depleted: false,
@@ -149,33 +132,43 @@ function fight(
   const startHp = new Map(fleets.map((f) => [f.id, f.ships.reduce((n, s) => n + s.hp, 0)]));
   const retreated = new Set<FleetId>();
   const damageDealt = new Map<EmpireId, number>();
-
   const active = () => fleets.filter((f) => !retreated.has(f.id) && f.ships.length > 0);
+  const living = (list: Fleet[]) => list.flatMap((f) => f.ships.map((s) => combatants.get(s.id)!));
 
+  // Battles open at long range; each round the more maneuverable side moves the range toward its liking.
+  let range = 3;
   for (let round = 0; round < cfg.rounds; round++) {
     const fighting = active();
-    const sides = new Set(fighting.map((f) => f.empireId));
-    if (sides.size < 2 || !fighting.some(armed)) break;
+    const sides = [...new Set(fighting.map((f) => f.empireId))].sort((a, b) => a - b);
+    if (sides.length < 2 || !fighting.some(armed)) break;
 
+    // Cyber attack: each side's suites may shut down enemy ships' weapons for this round.
+    const disrupted = new Set<number>();
+    for (const side of sides) {
+      const cyber = living(fighting.filter((f) => f.empireId !== side)).reduce((n, c) => n + c.stats.cyber, 0);
+      if (cyber === 0) continue;
+      for (const fleet of fighting.filter((f) => f.empireId === side)) {
+        if (stations.has(fleet.id)) continue;
+        const firewall = fleet.ships.reduce((n, s) => n + combatants.get(s.id)!.stats.cyberDefense, 0);
+        const chance = Math.min(cfg.cyberMax, cyber - firewall);
+        if (chance <= 0) continue;
+        for (const ship of fleet.ships) if (rng.int(1, 100) <= chance) disrupted.add(ship.id);
+      }
+    }
+
+    // Point defense mounts per fleet, counted at the start of the round.
+    const pointDefense = new Map(fighting.map((f) => [f.id, f.ships.reduce((n, s) => n + combatants.get(s.id)!.stats.pointDefense, 0)]));
     const shots: BattleShot[] = [];
     for (const fleet of fighting) {
-      const enemies = fighting.filter((f) => f.empireId !== fleet.empireId).flatMap((f) => f.ships.map((s) => combatants.get(s.id)!));
+      const enemyFleets = fighting.filter((f) => f.empireId !== fleet.empireId);
+      const enemies = living(enemyFleets);
       if (enemies.length === 0) continue;
       for (const ship of fleet.ships) {
+        if (disrupted.has(ship.id)) continue;
         const attacker = combatants.get(ship.id)!;
         for (const weapon of attacker.stats.weapons) {
-          const target = rng.weighted(enemies, (e) => targetWeight(pack, fleet, e));
-          const chance = Math.max(5, weapon.accuracy - target.stats.evasion);
-          const hit = rng.int(1, 100) <= chance;
-          let damage = 0;
-          if (hit) {
-            damage = Math.max(1, weapon.damage - target.stats.shield);
-            damage = Math.floor((damage * cfg.stanceDamage[fleet.orders.stance]) / 100);
-            damage = Math.floor((damage * cfg.stanceDefense[target.fleet.orders.stance]) / 100);
-            if (attacker.depleted) damage = Math.floor((damage * (100 - cfg.outOfSupplyDamagePercent)) / 100);
-            damage = Math.max(1, damage);
-          }
-          shots.push({ attacker: ship.id, target: target.ship.id, damage, destroyed: false });
+          if (weapon.range < range) continue; // out of reach at this range
+          shots.push(fire(pack, rng, fleet, attacker, weapon, enemies, pointDefense));
         }
       }
     }
@@ -204,7 +197,8 @@ function fight(
         withdrew.push(fleet.id);
       }
     }
-    report.rounds.push({ shots, retreated: withdrew });
+    report.rounds.push({ range, disrupted: [...disrupted].sort((a, b) => a - b), shots, retreated: withdrew });
+    range = nextRange(pack, range, active(), combatants, stations);
   }
 
   // Outcome per empire.
@@ -233,36 +227,152 @@ function fight(
     if (colony.defenseHp === 0) events.push({ type: "defensesDown", turn: state.turn, empireId: colony.empireId, colonyId: colony.id, systemId });
   }
 
-  // Retreating fleets head for the nearest friendly supplied system.
+  // Retreating fleets fall back to the nearest friendly or empty system.
   for (const fleet of shipFleets) {
     if (retreated.has(fleet.id) && fleet.ships.length > 0) {
       fleet.route = retreatRoute(state, pack, fleet);
       fleet.holding = false;
+      fleet.invadeColonyId = null;
+      fleet.bombardColonyId = null;
     }
     refreshFleetStats(pack, state, fleet);
   }
 }
 
-function targetWeight(pack: ContentPack, attacker: Fleet, target: Combatant): number {
-  const base = pack.combat.formationWeight[target.formation];
+/** One weapon's shot: pick a target, let screens and point defense have their say, roll to hit. */
+function fire(pack: ContentPack, rng: Rng, fleet: Fleet, attacker: Combatant, weapon: Weapon, enemies: Combatant[], pointDefense: Map<FleetId, number>): BattleShot {
+  const cfg = pack.combat;
+  const fighters = weapon.special === "fighters";
+  let target = rng.weighted(enemies, (e) => targetWeight(pack, fleet, e, fighters));
+  // Screens move in to take fire meant for the support ships behind them (fighters slip past).
+  if (!fighters && target.formation === "support") {
+    const screens = enemies.filter((e) => e.fleet.empireId === target.fleet.empireId && e.formation === "screen");
+    if (screens.length > 0 && rng.int(1, 100) <= cfg.screenInterceptPercent) target = rng.pick(screens);
+  }
+  const guided = weapon.special === "missile" || fighters;
+  // Point defense anywhere in the target's fleet can shoot down missiles and fighters.
+  if (guided) {
+    const pd = pointDefense.get(target.fleet.id) ?? 0;
+    const stop = Math.min(cfg.pointDefenseMax, pd * cfg.pointDefensePercent);
+    if (stop > 0 && rng.int(1, 100) <= stop) return { attacker: attacker.ship.id, target: target.ship.id, damage: 0, destroyed: false, intercepted: true };
+  }
+  const evasion = target.stats.evasion + target.stats.maneuver * cfg.maneuverEvasion + (target.formation === "support" ? cfg.supportEvasion : 0) + (guided ? target.stats.jamming : 0);
+  const chance = Math.max(5, weapon.accuracy - evasion);
+  let damage = 0;
+  if (rng.int(1, 100) <= chance) {
+    const shield = weapon.special === "pierce" ? 0 : target.stats.shield;
+    damage = Math.max(1, weapon.damage - shield);
+    damage = Math.floor((damage * cfg.stanceDamage[fleet.orders.stance]) / 100);
+    damage = Math.floor((damage * cfg.stanceDefense[target.fleet.orders.stance]) / 100);
+    if (attacker.depleted) damage = Math.floor((damage * (100 - cfg.outOfSupplyDamagePercent)) / 100);
+    damage = Math.max(1, damage);
+  }
+  return { attacker: attacker.ship.id, target: target.ship.id, damage, destroyed: false };
+}
+
+/**
+ * The range for the next round. Each side wants the range where its guns most outdo
+ * the enemy's; the side with the higher maneuver (its slowest armed line ship) gets
+ * its way by one step a round. When they are matched, the range closes.
+ */
+function nextRange(pack: ContentPack, range: number, fighting: Fleet[], combatants: Map<number, Combatant>, stations: Map<FleetId, Colony>): number {
+  const sides = [...new Set(fighting.map((f) => f.empireId))].sort((a, b) => a - b);
+  if (sides.length < 2) return range;
+  const firepower = (side: number, at: number) =>
+    fighting
+      .filter((f) => f.empireId === side)
+      .flatMap((f) => f.ships.map((s) => combatants.get(s.id)!))
+      .reduce((n, c) => n + c.stats.weapons.filter((w) => w.range >= at).reduce((m, w) => m + (w.damage * w.accuracy) / 100, 0), 0);
+  const plans = sides.map((side) => {
+    let best = range;
+    let bestEdge = -Infinity;
+    // Ties go to the longer range: no reason to close in for nothing.
+    for (const at of [3, 2, 1]) {
+      const enemy = sides.filter((s) => s !== side).reduce((n, s) => n + firepower(s, at), 0);
+      const edge = firepower(side, at) - enemy;
+      if (edge > bestEdge) {
+        bestEdge = edge;
+        best = at;
+      }
+    }
+    // Agility: the slowest armed ship that isn't hanging back. Fixed defenses don't maneuver.
+    const line = fighting
+      .filter((f) => f.empireId === side && !stations.has(f.id))
+      .flatMap((f) => f.ships.map((s) => combatants.get(s.id)!))
+      .filter((c) => c.stats.armed && c.formation !== "support");
+    const agility = line.length > 0 ? Math.min(...line.map((c) => c.stats.maneuver)) : -1;
+    return { want: best, agility };
+  });
+  const top = Math.max(...plans.map((p) => p.agility));
+  const leaders = plans.filter((p) => p.agility === top);
+  const want = leaders.length === 1 ? leaders[0]!.want : Math.min(...leaders.map((p) => p.want), range - 1);
+  if (want < range) return Math.max(1, range - 1);
+  if (want > range) return Math.min(3, range + 1);
+  return range;
+}
+
+/** Combat stats for a colony's defenses acting as one ship. */
+function stationStats(defense: ColonyDefense): DesignStats {
+  return {
+    cost: 0,
+    upkeep: 0,
+    maxHp: defense.maxHp,
+    shield: defense.shield,
+    weapons: defense.weapons,
+    speed: 0,
+    sensorRange: 0,
+    evasion: 0,
+    endurance: 0,
+    fuel: 0,
+    troops: 0,
+    repair: 0,
+    mines: 0,
+    colonize: false,
+    armed: defense.weapons.length > 0,
+    role: "combat",
+    damagePerRound: defense.weapons.reduce((n, w) => n + (w.damage * w.accuracy) / 100, 0),
+    maneuver: 0,
+    pointDefense: 0,
+    jamming: 0,
+    cyber: 0,
+    cyberDefense: 0,
+    bombard: 0,
+  };
+}
+
+function targetWeight(pack: ContentPack, attacker: Fleet, target: Combatant, fighters: boolean): number {
+  // Fighters hunt the ships hanging back: support formations and transports.
+  const hunted = fighters && (target.formation === "support" || target.stats.role === "transport" || target.stats.role === "support");
+  const base = pack.combat.formationWeight[target.formation] * (hunted ? pack.combat.fighterSupportWeight : 1);
   const priority = attacker.orders.targetPriority;
   if (priority === "warships" && target.stats.armed) return base * 3;
   if (priority === "transports" && (target.stats.role === "transport" || target.stats.role === "support")) return base * 3;
   return base;
 }
 
+/**
+ * Where a beaten fleet falls back to: the nearest system that is friendly (one of its
+ * empire's colonies) or empty (no colony it knows of), with no hostile fleet in it,
+ * avoiding hostile systems on the way. It uses only what its empire knows.
+ */
 function retreatRoute(state: GameState, pack: ContentPack, fleet: Fleet): SystemId[] {
-  const adj = buildAdjacency(state.galaxy.systems.length, state.galaxy.lanes);
-  const { dist, prev } = shortestPaths(adj, fleet.systemId);
-  const supplied = suppliedSystems(state, pack, fleet.empireId);
-  const hostile = new Set(state.fleets.filter((f) => f.empireId !== fleet.empireId && f.progress === 0).map((f) => f.systemId));
+  const empire = state.empires[fleet.empireId]!;
+  const adj = knownAdjacency(state, fleet.empireId);
+  const rivalColonies = new Set(empire.colonySightings.map((c) => c.systemId));
+  const hostileFleets = new Set(state.fleets.filter((f) => f.empireId !== fleet.empireId && f.progress === 0 && f.route.length === 0).map((f) => f.systemId));
+  const own = new Set(state.colonies.filter((c) => c.empireId === fleet.empireId).map((c) => c.systemId));
+  const unsafe = (id: SystemId) => hostileFleets.has(id) || (rivalColonies.has(id) && !own.has(id));
+  // Paths may not run through unsafe systems (other than the one being left).
+  const safeAdj = adj.map((list, from) => (from !== fleet.systemId && unsafe(from) ? [] : list));
+  const { dist, prev } = shortestPaths(safeAdj, fleet.systemId);
   let best = -1;
   for (let i = 0; i < dist.length; i++) {
-    if (i === fleet.systemId || !supplied.has(i) || hostile.has(i) || dist[i] === Infinity) continue;
-    if (best === -1 || dist[i]! < dist[best]!) best = i;
+    if (i === fleet.systemId || unsafe(i) || dist[i] === Infinity) continue;
+    // Prefer friendly systems at equal distance; otherwise the closest refuge wins.
+    if (best === -1 || dist[i]! < dist[best]! || (dist[i] === dist[best] && own.has(i) && !own.has(best))) best = i;
   }
   if (best === -1) {
-    // Nowhere safe: fall back one lane to the nearest neighbor.
+    // Surrounded: fall back along the first lane that leads anywhere.
     const neighbor = adj[fleet.systemId]![0];
     return neighbor ? [neighbor.id] : [];
   }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { applyCommand, colonyOutput, createInitialState, empireEconomy, fitWorkers, scrapValue, type Command, type GameState } from "../src/core";
+import { applyCommand, colonyDefense, colonyOutput, createInitialState, empireEconomy, fitWorkers, scrapValue, type Command, type GameState } from "../src/core";
 import { defaultPack } from "../src/content/defaultPack";
 
 const pack = defaultPack();
@@ -80,7 +80,9 @@ describe("scrapping", () => {
     s = run(s, { type: "scrapBuilding", empireId: 0, colonyId: id, buildingId: "defense_platform" });
     expect(s.empires[0]!.credits).toBe(before + Math.floor((platform.cost * pack.economy.scrapRefundPercent) / 100));
     expect(empireEconomy(s, pack, 0).buildingUpkeep).toBe(upkeep - platform.upkeep);
-    expect(capital(s).defenseHp).toBe(0);
+    // Only the colony's own planetary batteries are left.
+    expect(capital(s).defenseHp).toBe(colonyDefense(pack, s.empires[0]!, capital(s)).maxHp);
+    expect(colonyDefense(pack, s.empires[0]!, capital(s)).maxHp).toBe(capital(s).population * pack.combat.colonyDefenseHpPerPop);
     expect(applyCommand(s, { type: "scrapBuilding", empireId: 0, colonyId: id, buildingId: "capitol" }, pack).ok).toBe(false);
   });
 

@@ -65,6 +65,8 @@ export type Command =
    * The fleet must be at (or heading for) the colony's system; null cancels the order.
    */
   | { type: "invade"; empireId: EmpireId; fleetId: FleetId; colonyId: ColonyId | null }
+  /** Order a fleet with bomb bays to bombard a known rival colony in orbit each turn its defenses are down; null cancels. */
+  | { type: "bombard"; empireId: EmpireId; fleetId: FleetId; colonyId: ColonyId | null }
   /** Scrap a fleet to stop paying its upkeep. Inside supply, part of its build cost comes back as credits. */
   | { type: "disbandFleet"; empireId: EmpireId; fleetId: FleetId }
   /** Demolish a building for part of its cost back; its upkeep stops. */
@@ -263,6 +265,17 @@ export function validateCommand(state: GameState, command: Command, pack: Conten
       if (destination !== known.systemId) return "fleet must be at or heading for that system";
       return null;
     }
+    case "bombard": {
+      const fleet = ownFleet(state, command.empireId, command.fleetId);
+      if (typeof fleet === "string") return fleet;
+      if (command.colonyId === null) return null;
+      if (!fleetShipStats(pack, state, fleet).some((s) => s.bombard > 0)) return "fleet has no bomb bays";
+      const known = state.empires[command.empireId]!.colonySightings.find((c) => c.colonyId === command.colonyId);
+      if (!known) return "no known rival colony there";
+      const destination = fleet.route.length > 0 ? fleet.route[fleet.route.length - 1] : fleet.systemId;
+      if (destination !== known.systemId) return "fleet must be at or heading for that system";
+      return null;
+    }
     case "endTurn":
       return state.outcome ? "the game is over" : null;
     default:
@@ -285,6 +298,7 @@ export function applyCommand(state: GameState, command: Command, pack: ContentPa
       fleet.progress = plan.progress;
       fleet.holding = false;
       fleet.invadeColonyId = null; // re-issue after moving
+      fleet.bombardColonyId = null;
       break;
     }
     case "setHold":
@@ -405,6 +419,9 @@ export function applyCommand(state: GameState, command: Command, pack: ContentPa
       break;
     case "invade":
       findFleet(next, command.fleetId)!.invadeColonyId = command.colonyId;
+      break;
+    case "bombard":
+      findFleet(next, command.fleetId)!.bombardColonyId = command.colonyId;
       break;
     case "retireDesign":
       next.empires[command.empireId]!.designs.find((d) => d.id === command.designId)!.obsolete = true;

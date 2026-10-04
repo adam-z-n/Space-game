@@ -10,6 +10,7 @@ import {
   findColony,
   findFleet,
   fleetTroops,
+  fleetShipStats,
   estimateOdds,
   fleetCanColonize,
   fleetStrength,
@@ -458,6 +459,10 @@ function startGame(game: Game): void {
         return `Mines hit ${e.hits} ship${e.hits > 1 ? "s" : ""} near ${systemName(e.systemId)}${e.shipsLost ? `, ${e.shipsLost} lost` : ""}`;
       case "capitalMoved":
         return `Capital moved to ${colonyName(e.colonyId)}`;
+      case "bombarded": {
+        const lost = `${e.populationLost} population${e.buildingLost ? ` and its ${pack.buildings.find((b) => b.id === e.buildingLost)?.name}` : ""}`;
+        return e.attackerId === game.playerId ? `Bombarded ${colonyName(e.colonyId)}: ${lost} lost` : `${empire(e.attackerId).name} bombarded ${colonyName(e.colonyId)}: ${lost} lost`;
+      }
       case "empireEliminated":
         return e.eliminatedId === game.playerId ? "Your empire has fallen" : `${empire(e.eliminatedId).name} has been eliminated`;
       case "gameOver":
@@ -668,6 +673,29 @@ function startGame(game: Game): void {
   }
 
   /** Invade buttons for a troop-carrying fleet at, or heading to, a known rival colony. */
+  /** Bombard controls for a fleet with bomb bays at (or heading for) a rival colony. */
+  function bombardControls(fleet: FleetView): HTMLElement | null {
+    const real = findFleet(game.state, fleet.id);
+    if (!real) return null;
+    const stats = fleetShipStats(pack, game.state, real);
+    const power = stats.reduce((n, s) => n + s.bombard, 0);
+    if (power === 0) return null;
+    const where = real.route.length > 0 ? real.route[real.route.length - 1]! : real.systemId;
+    const targets = view.systems[where]!.colonies.filter((c) => !c.own);
+    if (targets.length === 0) return null;
+    const box = h("div", { className: "column" }, h("div", { className: "small", textContent: `Bombs: ${power} damage a turn` }));
+    const pending = targets.find((c) => c.colonyId === real.bombardColonyId);
+    if (pending) {
+      box.append(
+        h("div", { className: "warn-text small", textContent: `Bombarding ${pending.name} each turn its orbital defenses are down.` }),
+        button("Stop bombardment", () => ctx.issue({ type: "bombard", empireId: game.playerId, fleetId: real.id, colonyId: null })),
+      );
+    } else {
+      for (const c of targets) box.append(button(`Bombard ${c.name}`, () => ctx.issue({ type: "bombard", empireId: game.playerId, fleetId: real.id, colonyId: c.colonyId })));
+    }
+    return box;
+  }
+
   function invasionControls(fleet: FleetView): HTMLElement | null {
     const real = findFleet(game.state, fleet.id);
     if (!real) return null;
@@ -721,6 +749,7 @@ function startGame(game: Game): void {
       ? h("div", { className: "column" }, ...settle.map((o) => button(`Colonize ${o.name} · max pop ${o.maxPop}`, () => colonize(o.fleetId, o.bodyId), { className: "primary" })))
       : null;
     const invasion = fleet.own ? invasionControls(fleet) : null;
+    const bombing = fleet.own ? bombardControls(fleet) : null;
     const intel = fleet.own ? null : h("div", { className: "muted small", textContent: `${fleet.ships} ship${fleet.ships > 1 ? "s" : ""}${fleet.armed ? ` · strength ~${fleet.strength}` : " · unarmed"}` });
     return h(
       "div",
@@ -730,6 +759,7 @@ function startGame(game: Game): void {
       intel,
       settleRow,
       invasion,
+      bombing,
       fleet.own ? fleetDetail(shipCtx, fleet.id) : null,
       fleet.own ? h("div", { className: "hint", textContent: "Tap a star to set a destination, or drag from the fleet." }) : null,
       fleet.own ? actions : null,

@@ -7,7 +7,7 @@ export * from "./setup";
 export * from "./ai";
 export * from "./game";
 export * from "./save";
-export { loadContentPack, ContentError, FORMATIONS, type ContentPack, type Formation } from "../content/schema";
+export { loadContentPack, ContentError, FORMATIONS, RANGE_NAMES, type ContentPack, type Formation } from "../content/schema";
 export * from "./vision";
 export * from "./view";
 export * from "./economy";

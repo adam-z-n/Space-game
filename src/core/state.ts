@@ -5,7 +5,7 @@ import type { BodyKind, Formation } from "../content/schema";
  * so it can be cloned, saved, hashed, and sent over a network unchanged.
  */
 
-export const STATE_VERSION = 9;
+export const STATE_VERSION = 10;
 
 export type SystemId = number;
 export type EmpireId = number;
@@ -139,6 +139,8 @@ export interface Colony {
   defenseHp: number;
   /** Garrison troops (militia from population comes on top). */
   troops: number;
+  /** Militia killed in failed invasions or bombardment; they return slowly. */
+  militiaLosses: number;
 }
 
 export interface ColonySighting {
@@ -229,6 +231,8 @@ export interface Fleet {
   holding: boolean;
   /** Land this fleet's troops on this colony once its orbital defenses are down. */
   invadeColonyId: ColonyId | null;
+  /** Bomb this colony from orbit each turn while its orbital defenses are down. */
+  bombardColonyId: ColonyId | null;
 }
 
 export type GameEvent =
@@ -264,6 +268,8 @@ export type GameEvent =
       defendingTroops: number;
     }
   | { type: "defensesDown"; turn: number; empireId: EmpireId; colonyId: ColonyId; systemId: SystemId }
+  /** Sent to both sides. */
+  | { type: "bombarded"; turn: number; empireId: EmpireId; attackerId: EmpireId; colonyId: ColonyId; systemId: SystemId; populationLost: number; buildingLost: string | null }
   | { type: "mineHits"; turn: number; empireId: EmpireId; systemId: SystemId; hits: number; shipsLost: number }
   | { type: "capitalMoved"; turn: number; empireId: EmpireId; colonyId: ColonyId; systemId: SystemId }
   | { type: "gameOver"; turn: number; empireId: EmpireId; winnerId: EmpireId; reason: GameOutcome["reason"] };
@@ -295,6 +301,8 @@ export interface BattleShot {
   /** 0 on a miss. */
   damage: number;
   destroyed: boolean;
+  /** Shot down by point defense (missiles and fighters). */
+  intercepted?: boolean;
 }
 
 export interface BattleReport {
@@ -303,7 +311,8 @@ export interface BattleReport {
   systemId: SystemId;
   empires: EmpireId[];
   ships: BattleShip[];
-  rounds: { shots: BattleShot[]; retreated: FleetId[] }[];
+  /** Per round: the range it was fought at (1 short, 2 medium, 3 long), ships whose weapons cyber attack shut down, shots, and who withdrew. */
+  rounds: { range: number; disrupted: ShipId[]; shots: BattleShot[]; retreated: FleetId[] }[];
   /** Per empire: ships lost and fleets that withdrew. */
   results: { empireId: EmpireId; shipsLost: number; retreated: FleetId[]; damageDealt: number }[];
 }

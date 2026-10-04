@@ -25,7 +25,10 @@ export interface ColonyDefense {
 
 export function colonyDefense(pack: ContentPack, empire: Empire, colony: Colony): ColonyDefense {
   const pct = 100 + empireEffects(pack, empire).defensePercent;
-  const result: ColonyDefense = { maxHp: 0, shield: 0, weapons: [], maxTroops: 0, mines: 0 };
+  const cfg = pack.combat;
+  // Every colony has planetary batteries that grow with its population; buildings add the rest.
+  const result: ColonyDefense = { maxHp: colony.population * cfg.colonyDefenseHpPerPop, shield: 0, weapons: [], maxTroops: 0, mines: 0 };
+  for (let i = 0; i < Math.floor(colony.population / cfg.colonyPopPerGun); i++) result.weapons.push({ damage: cfg.colonyGunDamage, accuracy: cfg.colonyGunAccuracy, range: 3 });
   for (const id of colony.buildings) {
     const d = getBuilding(pack, id).defense;
     result.maxHp += d.hp ?? 0;
@@ -33,11 +36,11 @@ export function colonyDefense(pack: ContentPack, empire: Empire, colony: Colony)
     result.maxTroops += d.troops ?? 0;
     result.mines += d.mines ?? 0;
     for (const w of d.weapons ?? []) {
-      for (let i = 0; i < w.count; i++) result.weapons.push({ damage: w.damage, accuracy: w.accuracy });
+      for (let i = 0; i < w.count; i++) result.weapons.push({ damage: w.damage, accuracy: w.accuracy, range: 3 });
     }
   }
   result.maxHp = Math.floor((result.maxHp * pct) / 100);
-  result.weapons = result.weapons.map((w) => ({ damage: Math.floor((w.damage * pct) / 100), accuracy: w.accuracy }));
+  result.weapons = result.weapons.map((w) => ({ ...w, damage: Math.floor((w.damage * pct) / 100) }));
   return result;
 }
 
@@ -46,8 +49,13 @@ export function defendingTroops(state: GameState, pack: ContentPack, colony: Col
   const empire = state.empires[colony.empireId]!;
   const body = findBody(state, colony.systemId, colony.bodyId);
   const terrain = body ? planetStats(pack, body).groundDefense : 0;
-  const base = colony.troops + colony.population * pack.combat.militiaPerPop;
+  const base = colony.troops + militia(pack, colony);
   return Math.floor((base * (100 + terrain + empireEffects(pack, empire).groundPercent)) / 100);
+}
+
+/** Militia the colony can raise now: its population, less those lost in recent fighting. */
+export function militia(pack: ContentPack, colony: Colony): number {
+  return Math.max(0, colony.population * pack.combat.militiaPerPop - colony.militiaLosses);
 }
 
 /** Troops a fleet can land, boosted by its empire's ground tech. */
@@ -71,6 +79,7 @@ export function regenerateDefenses(state: GameState, pack: ContentPack): void {
     const d = colonyDefense(pack, empire, colony);
     if (d.mines > 0) addMines(state, pack, colony.systemId, colony.empireId, Math.ceil(d.mines / 5), d.mines);
     if (colony.blockaded) continue; // no repairs under siege
+    colony.militiaLosses = Math.max(0, colony.militiaLosses - pack.combat.militiaRegenPerTurn);
     colony.defenseHp = Math.min(d.maxHp, colony.defenseHp + Math.ceil((d.maxHp * pack.combat.defenseRepairPercent) / 100));
     colony.troops = Math.min(d.maxTroops, colony.troops + Math.ceil((d.maxTroops * pack.combat.garrisonRegenPercent) / 100));
   }
@@ -173,9 +182,10 @@ export function resolveInvasions(state: GameState, pack: ContentPack, events: Ga
     if (captured) {
       captureColony(state, pack, colony, attackerId, attack, events);
     } else {
-      // Survivors regroup: whatever is left beyond the militia stays as garrison.
-      const militia = colony.population * pack.combat.militiaPerPop;
-      colony.troops = Math.max(0, Math.min(colony.troops, Math.max(0, defense) - militia));
+      // The defenders hold, but lose garrison and militia in proportion; both take turns to recover.
+      const lostShare = startDefense > 0 ? (startDefense - Math.max(0, defense)) / startDefense : 0;
+      colony.troops = Math.floor(colony.troops * (1 - lostShare));
+      colony.militiaLosses = Math.min(colony.population * pack.combat.militiaPerPop, colony.militiaLosses + Math.ceil(militia(pack, colony) * lostShare));
     }
     for (const empireId of [attackerId, defenderId]) {
       events.push({
@@ -227,4 +237,49 @@ function captureColony(state: GameState, pack: ContentPack, colony: Colony, newO
       events.push({ type: "capitalMoved", turn: state.turn, empireId: oldOwner, colonyId: next.id, systemId: next.systemId });
     }
   }
+}
+
+/**
+ * Bombardment phase (after combat, before invasions): fleets ordered to bombard a
+ * colony whose orbital defenses are down hit its population, garrison, militia and
+ * buildings. It softens a colony for invasion but never wipes it out.
+ */
+export function resolveBombardment(state: GameState, pack: ContentPack, events: GameEvent[]): void {
+  const rng = new Rng(state.rngState);
+  const damage = new Map<number, { attackerId: EmpireId; amount: number }>();
+  for (const fleet of state.fleets.slice().sort((a, b) => a.id - b.id)) {
+    const targetId = fleet.bombardColonyId;
+    if (targetId === null) continue;
+    const colony = state.colonies.find((c) => c.id === targetId);
+    if (!colony || colony.empireId === fleet.empireId) {
+      fleet.bombardColonyId = null;
+      continue;
+    }
+    if (fleet.progress > 0 || fleet.systemId !== colony.systemId || colony.defenseHp > 0) continue;
+    const amount = fleetShipStats(pack, state, fleet).reduce((n, s) => n + s.bombard, 0);
+    if (amount === 0) continue;
+    const entry = damage.get(colony.id);
+    if (!entry) damage.set(colony.id, { attackerId: fleet.empireId, amount });
+    else if (entry.attackerId === fleet.empireId) entry.amount += amount;
+  }
+  for (const [colonyId, { attackerId, amount }] of [...damage].sort((a, b) => a[0] - b[0])) {
+    const colony = state.colonies.find((c) => c.id === colonyId)!;
+    const cfg = pack.combat;
+    const populationLost = Math.min(colony.population - 1, Math.max(1, Math.floor(amount / cfg.bombardDamagePerPop)));
+    colony.population -= populationLost;
+    colony.growth = 0;
+    colony.troops = Math.max(0, colony.troops - Math.floor(amount / 4));
+    colony.militiaLosses = Math.min(colony.population * cfg.militiaPerPop, colony.militiaLosses + Math.floor(amount / 10));
+    // Heavy bombing levels a building now and then.
+    let buildingLost: string | null = null;
+    const targets = colony.buildings.filter((id) => getBuilding(pack, id).buildable);
+    if (targets.length > 0 && rng.int(1, 100) <= Math.min(60, amount * 2)) {
+      buildingLost = rng.pick(targets);
+      colony.buildings.splice(colony.buildings.indexOf(buildingLost), 1);
+    }
+    for (const empireId of [attackerId, colony.empireId]) {
+      events.push({ type: "bombarded", turn: state.turn, empireId, attackerId, colonyId, systemId: colony.systemId, populationLost, buildingLost });
+    }
+  }
+  state.rngState = rng.state;
 }

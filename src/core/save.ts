@@ -162,6 +162,14 @@ export function migrateState(state: GameState, pack: ContentPack): GameState {
     old.version = 9;
   }
 
+  if (old.version === 9) {
+    // v10 added bombardment orders and militia losses; battle reports gained ranges.
+    for (const colony of migrated.colonies) colony.militiaLosses = 0;
+    for (const fleet of migrated.fleets) fleet.bombardColonyId = null;
+    migrated.lastBattles = [];
+    old.version = 10;
+  }
+
   if (startVersion !== migrated.version) {
     for (const empire of migrated.empires) refreshEmpireStats(migrated, pack, empire);
     updateSightings(migrated, pack, null, migrated.turn);

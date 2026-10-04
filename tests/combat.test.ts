@@ -64,8 +64,8 @@ describe("ship designs", () => {
     const stats = designStats(pack, frigate, empireEffects(pack, s.empires[0]!));
     expect(stats).toMatchObject({ cost: 14 + 4 + 4 + 3, upkeep: 1, maxHp: 18 + 8, shield: 0, speed: 100, armed: true, role: "combat" });
     expect(stats.weapons).toEqual([
-      { damage: 3, accuracy: 75 },
-      { damage: 3, accuracy: 75 },
+      { damage: 3, accuracy: 75, range: 2 },
+      { damage: 3, accuracy: 75, range: 2 },
     ]);
   });
 

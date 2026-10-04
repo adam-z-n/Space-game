@@ -33,6 +33,7 @@ const EFFECT_KEYS = [
   "damagePercent",
   "groundPercent",
   "defensePercent",
+  "maneuver",
 ] as const;
 export type Totals = Record<(typeof EFFECT_KEYS)[number], number>;
 
@@ -366,6 +367,7 @@ export function newColony(state: GameState, empire: Empire, systemId: number, bo
     blockaded: false,
     defenseHp: 0,
     troops: 0,
+    militiaLosses: 0,
   };
 }
 
