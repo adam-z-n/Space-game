@@ -1,0 +1,19 @@
+name: Release
+
+# A new release tag adds an archived version (/vX.Y/) to the site. Deploys must
+# run from main, so this starts the Pages deploy on main instead of deploying
+# from the tag.
+on:
+  push:
+    tags: ["v*.*.*"]
+
+permissions:
+  actions: write
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - run: gh workflow run deploy.yml --ref main --repo "$GITHUB_REPOSITORY"
+        env:
+          GH_TOKEN: ${{ github.token }}

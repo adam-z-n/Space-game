@@ -120,7 +120,8 @@ Every released version stays playable at its own address, with its own saves, fo
 - A release is a git tag `vX.Y.Z` on `main` (plus a GitHub Release with notes). The deploy builds the newest patch of
   every `X.Y` into `/vX.Y/`, so old versions never disappear. Archived builds keep saves separately from the latest version.
 - Bug fixes for an old version go on its `release/X.Y` branch and are tagged `vX.Y.Z+1`.
-- To release: set `version` in `package.json`, add a CHANGELOG entry, merge, then tag the merge commit and push the tag.
+- To release: set `version` in `package.json`, add a CHANGELOG entry and merge. Then publish a GitHub Release with a new
+  tag `vX.Y.Z` on `main`; the Release workflow redeploys the site with that version added.
 - Saves move forward: a newer version upgrades older saves automatically. An older version refuses a newer save with a clear message.
 
 ## Running it
