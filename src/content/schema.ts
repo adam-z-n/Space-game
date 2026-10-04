@@ -95,6 +95,8 @@ export const EffectsSchema = z
     groundPercent: z.number().int(),
     /** Added to colony defense hit points and weapon damage, in percent. */
     defensePercent: z.number().int(),
+    /** Added to every ship's maneuver (combat agility). */
+    maneuver: z.number().int(),
   })
   .partial()
   .strict();
@@ -120,12 +122,19 @@ const Hull = z.object({
   sensorRange: z.number().int().nonnegative(),
   /** Percent subtracted from enemy hit chance. */
   evasion: z.number().int().min(0).max(90),
+  /** Combat agility: the faster side sets the battle range; each point also adds evasion. */
+  maneuver: z.number().int().min(0).max(10),
   /** Turns a ship can operate outside supply. */
   endurance: z.number().int().nonnegative(),
   requires: id.optional(),
 });
 
-export const COMPONENT_KINDS = ["weapon", "armor", "shield", "engine", "sensor", "colony", "fuel", "troops", "repair", "mines"] as const;
+export const COMPONENT_KINDS = ["weapon", "hangar", "armor", "shield", "engine", "sensor", "electronics", "colony", "fuel", "troops", "repair", "mines", "bomb"] as const;
+/** Weapon ranges: battles start at long range (3) and close (or open) each round. */
+export const RANGE_NAMES = { 1: "short", 2: "medium", 3: "long" } as const;
+/** missile: point defense and ECM work against it. fighters: also hunt support ships past screens. pierce: ignores shields. */
+export const WEAPON_SPECIALS = ["missile", "fighters", "pierce"] as const;
+export type WeaponSpecial = (typeof WEAPON_SPECIALS)[number];
 
 const Component = z.object({
   id,
@@ -133,9 +142,26 @@ const Component = z.object({
   kind: z.enum(COMPONENT_KINDS),
   description: z.string(),
   cost: z.number().int().nonnegative(),
-  /** Weapons: damage per hit and percent chance to hit. */
+  /** Weapons and hangars: damage per hit and percent chance to hit. */
   damage: z.number().int().nonnegative().default(0),
   accuracy: z.number().int().min(0).max(100).default(0),
+  /** Shots per round (hangars launch several craft). */
+  shots: z.number().int().positive().default(1),
+  /** Longest range the weapon fires at: 1 short, 2 medium, 3 long. */
+  range: z.number().int().min(1).max(3).default(2),
+  special: z.enum(WEAPON_SPECIALS).optional(),
+  /** Smallest hull (by slots) that can mount it. */
+  minSlots: z.number().int().min(1).default(1),
+  /** Electronics. */
+  accuracyBonus: z.number().int().nonnegative().default(0),
+  jamming: z.number().int().nonnegative().default(0),
+  pointDefense: z.number().int().nonnegative().default(0),
+  cyber: z.number().int().nonnegative().default(0),
+  cyberDefense: z.number().int().nonnegative().default(0),
+  /** Engines: maneuver added. */
+  maneuver: z.number().int().nonnegative().default(0),
+  /** Bombs: damage dealt to a colony per turn of bombardment. */
+  bombard: z.number().int().nonnegative().default(0),
   /** Armor: extra hit points. */
   hp: z.number().int().nonnegative().default(0),
   /** Shields: damage blocked per hit. */
@@ -232,6 +258,28 @@ const Combat = z.object({
   /** Hit points repaired per turn (percent of max): in supply, and at a friendly colony. */
   repairPercent: z.number().int().min(0).max(100),
   dockRepairPercent: z.number().int().min(0).max(100),
+  /** Extra evasion for support-formation ships, which hang back. */
+  supportEvasion: z.number().int().min(0).max(90),
+  /** Evasion per point of maneuver. */
+  maneuverEvasion: z.number().int().min(0).max(20),
+  /** Chance that a shot aimed at a support ship is taken by a screen ship instead, while the side has screens. */
+  screenInterceptPercent: z.number().int().min(0).max(100),
+  /** Chance per point defense mount to stop a missile or fighter aimed at its fleet, and the cap. */
+  pointDefensePercent: z.number().int().min(0).max(100),
+  pointDefenseMax: z.number().int().min(0).max(100),
+  /** How much more fighters favor support and transport ships as targets. */
+  fighterSupportWeight: z.number().int().positive(),
+  /** Cap on the chance that cyber attack shuts down an enemy ship for a round. */
+  cyberMax: z.number().int().min(0).max(100),
+  /** Bombardment damage that kills one population. */
+  bombardDamagePerPop: z.number().int().positive(),
+  /** Every colony's own planetary defenses: hit points per population, and one gun per so many population. */
+  colonyDefenseHpPerPop: z.number().int().nonnegative(),
+  colonyPopPerGun: z.number().int().positive(),
+  colonyGunDamage: z.number().int().nonnegative(),
+  colonyGunAccuracy: z.number().int().min(0).max(100),
+  /** Militia lost to a failed invasion that returns each turn (when not under siege). */
+  militiaRegenPerTurn: z.number().int().nonnegative(),
 });
 
 const scale = z.number().int().min(0).max(10);
@@ -323,6 +371,13 @@ const Presentation = z.object({
     warn: color,
     danger: color,
   }),
+  /** Map colors for systems by what the player has learned about their worlds. */
+  surveyColors: z.object({
+    unexplored: color,
+    habitable: color,
+    hostile: color,
+    barren: color,
+  }),
   /** Sprite per hull id; ships of that hull use it. */
   hullSprites: z.record(z.string(), Sprite),
 });
@@ -332,8 +387,6 @@ const Economy = z.object({
   startingFood: z.number().int().nonnegative(),
   capitalPopulation: z.number().int().positive(),
   colonyPopulation: z.number().int().positive(),
-  /** Credits per population per turn, in percent (50 = half a credit per population). */
-  taxPercentPerPop: z.number().int().nonnegative(),
   /** Food eaten per population per turn. */
   foodPerPop: z.number().int().nonnegative(),
   workerIndustry: z.number().int().nonnegative(),
@@ -354,6 +407,8 @@ const Economy = z.object({
   /** Lane distance within which colonies supply fleets. */
   colonySupplyRange: z.number().int().nonnegative(),
   capitalSupplyRange: z.number().int().nonnegative(),
+  /** Industry to found a colony on another planet in the same system (a colony base). */
+  colonyBaseCost: z.number().int().positive(),
   capitalSensorRange: z.number().int().nonnegative(),
   foodStockCap: z.number().int().nonnegative(),
   /** Share of industry turned into credits when a colony has nothing to build. */
@@ -362,6 +417,20 @@ const Economy = z.object({
   buyCreditsPerIndustry: z.number().int().positive(),
   /** Industry and research lost while the treasury is negative. */
   debtPenaltyPercent: z.number().int().min(0).max(100),
+  /** Credits per 100 food for food above the empire's reserve (it is sold rather than wasted). */
+  foodSalePercent: z.number().int().min(0).max(100),
+  /** Share of the build cost refunded as credits when scrapping a building or a ship. */
+  scrapRefundPercent: z.number().int().min(0).max(100),
+});
+
+/** An empire-wide tax setting: income per population against growth and output. */
+const TaxLevel = z.object({
+  id,
+  name: z.string().min(1),
+  description: z.string(),
+  /** Credits per population per turn, in percent (50 = half a credit per population). */
+  taxPercentPerPop: z.number().int().nonnegative(),
+  effects: EffectsSchema,
 });
 
 const StartingFleet = z.object({
@@ -397,6 +466,7 @@ export const ContentPackSchema = z
     victory: Victory,
     aiPersonalities: z.array(Personality).min(1),
     difficulties: z.array(Difficulty).min(1),
+    taxLevels: z.array(TaxLevel).min(1),
     hulls: z.array(Hull).min(1),
     components: z.array(Component).min(1),
     /** Designs every empire starts with. */
@@ -432,6 +502,7 @@ export const ContentPackSchema = z
     unique("aiPersonalities", pack.aiPersonalities.map((t) => t.id));
     unique("species", pack.species.map((t) => t.id));
     unique("difficulties", pack.difficulties.map((t) => t.id));
+    unique("taxLevels", pack.taxLevels.map((t) => t.id));
 
     const techIds = new Set(pack.techs.map((t) => t.id));
     const fieldIds = new Set(pack.researchFields.map((f) => f.id));
@@ -449,6 +520,7 @@ export const ContentPackSchema = z
       }
     }
     if (!pack.difficulties.some((d) => d.id === "normal")) issue(["difficulties"], `needs a "normal" difficulty`);
+    if (!pack.taxLevels.some((t) => t.id === "normal")) issue(["taxLevels"], `needs a "normal" tax level`);
     pack.aiPersonalities.forEach((p, i) => {
       for (const field of Object.keys(p.researchFields)) if (!fieldIds.has(field)) issue(["aiPersonalities", i, "researchFields"], `unknown research field "${field}"`);
     });

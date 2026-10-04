@@ -1,7 +1,8 @@
 import type { ContentPack, PersonalityData } from "../../content/schema";
 import type { Command } from "../commands";
 import { empireEconomy, empireEffects, type EmpireEconomy, type Totals } from "../economy";
-import { buildAdjacency, shortestPaths, type Neighbor } from "../graph";
+import { shortestPaths, type Neighbor } from "../graph";
+import { knownAdjacency } from "../vision";
 import { fleetArmed, fleetCanColonize, fleetMaxSupply, fleetShipStats, fleetStrength } from "../ships";
 import { suppliedSystems } from "../supply";
 import type { Colony, ColonySighting, Empire, EmpireId, Fleet, FleetSighting, GameState, SystemId } from "../state";
@@ -56,7 +57,7 @@ export interface AiContext {
 export function buildContext(state: GameState, pack: ContentPack, empireId: EmpireId): AiContext {
   const empire = state.empires[empireId]!;
   const personality = pack.aiPersonalities.find((p) => p.id === empire.personality) ?? pack.aiPersonalities[0]!;
-  const adj = buildAdjacency(state.galaxy.systems.length, state.galaxy.lanes);
+  const adj = knownAdjacency(state, empireId);
   const cache = new Map<SystemId, ReturnType<typeof shortestPaths>>();
   const paths = (from: SystemId) => {
     let p = cache.get(from);

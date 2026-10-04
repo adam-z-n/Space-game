@@ -83,3 +83,8 @@ export function isConnected(adj: readonly Neighbor[][]): boolean {
   }
   return count === adj.length;
 }
+
+/** Lanes whose both ends are in `known`. */
+export function knownLanes(lanes: readonly Lane[], known: ReadonlySet<SystemId>): Lane[] {
+  return lanes.filter((l) => known.has(l.a) && known.has(l.b));
+}

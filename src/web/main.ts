@@ -10,6 +10,7 @@ import {
   findColony,
   findFleet,
   fleetTroops,
+  fleetShipStats,
   estimateOdds,
   fleetCanColonize,
   fleetStrength,
@@ -19,6 +20,7 @@ import {
   empireView,
   omniscientView,
   planMove,
+  scrapValue,
   serializeSave,
   type ColonyId,
   type EmpireView,
@@ -35,7 +37,8 @@ import { GalaxyMap, type MapTarget, type RoutePreview } from "./map";
 import { applyTheme } from "./theme";
 import { spriteIcon } from "./sprites";
 import { button, h, turnsText } from "./dom";
-import { colonyPanel, empirePanel, gameOverPanel, researchPanel, resourceBar, type PanelContext } from "./economyPanels";
+import { colonyPanel, empirePanel, gameOverPanel, queueEverywhere, researchPanel, resourceBar, type PanelContext } from "./economyPanels";
+import { planetPlans, plannerLabels, plannerPanel, techTreePanel } from "./planningPanels";
 import { battlePanel, designerPanel, designsPanel, fleetDetail, startDraft, type ShipContext } from "./shipPanels";
 
 const AUTOSAVE = "autosave";
@@ -179,7 +182,9 @@ interface UiState {
   /** A destination being considered for the selected fleet, waiting for confirmation. */
   preview: (RoutePreview & { destinationId: SystemId }) | null;
   report: GameEvent[] | null;
-  panel: "none" | "menu" | "fleets" | "research" | "empire" | "colony" | "designs" | "designer" | "battle" | "gameover";
+  panel: "none" | "menu" | "fleets" | "research" | "techtree" | "planner" | "empire" | "colony" | "designs" | "designer" | "battle" | "gameover";
+  /** Show the colonization planner's planet values on the map. */
+  showPlanetValues: boolean;
   /** Battle shown when panel is "battle", and the replay round. */
   battleId: number | null;
   battleRound: number;
@@ -210,6 +215,7 @@ function startGame(game: Game): void {
     contextMenu: null,
     revealMap: false,
     showSupply: true,
+    showPlanetValues: false,
     lastAttention: null,
   };
 
@@ -273,8 +279,10 @@ function startGame(game: Game): void {
     },
     openColony: (colonyId) => openPanel("colony", colonyId),
     openResearch: () => openPanel("research"),
+    openTechTree: () => openPanel("techtree"),
     openEmpire: () => openPanel("empire"),
     close: () => openPanel("none"),
+    refresh: () => update(),
     newGame: () => {
       stopAutosave?.();
       void showSetup();
@@ -451,6 +459,10 @@ function startGame(game: Game): void {
         return `Mines hit ${e.hits} ship${e.hits > 1 ? "s" : ""} near ${systemName(e.systemId)}${e.shipsLost ? `, ${e.shipsLost} lost` : ""}`;
       case "capitalMoved":
         return `Capital moved to ${colonyName(e.colonyId)}`;
+      case "bombarded": {
+        const lost = `${e.populationLost} population${e.buildingLost ? ` and its ${pack.buildings.find((b) => b.id === e.buildingLost)?.name}` : ""}`;
+        return e.attackerId === game.playerId ? `Bombarded ${colonyName(e.colonyId)}: ${lost} lost` : `${empire(e.attackerId).name} bombarded ${colonyName(e.colonyId)}: ${lost} lost`;
+      }
       case "empireEliminated":
         return e.eliminatedId === game.playerId ? "Your empire has fallen" : `${empire(e.eliminatedId).name} has been eliminated`;
       case "gameOver":
@@ -512,11 +524,21 @@ function startGame(game: Game): void {
     return h("div", { className: "topbar" }, bar, resourceBar(ctx));
   }
 
+  /** Close panels and show a system on the map. */
+  function locateSystem(systemId: SystemId): void {
+    const system = view.systems[systemId]!;
+    ui.panel = "none";
+    selectTarget({ kind: "system", id: systemId });
+    map.centerOn(system.x, system.y);
+  }
+
   function menuPanel(): HTMLElement {
     return h(
       "div",
       { className: "menu" },
       button("Ship designs", () => openPanel("designs")),
+      button("Research tree", () => openPanel("techtree")),
+      button("Colonization planner", () => openPanel("planner")),
       button(ui.showSupply ? "Hide supply range" : "Show supply range", () => {
         ui.showSupply = !ui.showSupply;
         openPanel("none");
@@ -651,6 +673,29 @@ function startGame(game: Game): void {
   }
 
   /** Invade buttons for a troop-carrying fleet at, or heading to, a known rival colony. */
+  /** Bombard controls for a fleet with bomb bays at (or heading for) a rival colony. */
+  function bombardControls(fleet: FleetView): HTMLElement | null {
+    const real = findFleet(game.state, fleet.id);
+    if (!real) return null;
+    const stats = fleetShipStats(pack, game.state, real);
+    const power = stats.reduce((n, s) => n + s.bombard, 0);
+    if (power === 0) return null;
+    const where = real.route.length > 0 ? real.route[real.route.length - 1]! : real.systemId;
+    const targets = view.systems[where]!.colonies.filter((c) => !c.own);
+    if (targets.length === 0) return null;
+    const box = h("div", { className: "column" }, h("div", { className: "small", textContent: `Bombs: ${power} damage a turn` }));
+    const pending = targets.find((c) => c.colonyId === real.bombardColonyId);
+    if (pending) {
+      box.append(
+        h("div", { className: "warn-text small", textContent: `Bombarding ${pending.name} each turn its orbital defenses are down.` }),
+        button("Stop bombardment", () => ctx.issue({ type: "bombard", empireId: game.playerId, fleetId: real.id, colonyId: null })),
+      );
+    } else {
+      for (const c of targets) box.append(button(`Bombard ${c.name}`, () => ctx.issue({ type: "bombard", empireId: game.playerId, fleetId: real.id, colonyId: c.colonyId })));
+    }
+    return box;
+  }
+
   function invasionControls(fleet: FleetView): HTMLElement | null {
     const real = findFleet(game.state, fleet.id);
     if (!real) return null;
@@ -683,8 +728,16 @@ function startGame(game: Game): void {
       if (fleet.route?.length === 0) actions.append(button(fleet.holding ? "Stop holding" : "Hold", () => setHold(fleet.id, !fleet.holding)));
       actions.append(button("Deselect", () => selectTarget(null)));
       actions.append(
+        button("Rename", () => {
+          const name = prompt("Fleet name", fleet.name);
+          if (name !== null && name.trim() && name.trim() !== fleet.name) ctx.issue({ type: "renameFleet", empireId: game.playerId, fleetId: fleet.id, name: name.trim() });
+        }),
+      );
+      actions.append(
         button("Disband", () => {
-          if (confirm(`Scrap ${fleet.name}? Its upkeep stops and nothing is refunded.`)) {
+          const refund = scrapValue(game.state, pack, findFleet(game.state, fleet.id)!);
+          const refundText = refund > 0 ? `You get ${refund} credits back for the parts.` : "Outside supply, nothing can be salvaged.";
+          if (confirm(`Scrap ${fleet.name}? Its upkeep stops. ${refundText}`)) {
             ctx.issue({ type: "disbandFleet", empireId: game.playerId, fleetId: fleet.id });
             selectTarget(null);
           }
@@ -696,6 +749,7 @@ function startGame(game: Game): void {
       ? h("div", { className: "column" }, ...settle.map((o) => button(`Colonize ${o.name} · max pop ${o.maxPop}`, () => colonize(o.fleetId, o.bodyId), { className: "primary" })))
       : null;
     const invasion = fleet.own ? invasionControls(fleet) : null;
+    const bombing = fleet.own ? bombardControls(fleet) : null;
     const intel = fleet.own ? null : h("div", { className: "muted small", textContent: `${fleet.ships} ship${fleet.ships > 1 ? "s" : ""}${fleet.armed ? ` · strength ~${fleet.strength}` : " · unarmed"}` });
     return h(
       "div",
@@ -705,6 +759,7 @@ function startGame(game: Game): void {
       intel,
       settleRow,
       invasion,
+      bombing,
       fleet.own ? fleetDetail(shipCtx, fleet.id) : null,
       fleet.own ? h("div", { className: "hint", textContent: "Tap a star to set a destination, or drag from the fleet." }) : null,
       fleet.own ? actions : null,
@@ -795,6 +850,10 @@ function startGame(game: Game): void {
       const row = h("li", { className: "tappable" }, h("span", { textContent: describeEvent(e) }));
       row.onclick = () => openEvent(e);
       list.append(row);
+      // A tech that unlocks a building: offer to queue it at every colony in one tap.
+      if (e.type === "techResearched") {
+        for (const offer of queueEverywhere(ctx, e.techId)) list.append(h("li", {}, offer));
+      }
     }
     if (grew.length > 2) {
       const row = h("li", { className: "tappable" }, h("span", { textContent: `${grew.length} colonies grew` }));
@@ -846,7 +905,8 @@ function startGame(game: Game): void {
   function update(): void {
     view = ui.revealMap ? omniscientView(game.state, pack, game.playerId) : empireView(game.state, pack, game.playerId);
     if (ui.selectedFleet !== null && !fleetView(ui.selectedFleet)) ui.selectedFleet = null;
-    map.setScene({ view, selectedSystem: ui.selectedSystem, selectedFleet: ui.selectedFleet, preview: ui.preview, showSupply: ui.showSupply });
+    const annotations = ui.showPlanetValues ? plannerLabels(planetPlans(game.state, pack, view, game.state.empires[game.playerId]!), pack) : undefined;
+    map.setScene({ view, selectedSystem: ui.selectedSystem, selectedFleet: ui.selectedFleet, preview: ui.preview, showSupply: ui.showSupply, annotations });
     const panel =
       ui.panel === "menu"
         ? menuPanel()
@@ -854,6 +914,13 @@ function startGame(game: Game): void {
           ? fleetsPanel()
           : ui.panel === "research"
             ? researchPanel(ctx)
+            : ui.panel === "techtree"
+              ? techTreePanel(ctx)
+              : ui.panel === "planner"
+                ? plannerPanel(ctx, view, locateSystem, ui.showPlanetValues, () => {
+                    ui.showPlanetValues = !ui.showPlanetValues;
+                    update();
+                  })
             : ui.panel === "empire"
               ? empirePanel(ctx)
               : ui.panel === "colony" && ui.colonyId !== null

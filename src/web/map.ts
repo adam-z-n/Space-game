@@ -29,6 +29,8 @@ export interface MapScene {
   preview: RoutePreview | null;
   /** Draw the player's supply network. */
   showSupply: boolean;
+  /** Extra text under some systems' names (the colonization planner's planet values). */
+  annotations?: Map<SystemId, { text: string; color: string }>;
 }
 
 export type MapTarget = { kind: "system"; id: SystemId } | { kind: "fleet"; id: FleetId };
@@ -97,16 +99,25 @@ export class GalaxyMap {
       this.needsFit = true;
     }
     this.scene = scene;
+    this.updateBounds();
     this.requestRender();
+  }
+
+  /** The charted part of the galaxy, padded; the view can't zoom out much beyond it. */
+  private updateBounds(): void {
+    if (!this.scene) return;
+    const charted = this.scene.view.systems.filter((s) => s.charted);
+    if (charted.length === 0) return;
+    const xs = charted.map((s) => s.x);
+    const ys = charted.map((s) => s.y);
+    const pad = 80;
+    this.bounds = { minX: Math.min(...xs) - pad, minY: Math.min(...ys) - pad, maxX: Math.max(...xs) + pad, maxY: Math.max(...ys) + pad };
   }
 
   /** Frame the whole galaxy in the space the HUD leaves free. */
   fitGalaxy(): void {
     if (!this.scene) return;
-    const xs = this.scene.view.systems.map((s) => s.x);
-    const ys = this.scene.view.systems.map((s) => s.y);
-    const pad = 80;
-    this.bounds = { minX: Math.min(...xs) - pad, minY: Math.min(...ys) - pad, maxX: Math.max(...xs) + pad, maxY: Math.max(...ys) + pad };
+    this.updateBounds();
     const { width, height } = this.size();
     const bw = this.bounds.maxX - this.bounds.minX;
     const bh = this.bounds.maxY - this.bounds.minY;
@@ -169,7 +180,7 @@ export class GalaxyMap {
 
   private zoomAt(clientX: number, clientY: number, factor: number): void {
     const bw = this.bounds.maxX - this.bounds.minX;
-    const newW = Math.min(Math.max(this.view.w * factor, 250), bw * 2.5);
+    const newW = Math.min(Math.max(this.view.w * factor, 250), Math.max(bw * 2.5, 1200));
     const actual = newW / this.view.w;
     const p = this.toWorld(clientX, clientY);
     this.view.x = p.x - (p.x - this.view.x) * actual;
@@ -187,6 +198,7 @@ export class GalaxyMap {
     let best: SystemId | null = null;
     let bestDist = Math.max(radiusPx * this.scale(), 20);
     for (const system of this.scene.view.systems) {
+      if (!system.charted) continue;
       const d = Math.hypot(system.x - p.x, system.y - p.y);
       if (d <= bestDist) {
         bestDist = d;
@@ -399,9 +411,10 @@ export class GalaxyMap {
     }
 
     const starRadius = Math.max(8, px(6));
+    const survey = this.pack.presentation.surveyColors;
     for (const system of systems) {
+      if (!system.charted) continue;
       const starType = this.pack.starTypes.find((t) => t.id === system.starType);
-      const opacity = system.explored ? 1 : 0.45;
       // One ring per empire with colonies here; capitals get a second ring; old sightings are dashed.
       const owners = [...new Set(system.colonies.map((c) => c.empireId))];
       owners.forEach((empireId, i) => {
@@ -413,7 +426,9 @@ export class GalaxyMap {
         if (mine.some((c) => c.capital)) parts.push(`<circle cx="${system.x}" cy="${system.y}" r="${r + px(4)}" fill="none" stroke="${color(empireId)}" stroke-width="${px(1)}"${dash}/>`);
         if (mine.some((c) => c.blockaded)) parts.push(`<circle class="blockade" cx="${system.x}" cy="${system.y}" r="${r + px(9)}" stroke-width="${px(2)}" stroke-dasharray="${px(2)} ${px(4)}"/>`);
       });
-      parts.push(`<circle cx="${system.x}" cy="${system.y}" r="${starRadius}" fill="${starType?.color ?? "#fff"}" opacity="${opacity}"/>`);
+      // The disc shows what is known about the system's worlds; a small core keeps the star's own color.
+      parts.push(`<circle cx="${system.x}" cy="${system.y}" r="${starRadius}" fill="${survey[system.survey]}"/>`);
+      parts.push(`<circle cx="${system.x}" cy="${system.y}" r="${starRadius * 0.38}" fill="${starType?.color ?? "#fff"}"/>`);
       if (system.id === scene.selectedSystem) {
         parts.push(`<circle class="selected-ring" cx="${system.x}" cy="${system.y}" r="${starRadius + px(11)}" stroke-width="${px(1.5)}" stroke-dasharray="${px(4)} ${px(4)}"/>`);
       }
@@ -491,7 +506,7 @@ export class GalaxyMap {
       if (system.explored) return 3;
       return 4;
     };
-    const order = view.systems.map((sys) => sys.id).sort((a, b) => priority(a) - priority(b) || a - b);
+    const order = view.systems.filter((sys) => sys.charted).map((sys) => sys.id).sort((a, b) => priority(a) - priority(b) || a - b);
     const placed: { x1: number; y1: number; x2: number; y2: number }[] = [];
     const out: string[] = [];
     for (const id of order) {
@@ -504,6 +519,11 @@ export class GalaxyMap {
       placed.push(box);
       const opacity = system.explored ? 1 : 0.55;
       out.push(`<text class="star-label" x="${system.x}" y="${top + fontSize * 0.9}" font-size="${fontSize}" opacity="${opacity}">${escapeXml(system.name)}</text>`);
+      const note = scene.annotations?.get(id);
+      if (note) {
+        out.push(`<text class="star-note" x="${system.x}" y="${top + fontSize * 2}" font-size="${fontSize * 0.85}" fill="${note.color}">${escapeXml(note.text)}</text>`);
+        placed.push({ x1: box.x1, y1: box.y2, x2: box.x2, y2: box.y2 + fontSize });
+      }
     }
     return out.join("");
   }

@@ -5,7 +5,7 @@ import type { BodyKind, Formation } from "../content/schema";
  * so it can be cloned, saved, hashed, and sent over a network unchanged.
  */
 
-export const STATE_VERSION = 7;
+export const STATE_VERSION = 10;
 
 export type SystemId = number;
 export type EmpireId = number;
@@ -73,6 +73,12 @@ export interface Empire {
   homeSystemId: SystemId;
   /** Systems this empire has visited, ascending. Their bodies are known. */
   explored: SystemId[];
+  /**
+   * Systems on this empire's star charts, ascending: ever inside its sensor range, or one
+   * lane away from a system it explored. Only charted systems and the lanes between them
+   * are known, and fleets can only plan routes through them.
+   */
+  charted: SystemId[];
   /** Sensor ranges of the capital and other colonies (tech bonuses included). */
   capitalSensorRange: number;
   colonySensorRange: number;
@@ -84,6 +90,10 @@ export interface Empire {
   credits: number;
   /** Stored food, shared by all colonies. */
   food: number;
+  /** Food kept in store; anything above it (up to the stock cap) is sold each turn. */
+  foodReserve: number;
+  /** Tax level id (content). */
+  taxLevel: string;
   /** Researched tech ids, in the order completed. */
   techs: string[];
   /** Tech being researched, or null. Points bank up while nothing is chosen. */
@@ -99,9 +109,11 @@ export const FOCUSES = ["balanced", "industry", "research", "food"] as const;
 export type Focus = (typeof FOCUSES)[number];
 
 export interface QueueItem {
-  kind: "building" | "ship";
-  /** Building or ship template id. */
+  /** colonyBase: founds a colony on planet `bodyId` in the same system. */
+  kind: "building" | "ship" | "colonyBase";
+  /** Building or ship design id ("colony_base" for colony bases). */
   id: string;
+  bodyId?: BodyId;
 }
 
 export interface Colony {
@@ -115,6 +127,8 @@ export interface Colony {
   /** Points toward the next population; see economy.growthThreshold. */
   growth: number;
   focus: Focus;
+  /** Workers placed by hand, overriding the focus; null lets the focus decide. */
+  workers: { farmers: number; industry: number; research: number } | null;
   buildings: string[];
   queue: QueueItem[];
   /** Industry invested in queue[0]. */
@@ -125,6 +139,8 @@ export interface Colony {
   defenseHp: number;
   /** Garrison troops (militia from population comes on top). */
   troops: number;
+  /** Militia killed in failed invasions or bombardment; they return slowly. */
+  militiaLosses: number;
 }
 
 export interface ColonySighting {
@@ -215,6 +231,8 @@ export interface Fleet {
   holding: boolean;
   /** Land this fleet's troops on this colony once its orbital defenses are down. */
   invadeColonyId: ColonyId | null;
+  /** Bomb this colony from orbit each turn while its orbital defenses are down. */
+  bombardColonyId: ColonyId | null;
 }
 
 export type GameEvent =
@@ -250,6 +268,8 @@ export type GameEvent =
       defendingTroops: number;
     }
   | { type: "defensesDown"; turn: number; empireId: EmpireId; colonyId: ColonyId; systemId: SystemId }
+  /** Sent to both sides. */
+  | { type: "bombarded"; turn: number; empireId: EmpireId; attackerId: EmpireId; colonyId: ColonyId; systemId: SystemId; populationLost: number; buildingLost: string | null }
   | { type: "mineHits"; turn: number; empireId: EmpireId; systemId: SystemId; hits: number; shipsLost: number }
   | { type: "capitalMoved"; turn: number; empireId: EmpireId; colonyId: ColonyId; systemId: SystemId }
   | { type: "gameOver"; turn: number; empireId: EmpireId; winnerId: EmpireId; reason: GameOutcome["reason"] };
@@ -281,6 +301,8 @@ export interface BattleShot {
   /** 0 on a miss. */
   damage: number;
   destroyed: boolean;
+  /** Shot down by point defense (missiles and fighters). */
+  intercepted?: boolean;
 }
 
 export interface BattleReport {
@@ -289,7 +311,8 @@ export interface BattleReport {
   systemId: SystemId;
   empires: EmpireId[];
   ships: BattleShip[];
-  rounds: { shots: BattleShot[]; retreated: FleetId[] }[];
+  /** Per round: the range it was fought at (1 short, 2 medium, 3 long), ships whose weapons cyber attack shut down, shots, and who withdrew. */
+  rounds: { range: number; disrupted: ShipId[]; shots: BattleShot[]; retreated: FleetId[] }[];
   /** Per empire: ships lost and fleets that withdrew. */
   results: { empireId: EmpireId; shipsLost: number; retreated: FleetId[]; damageDealt: number }[];
 }

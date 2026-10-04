@@ -1,6 +1,6 @@
 import type { ContentPack, Effects } from "../content/schema";
 import type { Colony, Empire, EmpireId, Focus, GameEvent, GameState, QueueItem, StarSystem } from "./state";
-import { getSystem } from "./state";
+import { colonyOnBody, getSystem } from "./state";
 import { designBuildable, designStats, getDesign, newFleet, refreshFleetStats } from "./ships";
 
 /**
@@ -33,6 +33,7 @@ const EFFECT_KEYS = [
   "damagePercent",
   "groundPercent",
   "defensePercent",
+  "maneuver",
 ] as const;
 export type Totals = Record<(typeof EFFECT_KEYS)[number], number>;
 
@@ -58,7 +59,12 @@ export function getBuilding(pack: ContentPack, id: string): Building {
 function innateEffects(pack: ContentPack, empire: Empire): Effects[] {
   const species = pack.species.find((s) => s.id === empire.species)?.effects;
   const difficulty = empire.difficulty ? pack.difficulties.find((d) => d.id === empire.difficulty)?.effects : undefined;
-  return [...(species ? [species] : []), ...(difficulty ? [difficulty] : [])];
+  const tax = taxLevel(pack, empire).effects;
+  return [...(species ? [species] : []), ...(difficulty ? [difficulty] : []), tax];
+}
+
+export function taxLevel(pack: ContentPack, empire: Empire): ContentPack["taxLevels"][number] {
+  return pack.taxLevels.find((t) => t.id === empire.taxLevel) ?? pack.taxLevels.find((t) => t.id === "normal")!;
 }
 
 /** Empire-wide modifiers: researched techs, species traits, and difficulty bonuses for AI empires. */
@@ -134,6 +140,23 @@ export function allocateWorkers(population: number, focus: Focus, foodYield: num
   }
 }
 
+/**
+ * Hand-placed workers adjusted to the current population: new population joins
+ * industry; when population falls, research gives way first, then industry, then farms.
+ */
+export function fitWorkers(placed: Workers, population: number): Workers {
+  const w = { ...placed };
+  let diff = population - (w.farmers + w.industry + w.research);
+  if (diff > 0) w.industry += diff;
+  for (const key of ["research", "industry", "farmers"] as const) {
+    if (diff >= 0) break;
+    const take = Math.min(w[key], -diff);
+    w[key] -= take;
+    diff += take;
+  }
+  return w;
+}
+
 export interface ColonyOutput {
   workers: Workers;
   industry: number;
@@ -155,7 +178,7 @@ export function colonyOutput(state: GameState, pack: ContentPack, colony: Colony
   const fx = colonyEffects(pack, empire, colony);
   const eco = pack.economy;
   const pop = colony.population;
-  const workers = allocateWorkers(pop, colony.focus, stats.foodYield, eco.foodPerPop);
+  const workers = colony.workers ? fitWorkers(colony.workers, pop) : allocateWorkers(pop, colony.focus, stats.foodYield, eco.foodPerPop);
   const debt = empire.credits < 0 ? eco.debtPenaltyPercent : 0;
 
   const rawIndustry = Math.floor((workers.industry * eco.workerIndustry * stats.yieldPercent) / 100) + eco.colonyBaseIndustry + fx.industry;
@@ -163,7 +186,7 @@ export function colonyOutput(state: GameState, pack: ContentPack, colony: Colony
   const industry = Math.max(0, pct(pct(rawIndustry, fx.industryPercent), -debt));
   const research = Math.max(0, pct(pct(rawResearch, fx.researchPercent), -debt));
   const food = Math.max(0, pct(workers.farmers * stats.foodYield + fx.food, fx.foodPercent));
-  const credits = colony.blockaded ? 0 : Math.max(0, pct(Math.floor((pop * eco.taxPercentPerPop) / 100) + fx.credits, fx.creditsPercent));
+  const credits = colony.blockaded ? 0 : Math.max(0, pct(Math.floor((pop * taxLevel(pack, empire).taxPercentPerPop) / 100) + fx.credits, fx.creditsPercent));
   const upkeep = colony.buildings.reduce((sum, id) => sum + getBuilding(pack, id).upkeep, 0);
   const maxPop = maxPopulation(pack, body, fx);
   const growth = pop >= maxPop ? 0 : pct(eco.growthBase + Math.floor((pop * (maxPop - pop) * eco.growthRate) / maxPop), fx.growthPercent);
@@ -181,6 +204,9 @@ export interface EmpireEconomy {
   shipUpkeep: number;
   /** Industry converted to credits by colonies with empty queues. */
   idleCredits: number;
+  /** Food above the reserve sold this turn, and the credits it brings. */
+  foodSold: number;
+  foodSales: number;
   /** Net credits per turn. */
   netCredits: number;
   netFood: number;
@@ -196,6 +222,8 @@ export function empireEconomy(state: GameState, pack: ContentPack, empireId: Emp
     buildingUpkeep: 0,
     shipUpkeep: 0,
     idleCredits: 0,
+    foodSold: 0,
+    foodSales: 0,
     netCredits: 0,
     netFood: 0,
   };
@@ -216,8 +244,13 @@ export function empireEconomy(state: GameState, pack: ContentPack, empireId: Emp
     if (fleet.empireId !== empireId) continue;
     for (const ship of fleet.ships) totals.shipUpkeep += designStats(pack, getDesign(empire, ship.designId), fx).upkeep;
   }
-  totals.netCredits = totals.income + totals.idleCredits - totals.buildingUpkeep - totals.shipUpkeep;
   totals.netFood = totals.foodProduced - totals.foodEaten;
+  // Surplus beyond the reserve (and anything that would overflow the store) is sold.
+  const stock = empire.food + totals.netFood;
+  const keep = Math.min(empire.foodReserve, pack.economy.foodStockCap);
+  totals.foodSold = Math.max(0, stock - keep);
+  totals.foodSales = Math.floor((totals.foodSold * pack.economy.foodSalePercent) / 100);
+  totals.netCredits = totals.income + totals.idleCredits + totals.foodSales - totals.buildingUpkeep - totals.shipUpkeep;
   return totals;
 }
 
@@ -234,15 +267,29 @@ export function availableTechs(pack: ContentPack, empire: Empire): Tech[] {
 
 /** Ship queue items name one of the owning empire's designs. */
 export function itemCost(pack: ContentPack, empire: Empire, item: QueueItem): number {
+  if (item.kind === "colonyBase") return pack.economy.colonyBaseCost;
   return item.kind === "building" ? getBuilding(pack, item.id).cost : designStats(pack, getDesign(empire, item.id), empireEffects(pack, empire)).cost;
 }
 
-export function itemName(pack: ContentPack, empire: Empire, item: QueueItem): string {
+export function itemName(pack: ContentPack, empire: Empire, item: QueueItem, state?: GameState, systemId?: number): string {
+  if (item.kind === "colonyBase") {
+    const target = state && systemId !== undefined ? ` on ${bodyName(getSystem(state, systemId), item.bodyId!)}` : "";
+    return `Colony Base${target}`;
+  }
   return item.kind === "building" ? getBuilding(pack, item.id).name : getDesign(empire, item.id).name;
 }
 
 /** Why `item` can't be added to `colony`'s queue, or null. */
-export function buildBlocker(pack: ContentPack, empire: Empire, colony: Colony, item: QueueItem): string | null {
+export function buildBlocker(state: GameState, pack: ContentPack, empire: Empire, colony: Colony, item: QueueItem): string | null {
+  if (item.kind === "colonyBase") {
+    const body = item.bodyId === undefined ? undefined : findBody(state, colony.systemId, item.bodyId);
+    if (!body) return "no such planet in this system";
+    if (colonyOnBody(state, body.id)) return "planet already colonized";
+    const blocker = colonizeBlocker(pack, empire, body);
+    if (blocker) return blocker;
+    const queued = state.colonies.some((c) => c.empireId === empire.id && c.queue.some((q) => q.kind === "colonyBase" && q.bodyId === body.id));
+    return queued ? "already queued" : null;
+  }
   if (item.kind === "building") {
     const building = pack.buildings.find((b) => b.id === item.id);
     if (!building || !building.buildable) return "unknown building";
@@ -256,12 +303,13 @@ export function buildBlocker(pack: ContentPack, empire: Empire, colony: Colony, 
   return null;
 }
 
-export function buildOptions(pack: ContentPack, empire: Empire, colony: Colony): QueueItem[] {
+export function buildOptions(state: GameState, pack: ContentPack, empire: Empire, colony: Colony): QueueItem[] {
   const items: QueueItem[] = [
+    ...getSystem(state, colony.systemId).bodies.map((b) => ({ kind: "colonyBase" as const, id: "colony_base", bodyId: b.id })),
     ...pack.buildings.map((b) => ({ kind: "building" as const, id: b.id })),
     ...empire.designs.map((d) => ({ kind: "ship" as const, id: d.id })),
   ];
-  return items.filter((item) => buildBlocker(pack, empire, colony, item) === null);
+  return items.filter((item) => buildBlocker(state, pack, empire, colony, item) === null);
 }
 
 /** Credits to finish the colony's current build this turn, or null if there's nothing to buy. */
@@ -312,12 +360,14 @@ export function newColony(state: GameState, empire: Empire, systemId: number, bo
     population,
     growth: 0,
     focus: "balanced",
+    workers: null,
     buildings: [],
     queue: [],
     progress: 0,
     blockaded: false,
     defenseHp: 0,
     troops: 0,
+    militiaLosses: 0,
   };
 }
 
@@ -344,7 +394,15 @@ export function resolveEconomy(state: GameState, pack: ContentPack, events: Game
         if (colony.progress < cost) break;
         colony.progress -= cost;
         colony.queue.shift();
-        if (item.kind === "building") {
+        if (item.kind === "colonyBase") {
+          // The target may have been taken (or become unreachable) since it was queued.
+          const body = findBody(state, colony.systemId, item.bodyId!);
+          if (body && !colonyOnBody(state, body.id) && colonizeBlocker(pack, empire, body) === null) {
+            const founded = newColony(state, empire, colony.systemId, body.id, pack.economy.colonyPopulation, false);
+            state.colonies.push(founded);
+            events.push({ type: "colonyFounded", turn, empireId: empire.id, colonyId: founded.id, systemId: colony.systemId });
+          }
+        } else if (item.kind === "building") {
           colony.buildings.push(item.id);
           events.push({ type: "buildingCompleted", turn, empireId: empire.id, colonyId: colony.id, systemId: colony.systemId, buildingId: item.id });
         } else {
@@ -361,7 +419,7 @@ export function resolveEconomy(state: GameState, pack: ContentPack, events: Game
     if (empire.credits < 0) events.push({ type: "inDebt", turn, empireId: empire.id, credits: empire.credits });
 
     // Food.
-    empire.food = Math.min(eco.foodStockCap, empire.food + summary.netFood);
+    empire.food = Math.min(eco.foodStockCap, empire.food + summary.netFood - summary.foodSold);
     const starving = empire.food < 0;
     if (starving) {
       empire.food = 0;
@@ -410,4 +468,21 @@ export function resolveEconomy(state: GameState, pack: ContentPack, events: Game
       }
     });
   }
+}
+
+/** Names of the buildings, components and hulls a tech unlocks, for the research screens. */
+export function techUnlocks(pack: ContentPack, techId: string): { buildings: string[]; components: string[]; hulls: string[] } {
+  return {
+    buildings: pack.buildings.filter((b) => b.requires === techId).map((b) => b.id),
+    components: pack.components.filter((c) => c.requires === techId).map((c) => c.id),
+    hulls: pack.hulls.filter((h) => h.requires === techId).map((h) => h.id),
+  };
+}
+
+/** The empire's colonies that could add `buildingId` to their queue right now (not built, not queued). */
+export function coloniesMissing(state: GameState, pack: ContentPack, empireId: EmpireId, buildingId: string): Colony[] {
+  const empire = state.empires[empireId]!;
+  return state.colonies
+    .filter((c) => c.empireId === empireId && c.queue.length < 10 && buildBlocker(state, pack, empire, c, { kind: "building", id: buildingId }) === null)
+    .sort((a, b) => a.id - b.id);
 }

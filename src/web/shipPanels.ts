@@ -1,5 +1,6 @@
 import {
   FORMATIONS,
+  RANGE_NAMES,
   componentAvailable,
   designBlocker,
   designStats,
@@ -46,6 +47,15 @@ export interface ShipContext {
 
 const FORMATION_LABELS: Record<Formation, string> = { front: "Front line", screen: "Screen", support: "Support" };
 
+/** What each formation does in battle. */
+export const FORMATION_HELP: Record<Formation, string> = {
+  front: "Front line: closes with the enemy and draws most of its fire. Its maneuver decides who sets the battle range.",
+  screen: "Screen: moves in front of your support ships and takes half the shots aimed at them (fighters slip past).",
+  support: "Support: hangs back, is targeted least and is harder to hit (+10% evasion). Use for transports, tenders and carriers.",
+};
+
+const ROLE_LABELS = { combat: "warship", transport: "transport", recon: "scout", support: "support ship" } as const;
+
 /** One line describing a design: hull, parts, key numbers. */
 export function designSummary(pack: ContentPack, empire: Empire, design: Pick<ShipDesign, "hull" | "components">): string {
   const stats = designStats(pack, design, empireEffects(pack, empire));
@@ -53,8 +63,15 @@ export function designSummary(pack: ContentPack, empire: Empire, design: Pick<Sh
   for (const id of design.components) counts.set(id, (counts.get(id) ?? 0) + 1);
   const parts = [...counts].map(([id, n]) => `${n > 1 ? `${n}× ` : ""}${getComponent(pack, id).name}`).join(", ") || "empty";
   const attack = stats.armed ? ` · ${stats.damagePerRound.toFixed(1)} dmg/round` : "";
-  const extras = [stats.troops ? `${stats.troops} troops` : "", stats.repair ? `repairs ${stats.repair}%/turn` : "", stats.mines ? `lays ${stats.mines} mines/turn` : ""].filter(Boolean);
-  return `${getHull(pack, design.hull).name}: ${parts} · ${stats.maxHp} hp${stats.shield ? ` · shield ${stats.shield}` : ""}${attack} · speed ${stats.speed}${extras.length ? ` · ${extras.join(" · ")}` : ""}`;
+  const reach = stats.armed ? ` (${RANGE_NAMES[Math.max(...stats.weapons.map((w) => w.range)) as 1 | 2 | 3]} range)` : "";
+  const extras = [
+    stats.troops ? `${stats.troops} troops` : "",
+    stats.repair ? `repairs ${stats.repair}%/turn` : "",
+    stats.mines ? `lays ${stats.mines} mines/turn` : "",
+    stats.bombard ? `bombs ${stats.bombard}/turn` : "",
+    stats.pointDefense ? `point defense ${stats.pointDefense}` : "",
+  ].filter(Boolean);
+  return `${getHull(pack, design.hull).name}: ${parts} · ${stats.maxHp} hp${stats.shield ? ` · shield ${stats.shield}` : ""}${attack}${reach} · speed ${stats.speed} · maneuver ${stats.maneuver}${extras.length ? ` · ${extras.join(" · ")}` : ""}`;
 }
 
 // ---------- designs list ----------
@@ -150,9 +167,15 @@ export function designerPanel(ctx: ShipContext): HTMLElement {
 
   const parts = h("ul");
   for (const c of pack.components.filter((x) => componentAvailable(pack, empire, x.id))) {
-    const li = h("li", { className: d.components.length < hull.slots ? "tappable" : "muted" }, h("span", { className: "grow" }, h("div", { textContent: c.name }), h("div", { className: "muted small", textContent: c.description })), h("span", { textContent: `${c.cost} ⚙` }));
+    const fits = hull.slots >= c.minSlots;
+    const li = h(
+      "li",
+      { className: d.components.length < hull.slots && fits ? "tappable" : "muted" },
+      h("span", { className: "grow" }, h("div", { textContent: c.name }), h("div", { className: "muted small", textContent: fits ? c.description : `${c.description} Needs a bigger hull.` })),
+      h("span", { textContent: `${c.cost} ⚙` }),
+    );
     li.onclick = () => {
-      if (d.components.length >= hull.slots) return;
+      if (d.components.length >= hull.slots || !fits) return;
       d.components.push(c.id);
       ctx.rerender();
     };
@@ -176,7 +199,7 @@ export function designerPanel(ctx: ShipContext): HTMLElement {
     stat("Cost", `${stats.cost}`, `upkeep ${stats.upkeep}`),
     stat("Hull", `${stats.maxHp}`, stats.shield ? `shield ${stats.shield}` : "no shield"),
     stat("Attack", stats.damagePerRound.toFixed(1), `${stats.weapons.length} weapons`),
-    stat("Speed", `${stats.speed}`, `${stats.endurance}${stats.fuel ? `+${stats.fuel}` : ""} turns`),
+    stat("Speed", `${stats.speed}`, `maneuver ${stats.maneuver} · ${stats.endurance}${stats.fuel ? `+${stats.fuel}` : ""} turns`),
   );
 
   const save = button(
@@ -201,13 +224,13 @@ export function designerPanel(ctx: ShipContext): HTMLElement {
     name,
     h("h3", { textContent: "Hull" }),
     hulls,
-    h("div", { className: "muted small", textContent: hull.description + ` Evasion ${hull.evasion}%, sensors ${stats.sensorRange}, role: ${stats.role}.` }),
+    h("div", { className: "muted small", textContent: `${hull.description} ${hull.slots} slots, maneuver ${hull.maneuver}, sensors ${stats.sensorRange}, evasion ${stats.evasion + stats.maneuver * pack.combat.maneuverEvasion}%.${d.components.length ? ` As designed: a ${ROLE_LABELS[stats.role]}.` : ""}` }),
     summary,
     h("h3", { textContent: `Slots (${d.components.length}/${hull.slots})` }),
     slots,
     h("h3", { textContent: "Formation" }),
     formation,
-    h("div", { className: "hint", textContent: "Front line ships draw most enemy fire; support ships the least." }),
+    h("div", { className: "hint", textContent: FORMATION_HELP[d.formation] }),
     save,
     h("h3", { textContent: "Components" }),
     parts,
@@ -364,14 +387,20 @@ export function battlePanel(ctx: ShipContext, report: BattleReport, round: numbe
     );
   }
 
-  const rounds = h("div", { className: "segmented" });
-  report.rounds.forEach((_, i) => rounds.append(button(`Round ${i + 1}`, () => setRound(i), { className: i === round ? "on" : "" })));
+  const rounds = h("div", { className: "segmented wrap" });
+  report.rounds.forEach((_, i) => rounds.append(button(`${i + 1}`, () => setRound(i), { className: i === round ? "on" : "", ariaLabel: `Round ${i + 1}` })));
 
   const log = h("ul");
   const current = report.rounds[round];
   if (current) {
+    log.append(h("li", { className: "section" }, h("span", { textContent: `Round ${round + 1} · ${RANGE_NAMES[current.range as 1 | 2 | 3]} range` })));
+    if (current.disrupted.length > 0) {
+      log.append(h("li", {}, h("span", { className: "warn-text small", textContent: `Cyber attack shut down ${current.disrupted.map(label).join(", ")}` })));
+    }
     const hits = current.shots.filter((s) => s.damage > 0);
-    const misses = current.shots.length - hits.length;
+    const intercepted = current.shots.filter((s) => s.intercepted).length;
+    const misses = current.shots.length - hits.length - intercepted;
+    if (intercepted > 0) log.append(h("li", {}, h("span", { className: "small accent-text", textContent: `Point defense shot down ${intercepted} missile${intercepted > 1 ? "s" : ""} or fighter${intercepted > 1 ? "s" : ""}` })));
     for (const shot of hits) {
       log.append(h("li", {}, h("span", { className: "small", textContent: `${label(shot.attacker)} hit ${label(shot.target)} for ${shot.damage}${shot.destroyed ? " — destroyed" : ""}` })));
     }
@@ -388,6 +417,7 @@ export function battlePanel(ctx: ShipContext, report: BattleReport, round: numbe
     h("h2", {}, `Battle at ${ctx.systemName(report.systemId)}`, button("✕", ctx.close, { ariaLabel: "Close" })),
     sides,
     h("h3", { textContent: "Replay" }),
+    h("div", { className: "muted small", textContent: "Battles open at long range. Each round the more maneuverable side moves the range toward the one that suits its weapons." }),
     rounds,
     log,
   );

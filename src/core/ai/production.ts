@@ -1,4 +1,4 @@
-import { buildOptions, buyCost, colonyOutput, findBody, itemCost, planetStats } from "../economy";
+import { buildOptions, buyCost, colonyOutput, findBody, itemCost, planetStats, prospectiveMaxPop } from "../economy";
 import { designStats } from "../ships";
 import type { Colony, Focus, QueueItem } from "../state";
 import type { AiContext } from "./context";
@@ -56,16 +56,29 @@ export function planProduction(ctx: AiContext, strategy: Strategy, warshipId: st
   const wantScouts = unexplored > 0 ? 1 + (p.expansion >= 7 ? 1 : 0) : 0;
   const urgent = strategy.posture === "defend" || strategy.posture === "attack";
 
+  // Planets already being settled this turn (by colony ship or a colony base queued below).
+  const settling = new Set(ctx.commands.flatMap((c) => (c.type === "colonize" ? [c.bodyId] : [])));
   for (const colony of ctx.colonies) {
     if (colony.queue.length > 0) continue;
-    const options = buildOptions(pack, empire, colony);
+    const options = buildOptions(ctx.state, pack, empire, colony);
     const can = (item: QueueItem | null): item is QueueItem => !!item && options.some((o) => o.kind === item.kind && o.id === item.id);
     const affordable = !!warStats && warStats.upkeep <= room.upkeep && warStats.upkeep <= fleetRoom;
     const warItem = warship && affordable ? ({ kind: "ship", id: warship.id } as QueueItem) : null;
     const big = colony.population >= 3;
     let pick: QueueItem | null = null;
 
+    // A colony base settles a planet in the same system without a colony ship.
+    const base = options
+      .filter((o) => o.kind === "colonyBase" && !settling.has(o.bodyId!))
+      .map((o) => ({ item: o, pop: prospectiveMaxPop(pack, empire, ctx.state.galaxy.systems[colony.systemId]!.bodies.find((b) => b.id === o.bodyId)!) }))
+      .filter((o) => o.pop >= 3)
+      .sort((a, b) => b.pop - a.pop || a.item.bodyId! - b.item.bodyId!)[0];
+
     if (urgent && deficit > 0 && big && can(warItem)) pick = warItem;
+    else if (base && colony.population >= 2 && p.expansion >= 3) {
+      pick = base.item;
+      settling.add(base.item.bodyId!);
+    }
     else if (settlers < wantSettlers && big && colonyDesign && can({ kind: "ship", id: colonyDesign.id })) {
       pick = { kind: "ship", id: colonyDesign.id };
       settlers++;
@@ -177,6 +190,10 @@ function manageFocus(ctx: AiContext): void {
 /** Out of money: stop adding upkeep, cancel queued upkeep buildings, and in deep debt scrap the weakest warship group. */
 function avoidDebt(ctx: AiContext, strategy: Strategy, room: { upkeep: number }): void {
   const steadyNet = ctx.economy.income - ctx.economy.buildingUpkeep - ctx.economy.shipUpkeep;
+  // Raise taxes while the treasury runs dry; lower them again once it has recovered.
+  const tax = ctx.empire.taxLevel;
+  if (tax === "normal" && ctx.empire.credits < 20 && steadyNet <= 0) ctx.commands.push({ type: "setTaxLevel", empireId: ctx.id, taxLevel: "high" });
+  else if (tax === "high" && ctx.empire.credits > 80 + ctx.colonies.length * 10) ctx.commands.push({ type: "setTaxLevel", empireId: ctx.id, taxLevel: "normal" });
   if (ctx.empire.credits >= 0 || steadyNet > 0) return;
   for (const colony of ctx.colonies) {
     for (let i = colony.queue.length - 1; i >= 0; i--) {

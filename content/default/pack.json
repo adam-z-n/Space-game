@@ -120,7 +120,7 @@
     {
       "id": "barren",
       "name": "Barren",
-      "habitability": 10,
+      "habitability": 20,
       "weight": 24,
       "foodYield": 0,
       "groundDefensePercent": 0
@@ -128,7 +128,7 @@
     {
       "id": "toxic",
       "name": "Toxic",
-      "habitability": 5,
+      "habitability": 15,
       "weight": 14,
       "foodYield": 0,
       "groundDefensePercent": 40
@@ -136,7 +136,7 @@
     {
       "id": "volcanic",
       "name": "Volcanic",
-      "habitability": 5,
+      "habitability": 10,
       "weight": 10,
       "foodYield": 0,
       "groundDefensePercent": 30
@@ -386,10 +386,12 @@
     "idleIndustryCreditsPercent": 25,
     "debtPenaltyPercent": 50,
     "buyCreditsPerIndustry": 2,
-    "taxPercentPerPop": 50,
     "colonyBaseIndustry": 2,
     "colonySupplyRange": 250,
-    "capitalSupplyRange": 400
+    "capitalSupplyRange": 400,
+    "colonyBaseCost": 40,
+    "foodSalePercent": 50,
+    "scrapRefundPercent": 25
   },
   "researchFields": [
     {
@@ -436,6 +438,19 @@
       "description": "Unlocks Hydroponic Farms."
     },
     {
+      "id": "controlled_environments",
+      "name": "Controlled Environments",
+      "field": "growth",
+      "cost": 90,
+      "requires": [
+        "hydroponics"
+      ],
+      "effects": {
+        "minHabitability": -20
+      },
+      "description": "Sealed habitats: colonize Barren worlds (minimum habitability -20)."
+    },
+    {
       "id": "subterranean_habitats",
       "name": "Subterranean Habitats",
       "field": "growth",
@@ -454,12 +469,14 @@
       "field": "growth",
       "cost": 220,
       "requires": [
-        "subterranean_habitats"
+        "subterranean_habitats",
+        "controlled_environments"
       ],
       "effects": {
-        "minHabitability": -25
+        "minHabitability": -15,
+        "maxPopPercent": 10
       },
-      "description": "Colonize harsher worlds: minimum habitability -25."
+      "description": "Colonize Toxic and Volcanic worlds (minimum habitability -15). +10% max population."
     },
     {
       "id": "cloning_centers",
@@ -573,6 +590,30 @@
       "description": "+30 speed for every ship."
     },
     {
+      "id": "combat_thrusters",
+      "name": "Combat Thrusters",
+      "field": "propulsion",
+      "cost": 100,
+      "requires": [
+        "ion_drives"
+      ],
+      "effects": {},
+      "description": "Unlocks Combat Thrusters (+1 maneuver)."
+    },
+    {
+      "id": "inertial_dampers",
+      "name": "Inertial Dampers",
+      "field": "propulsion",
+      "cost": 260,
+      "requires": [
+        "combat_thrusters"
+      ],
+      "effects": {
+        "maneuver": 1
+      },
+      "description": "+1 maneuver for every ship."
+    },
+    {
       "id": "improved_scanners",
       "name": "Improved Scanners",
       "field": "sensors",
@@ -595,6 +636,39 @@
         "sensorRange": 80
       },
       "description": "+80 sensor range for ships and colonies."
+    },
+    {
+      "id": "battle_computers",
+      "name": "Battle Computers",
+      "field": "sensors",
+      "cost": 100,
+      "requires": [
+        "improved_scanners"
+      ],
+      "effects": {},
+      "description": "Unlocks the Targeting Computer."
+    },
+    {
+      "id": "electronic_warfare",
+      "name": "Electronic Warfare",
+      "field": "sensors",
+      "cost": 160,
+      "requires": [
+        "battle_computers"
+      ],
+      "effects": {},
+      "description": "Unlocks the ECM Jammer against missiles and fighters."
+    },
+    {
+      "id": "cyber_warfare",
+      "name": "Cyber Warfare",
+      "field": "sensors",
+      "cost": 320,
+      "requires": [
+        "electronic_warfare"
+      ],
+      "effects": {},
+      "description": "Unlocks the Cyber Warfare Suite and the Hardened Firewall."
     },
     {
       "id": "colonial_administration",
@@ -654,6 +728,76 @@
       "description": "+15% weapon damage."
     },
     {
+      "id": "gauss_cannons",
+      "name": "Gauss Cannons",
+      "field": "weapons",
+      "cost": 220,
+      "requires": [
+        "heavy_lasers"
+      ],
+      "effects": {},
+      "description": "Unlocks the Gauss Cannon: short-range, shield-piercing."
+    },
+    {
+      "id": "hellfire_missiles",
+      "name": "Hellfire Missiles",
+      "field": "weapons",
+      "cost": 340,
+      "requires": [
+        "guided_torpedoes"
+      ],
+      "effects": {},
+      "description": "Unlocks the Hellfire Missile."
+    },
+    {
+      "id": "plasma_lances",
+      "name": "Plasma Lances",
+      "field": "weapons",
+      "cost": 420,
+      "requires": [
+        "weapon_calibration"
+      ],
+      "effects": {},
+      "description": "Unlocks the Plasma Lance."
+    },
+    {
+      "id": "starburst_torpedoes",
+      "name": "Starburst Torpedoes",
+      "field": "weapons",
+      "cost": 620,
+      "requires": [
+        "hellfire_missiles"
+      ],
+      "effects": {},
+      "description": "Unlocks the Starburst Torpedo."
+    },
+    {
+      "id": "disruptors",
+      "name": "Disruptor Cannons",
+      "field": "weapons",
+      "cost": 680,
+      "requires": [
+        "plasma_lances",
+        "gauss_cannons"
+      ],
+      "effects": {
+        "damagePercent": 10
+      },
+      "description": "Unlocks the Disruptor Cannon. +10% weapon damage."
+    },
+    {
+      "id": "orbital_bombardment",
+      "name": "Orbital Bombardment",
+      "field": "weapons",
+      "cost": 240,
+      "requires": [
+        "guided_torpedoes",
+        "cruiser_hulls"
+      ],
+      "effects": {},
+      "description": "Unlocks the Orbital Bomb Bay for cruisers and larger."
+    },
+    {
       "id": "composite_armor",
       "name": "Neutronium Armor",
       "field": "defense",
@@ -681,6 +825,37 @@
       ],
       "effects": {},
       "description": "Unlocks the Deflector III."
+    },
+    {
+      "id": "point_defense",
+      "name": "Point Defense",
+      "field": "defense",
+      "cost": 120,
+      "requires": [],
+      "effects": {},
+      "description": "Unlocks Point Defense against missiles and fighters."
+    },
+    {
+      "id": "crystalline_armor",
+      "name": "Crystalline Armor",
+      "field": "defense",
+      "cost": 380,
+      "requires": [
+        "composite_armor"
+      ],
+      "effects": {},
+      "description": "Unlocks Crystalline Armor."
+    },
+    {
+      "id": "deflector_v",
+      "name": "Deflector Grids",
+      "field": "defense",
+      "cost": 480,
+      "requires": [
+        "hardened_shields"
+      ],
+      "effects": {},
+      "description": "Unlocks the Deflector V."
     },
     {
       "id": "cruiser_hulls",
@@ -804,6 +979,29 @@
       ],
       "effects": {},
       "description": "Unlocks the Dreadnought hull."
+    },
+    {
+      "id": "fighter_squadrons",
+      "name": "Fighter Squadrons",
+      "field": "engineering",
+      "cost": 260,
+      "requires": [
+        "cruiser_hulls"
+      ],
+      "effects": {},
+      "description": "Unlocks the Fighter Bay for cruisers and larger."
+    },
+    {
+      "id": "strike_drones",
+      "name": "Strike Drones",
+      "field": "engineering",
+      "cost": 520,
+      "requires": [
+        "fighter_squadrons",
+        "capital_ships"
+      ],
+      "effects": {},
+      "description": "Unlocks the Strike Drone Bay for battleships and larger."
     }
   ],
   "buildings": [
@@ -1026,7 +1224,7 @@
     }
   ],
   "combat": {
-    "rounds": 4,
+    "rounds": 6,
     "stanceDamage": {
       "aggressive": 125,
       "balanced": 100,
@@ -1048,18 +1246,31 @@
     "repairPercent": 10,
     "dockRepairPercent": 25,
     "militiaPerPop": 1,
-    "garrisonRegenPercent": 20,
+    "garrisonRegenPercent": 10,
     "defenseRepairPercent": 15,
     "captureLossPercent": 25,
     "mineHitPercent": 30,
     "mineDamage": 6,
-    "maxMines": 60
+    "maxMines": 60,
+    "supportEvasion": 10,
+    "maneuverEvasion": 3,
+    "screenInterceptPercent": 50,
+    "pointDefensePercent": 15,
+    "pointDefenseMax": 60,
+    "fighterSupportWeight": 4,
+    "cyberMax": 40,
+    "bombardDamagePerPop": 10,
+    "colonyDefenseHpPerPop": 4,
+    "colonyPopPerGun": 3,
+    "colonyGunDamage": 3,
+    "colonyGunAccuracy": 60,
+    "militiaRegenPerTurn": 1
   },
   "hulls": [
     {
       "id": "corvette",
       "name": "Escort",
-      "description": "Small hull: quick and hard to hit.",
+      "description": "Small hull: fast, nimble and hard to hit.",
       "slots": 2,
       "structure": 10,
       "cost": 8,
@@ -1067,6 +1278,7 @@
       "speed": 130,
       "sensorRange": 160,
       "evasion": 25,
+      "maneuver": 5,
       "endurance": 6
     },
     {
@@ -1080,12 +1292,13 @@
       "speed": 100,
       "sensorRange": 150,
       "evasion": 15,
+      "maneuver": 4,
       "endurance": 6
     },
     {
       "id": "transport",
       "name": "Freighter",
-      "description": "Roomy cargo hull, slow and unarmored.",
+      "description": "Roomy cargo hull: slow, clumsy and unarmored.",
       "slots": 2,
       "structure": 14,
       "cost": 12,
@@ -1093,12 +1306,13 @@
       "speed": 90,
       "sensorRange": 100,
       "evasion": 0,
+      "maneuver": 1,
       "endurance": 8
     },
     {
       "id": "cruiser",
       "name": "Cruiser",
-      "description": "Large hull: a balanced line warship.",
+      "description": "Large hull: a balanced line warship. Can carry fighters and bombs.",
       "slots": 5,
       "structure": 40,
       "cost": 30,
@@ -1106,6 +1320,7 @@
       "speed": 90,
       "sensorRange": 180,
       "evasion": 8,
+      "maneuver": 3,
       "endurance": 8,
       "requires": "cruiser_hulls"
     },
@@ -1120,13 +1335,14 @@
       "speed": 80,
       "sensorRange": 200,
       "evasion": 0,
+      "maneuver": 2,
       "endurance": 10,
       "requires": "capital_ships"
     },
     {
       "id": "dreadnought",
       "name": "Dreadnought",
-      "description": "Colossal hull: the pride of the fleet.",
+      "description": "Colossal hull: the pride of the fleet, but slow to turn.",
       "slots": 12,
       "structure": 170,
       "cost": 130,
@@ -1134,6 +1350,7 @@
       "speed": 75,
       "sensorRange": 220,
       "evasion": 0,
+      "maneuver": 1,
       "endurance": 12,
       "requires": "dreadnought_hulls"
     }
@@ -1143,39 +1360,44 @@
       "id": "laser",
       "name": "Laser",
       "kind": "weapon",
-      "description": "3 damage, 75% accuracy.",
+      "description": "3 damage, 75% accuracy, medium range.",
       "cost": 4,
       "damage": 3,
-      "accuracy": 75
+      "accuracy": 75,
+      "range": 2
     },
     {
       "id": "mass_driver",
       "name": "Mass Driver",
       "kind": "weapon",
-      "description": "5 damage, 55% accuracy.",
+      "description": "5 damage, 55% accuracy, short range.",
       "cost": 4,
       "damage": 5,
-      "accuracy": 55
+      "accuracy": 55,
+      "range": 1
     },
     {
       "id": "heavy_laser",
       "name": "Fusion Beam",
       "kind": "weapon",
-      "description": "6 damage, 75% accuracy.",
+      "description": "6 damage, 75% accuracy, medium range.",
       "cost": 8,
       "damage": 6,
       "accuracy": 75,
-      "requires": "heavy_lasers"
+      "requires": "heavy_lasers",
+      "range": 2
     },
     {
       "id": "torpedo",
       "name": "Nuclear Missile",
       "kind": "weapon",
-      "description": "12 damage, 50% accuracy.",
+      "description": "12 damage, 50% accuracy, long range. Missile: point defense can shoot it down.",
       "cost": 10,
       "damage": 12,
       "accuracy": 50,
-      "requires": "guided_torpedoes"
+      "requires": "guided_torpedoes",
+      "range": 3,
+      "special": "missile"
     },
     {
       "id": "armor_plating",
@@ -1268,6 +1490,175 @@
       "cost": 6,
       "mines": 10,
       "requires": "mine_warfare"
+    },
+    {
+      "id": "gauss_cannon",
+      "name": "Gauss Cannon",
+      "kind": "weapon",
+      "description": "9 damage, 65% accuracy, short range. Pierces shields.",
+      "cost": 9,
+      "damage": 9,
+      "accuracy": 65,
+      "range": 1,
+      "special": "pierce",
+      "requires": "gauss_cannons"
+    },
+    {
+      "id": "hellfire_missile",
+      "name": "Hellfire Missile",
+      "kind": "weapon",
+      "description": "16 damage, 60% accuracy, long range. Missile.",
+      "cost": 12,
+      "damage": 16,
+      "accuracy": 60,
+      "range": 3,
+      "special": "missile",
+      "requires": "hellfire_missiles"
+    },
+    {
+      "id": "plasma_lance",
+      "name": "Plasma Lance",
+      "kind": "weapon",
+      "description": "11 damage, 75% accuracy, medium range.",
+      "cost": 14,
+      "damage": 11,
+      "accuracy": 75,
+      "range": 2,
+      "requires": "plasma_lances"
+    },
+    {
+      "id": "starburst_torpedo",
+      "name": "Starburst Torpedo",
+      "kind": "weapon",
+      "description": "26 damage, 55% accuracy, long range. Missile.",
+      "cost": 18,
+      "damage": 26,
+      "accuracy": 55,
+      "range": 3,
+      "special": "missile",
+      "requires": "starburst_torpedoes"
+    },
+    {
+      "id": "disruptor",
+      "name": "Disruptor Cannon",
+      "kind": "weapon",
+      "description": "16 damage, 70% accuracy, short range. Pierces shields.",
+      "cost": 18,
+      "damage": 16,
+      "accuracy": 70,
+      "range": 1,
+      "special": "pierce",
+      "requires": "disruptors"
+    },
+    {
+      "id": "fighter_bay",
+      "name": "Fighter Bay",
+      "kind": "hangar",
+      "description": "Launches 3 fighters: 4 damage, 80% accuracy each, any range. They hunt support ships and slip past screens; point defense shoots them down. Cruiser or larger.",
+      "cost": 16,
+      "damage": 4,
+      "accuracy": 80,
+      "shots": 3,
+      "range": 3,
+      "special": "fighters",
+      "minSlots": 5,
+      "requires": "fighter_squadrons"
+    },
+    {
+      "id": "drone_bay",
+      "name": "Strike Drone Bay",
+      "kind": "hangar",
+      "description": "Launches 4 drones: 6 damage, 85% accuracy each, any range. Like fighters. Battleship or larger.",
+      "cost": 24,
+      "damage": 6,
+      "accuracy": 85,
+      "shots": 4,
+      "range": 3,
+      "special": "fighters",
+      "minSlots": 8,
+      "requires": "strike_drones"
+    },
+    {
+      "id": "point_defense",
+      "name": "Point Defense",
+      "kind": "electronics",
+      "description": "Each mount gives a 15% chance to shoot down every missile or fighter aimed at its fleet (up to 60%).",
+      "cost": 5,
+      "pointDefense": 1,
+      "requires": "point_defense"
+    },
+    {
+      "id": "targeting_computer",
+      "name": "Targeting Computer",
+      "kind": "electronics",
+      "description": "+15% accuracy for this ship's weapons.",
+      "cost": 6,
+      "accuracyBonus": 15,
+      "requires": "battle_computers"
+    },
+    {
+      "id": "ecm_jammer",
+      "name": "ECM Jammer",
+      "kind": "electronics",
+      "description": "Missiles and fighters aimed at this ship are 25% less likely to hit.",
+      "cost": 6,
+      "jamming": 25,
+      "requires": "electronic_warfare"
+    },
+    {
+      "id": "cyber_suite",
+      "name": "Cyber Warfare Suite",
+      "kind": "electronics",
+      "description": "Each round, a 15% chance per suite in the fleet to shut down each enemy ship's weapons for the round (up to 40%).",
+      "cost": 10,
+      "cyber": 15,
+      "requires": "cyber_warfare"
+    },
+    {
+      "id": "firewall",
+      "name": "Hardened Firewall",
+      "kind": "electronics",
+      "description": "Cuts the enemy's cyber attack chance against this fleet by 15%.",
+      "cost": 5,
+      "cyberDefense": 15,
+      "requires": "cyber_warfare"
+    },
+    {
+      "id": "combat_thrusters",
+      "name": "Combat Thrusters",
+      "kind": "engine",
+      "description": "+1 maneuver: helps the fleet set the battle range, +3% evasion.",
+      "cost": 4,
+      "maneuver": 1,
+      "requires": "combat_thrusters"
+    },
+    {
+      "id": "crystalline_armor",
+      "name": "Crystalline Armor",
+      "kind": "armor",
+      "description": "+32 hit points.",
+      "cost": 10,
+      "hp": 32,
+      "requires": "crystalline_armor"
+    },
+    {
+      "id": "deflector_v",
+      "name": "Deflector V",
+      "kind": "shield",
+      "description": "Blocks 5 damage per hit.",
+      "cost": 16,
+      "shield": 5,
+      "requires": "deflector_v"
+    },
+    {
+      "id": "bomb_bay",
+      "name": "Orbital Bomb Bay",
+      "kind": "bomb",
+      "description": "Bombards a colony whose orbital defenses are down: 10 damage a turn to population, garrison and buildings. Cruiser or larger.",
+      "cost": 10,
+      "bombard": 10,
+      "minSlots": 5,
+      "requires": "orbital_bombardment"
     }
   ],
   "startingDesigns": [
@@ -1475,6 +1866,45 @@
       }
     }
   ],
+  "taxLevels": [
+    {
+      "id": "low",
+      "name": "Low",
+      "description": "A credit per 4 population. Content citizens: +20% growth.",
+      "taxPercentPerPop": 25,
+      "effects": {
+        "growthPercent": 20
+      }
+    },
+    {
+      "id": "normal",
+      "name": "Normal",
+      "description": "A credit per 2 population.",
+      "taxPercentPerPop": 50,
+      "effects": {}
+    },
+    {
+      "id": "high",
+      "name": "High",
+      "description": "3 credits per 4 population. Grumbling: -20% growth, -5% industry.",
+      "taxPercentPerPop": 75,
+      "effects": {
+        "growthPercent": -20,
+        "industryPercent": -5
+      }
+    },
+    {
+      "id": "crushing",
+      "name": "Crushing",
+      "description": "A credit per population. Unrest: -40% growth, -10% industry and research.",
+      "taxPercentPerPop": 100,
+      "effects": {
+        "growthPercent": -40,
+        "industryPercent": -10,
+        "researchPercent": -10
+      }
+    }
+  ],
   "presentation": {
     "displayFont": "Silkscreen",
     "colors": {
@@ -1486,6 +1916,12 @@
       "accent": "#5fd3ff",
       "warn": "#ffcf4a",
       "danger": "#ff5a5a"
+    },
+    "surveyColors": {
+      "unexplored": "#8a93a6",
+      "habitable": "#4cd964",
+      "hostile": "#ffcf4a",
+      "barren": "#2f5fb3"
     },
     "hullSprites": {
       "corvette": {

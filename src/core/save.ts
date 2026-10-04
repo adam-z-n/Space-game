@@ -146,6 +146,30 @@ export function migrateState(state: GameState, pack: ContentPack): GameState {
     old.version = 7;
   }
 
+  if (old.version === 7) {
+    // v8 added star charts; they fill in from sensors and explored systems below.
+    for (const empire of migrated.empires) empire.charted = [...empire.explored];
+    old.version = 8;
+  }
+
+  if (old.version === 8) {
+    // v9 added tax levels, food sales and hand-placed workers.
+    for (const empire of migrated.empires) {
+      empire.taxLevel = "normal";
+      empire.foodReserve = pack.economy.foodStockCap;
+    }
+    for (const colony of migrated.colonies) colony.workers = null;
+    old.version = 9;
+  }
+
+  if (old.version === 9) {
+    // v10 added bombardment orders and militia losses; battle reports gained ranges.
+    for (const colony of migrated.colonies) colony.militiaLosses = 0;
+    for (const fleet of migrated.fleets) fleet.bombardColonyId = null;
+    migrated.lastBattles = [];
+    old.version = 10;
+  }
+
   if (startVersion !== migrated.version) {
     for (const empire of migrated.empires) refreshEmpireStats(migrated, pack, empire);
     updateSightings(migrated, pack, null, migrated.turn);

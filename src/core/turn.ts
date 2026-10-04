@@ -3,7 +3,7 @@ import { laneLength } from "./graph";
 import { updateSightings } from "./vision";
 import { resolveEconomy } from "./economy";
 import { checkVictory } from "./victory";
-import { regenerateDefenses, resolveInvasions, resolveMines } from "./defense";
+import { colonyDefense, regenerateDefenses, resolveBombardment, resolveInvasions, resolveMines } from "./defense";
 import { resolveCombat } from "./combat";
 import { fleetArmed } from "./ships";
 import { resolveSupply, updateBlockades } from "./supply";
@@ -20,9 +20,10 @@ export function resolveTurn(state: GameState, pack: ContentPack): void {
   resolveSupply(state, pack, events);
   resolveMines(state, pack, events);
   resolveCombat(state, pack, events);
+  resolveBombardment(state, pack, events);
   resolveInvasions(state, pack, events);
-  // Blockades are settled by combat: re-check before the economy runs.
-  updateBlockades(state, pack, null);
+  // Blockades are settled by combat (defenses knocked out): re-check before the economy runs.
+  updateBlockades(state, pack, events);
   resolveEconomy(state, pack, events);
   regenerateDefenses(state, pack);
   const resolved = state.turn;
@@ -42,14 +43,19 @@ function markExplored(state: GameState, empireId: EmpireId, systemId: SystemId, 
 
 /**
  * Fleets spend `speed` distance per turn along their route, passing through systems as they go.
- * A system guarded at the start of the turn by an armed hostile fleet on engage orders stops
- * any fleet entering it: chokepoints can be held.
+ * A system held at the start of the turn by an armed hostile fleet, or by a hostile colony
+ * whose guns are standing, stops any fleet entering it: nobody slips past a blockade or a
+ * fortress, so chokepoints can be held.
  */
 function resolveMovement(state: GameState, pack: ContentPack, events: GameEvent[]): void {
   const guards = new Map<SystemId, Set<EmpireId>>();
+  const guard = (systemId: SystemId, empireId: EmpireId) => guards.set(systemId, (guards.get(systemId) ?? new Set()).add(empireId));
   for (const fleet of state.fleets) {
-    if (fleet.progress > 0 || fleet.route.length > 0 || fleet.orders.mission !== "engage" || !fleetArmed(pack, state, fleet)) continue;
-    guards.set(fleet.systemId, (guards.get(fleet.systemId) ?? new Set()).add(fleet.empireId));
+    if (fleet.progress > 0 || fleet.route.length > 0 || !fleetArmed(pack, state, fleet)) continue;
+    guard(fleet.systemId, fleet.empireId);
+  }
+  for (const colony of state.colonies) {
+    if (colony.defenseHp > 0 && colonyDefense(pack, state.empires[colony.empireId]!, colony).weapons.length > 0) guard(colony.systemId, colony.empireId);
   }
   const fleets = state.fleets.slice().sort((a, b) => a.id - b.id);
   for (const fleet of fleets) {

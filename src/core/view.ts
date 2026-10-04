@@ -1,4 +1,4 @@
-import type { BattleReport, Body, BodyId, ColonyId, EmpireId, FleetId, FleetPosition, GameState, Lane, SystemId } from "./state";
+import type { BattleReport, Body, BodyId, ColonyId, Empire, EmpireId, FleetId, FleetPosition, GameState, Lane, SystemId } from "./state";
 import { colonyOnBody, fleetPosition } from "./state";
 import type { ContentPack } from "../content/schema";
 import { availableTechs, colonizeBlocker } from "./economy";
@@ -6,6 +6,7 @@ import { flagshipHull, fleetArmed, fleetCanColonize, fleetMaxSupply, fleetStreng
 import { suppliedSystems } from "./supply";
 import { defendingTroops } from "./defense";
 import { positionPoint, sensorSources } from "./vision";
+import { knownLanes } from "./graph";
 
 /**
  * What one empire is allowed to know. The UI renders only this, never raw
@@ -19,7 +20,15 @@ export interface SystemView {
   x: number;
   y: number;
   starType: string;
+  /** On the viewer's star charts. Uncharted systems are placeholders: the UI must not show them. */
+  charted: boolean;
   explored: boolean;
+  /**
+   * What the viewer knows about the system's worlds: "unexplored" until visited; then "habitable"
+   * (a planet it can colonize now), "hostile" (only planets that need more research) or "barren"
+   * (no planets: gas giants, asteroids or nothing).
+   */
+  survey: "unexplored" | "habitable" | "hostile" | "barren";
   /** Known only once explored. */
   bodies: Body[] | null;
   /** Colonies the viewer knows about here: its own, plus rivals' current or last-known. */
@@ -130,15 +139,21 @@ export function empireView(state: GameState, pack: ContentPack, viewerId: Empire
     });
   }
 
+  const charted = new Set(viewer.charted);
   const systems: SystemView[] = state.galaxy.systems.map((s) => {
     const known = explored.has(s.id);
+    if (!charted.has(s.id)) {
+      return { id: s.id, name: "", x: s.x, y: s.y, starType: "", charted: false, explored: false, survey: "unexplored", bodies: null, colonies: [] };
+    }
     return {
       id: s.id,
       name: s.name,
       x: s.x,
       y: s.y,
       starType: s.starType,
+      charted: true,
       explored: known,
+      survey: known ? surveySystem(pack, viewer, s.bodies) : "unexplored",
       bodies: known ? s.bodies : null,
       colonies: (markers.get(s.id) ?? []).sort((a, b) => a.colonyId - b.colonyId),
     };
@@ -195,7 +210,7 @@ export function empireView(state: GameState, pack: ContentPack, viewerId: Empire
     turn: state.turn,
     viewerId,
     systems,
-    lanes: state.galaxy.lanes,
+    lanes: knownLanes(state.galaxy.lanes, charted),
     fleets,
     empires: state.empires.map((e) => ({ id: e.id, name: e.name, color: e.color, met: met.has(e.id) })),
     sensors: sensorSources(state, pack, viewerId),
@@ -205,14 +220,24 @@ export function empireView(state: GameState, pack: ContentPack, viewerId: Empire
   };
 }
 
+/** Classify an explored system's worlds for the map, using what `empire` can colonize today. */
+export function surveySystem(pack: ContentPack, empire: Empire, bodies: readonly Body[]): SystemView["survey"] {
+  const planets = bodies.filter((b) => b.kind === "planet");
+  if (planets.length === 0) return "barren";
+  return planets.some((b) => colonizeBlocker(pack, empire, b) === null) ? "habitable" : "hostile";
+}
+
 /** Full-knowledge view, for debugging and spectating AI games. */
 export function omniscientView(state: GameState, pack: ContentPack, viewerId: EmpireId): EmpireView {
   const view = empireView(state, pack, viewerId);
   return {
     ...view,
+    lanes: state.galaxy.lanes,
     systems: state.galaxy.systems.map((s) => ({
       ...s,
+      charted: true,
       explored: true,
+      survey: surveySystem(pack, state.empires[viewerId]!, s.bodies),
       colonies: state.colonies
         .filter((c) => c.systemId === s.id)
         .map((c) => ({

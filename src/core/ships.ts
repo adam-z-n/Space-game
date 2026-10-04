@@ -1,4 +1,4 @@
-import type { ContentPack, DesignData, ShipRole } from "../content/schema";
+import type { ContentPack, DesignData, ShipRole, WeaponSpecial } from "../content/schema";
 import { empireEffects, type Totals } from "./economy";
 import type { Empire, Fleet, FleetOrders, GameState, Ship, ShipDesign } from "./state";
 
@@ -32,6 +32,9 @@ export function getDesign(empire: Empire, id: string): ShipDesign {
 export interface Weapon {
   damage: number;
   accuracy: number;
+  /** Longest range it fires at: 1 short, 2 medium, 3 long. */
+  range: number;
+  special?: WeaponSpecial;
 }
 
 export interface DesignStats {
@@ -57,16 +60,35 @@ export interface DesignStats {
   role: ShipRole;
   /** Expected damage per combat round. */
   damagePerRound: number;
+  /** Combat agility: sets the battle range and adds evasion. */
+  maneuver: number;
+  pointDefense: number;
+  /** Penalty to missiles and fighters aimed at this ship. */
+  jamming: number;
+  cyber: number;
+  cyberDefense: number;
+  /** Damage per turn to a colony under bombardment. */
+  bombard: number;
 }
 
 /** Stats for a design, including the empire's tech bonuses. */
 export function designStats(pack: ContentPack, design: Pick<ShipDesign, "hull" | "components">, fx: Totals): DesignStats {
   const hull = getHull(pack, design.hull);
   const parts = design.components.map((id) => getComponent(pack, id));
-  const sum = (key: "hp" | "shield" | "speed" | "sensorRange" | "fuel" | "cost" | "troops" | "repair" | "mines") => parts.reduce((n, c) => n + c[key], 0);
-  const weapons = parts
-    .filter((c) => c.kind === "weapon")
-    .map((c) => ({ damage: Math.floor((c.damage * (100 + fx.damagePercent)) / 100), accuracy: c.accuracy }));
+  const sum = (
+    key: "hp" | "shield" | "speed" | "sensorRange" | "fuel" | "cost" | "troops" | "repair" | "mines" | "accuracyBonus" | "jamming" | "pointDefense" | "cyber" | "cyberDefense" | "maneuver" | "bombard",
+  ) => parts.reduce((n, c) => n + c[key], 0);
+  const aim = sum("accuracyBonus");
+  const weapons: Weapon[] = parts
+    .filter((c) => c.kind === "weapon" || c.kind === "hangar")
+    .flatMap((c) =>
+      Array.from({ length: c.shots }, () => ({
+        damage: Math.floor((c.damage * (100 + fx.damagePercent)) / 100),
+        accuracy: Math.min(100, c.accuracy + aim),
+        range: c.range,
+        ...(c.special ? { special: c.special } : {}),
+      })),
+    );
   const colonize = parts.some((c) => c.kind === "colony");
   const armed = weapons.length > 0;
   const transport = colonize || parts.some((c) => c.kind === "troops");
@@ -89,6 +111,12 @@ export function designStats(pack: ContentPack, design: Pick<ShipDesign, "hull" |
     armed,
     role,
     damagePerRound: weapons.reduce((n, w) => n + (w.damage * w.accuracy) / 100, 0),
+    maneuver: hull.maneuver + sum("maneuver") + fx.maneuver,
+    pointDefense: sum("pointDefense"),
+    jamming: sum("jamming"),
+    cyber: sum("cyber"),
+    cyberDefense: sum("cyberDefense"),
+    bombard: Math.floor((sum("bombard") * (100 + fx.damagePercent)) / 100),
   };
 }
 
@@ -113,7 +141,11 @@ export function designBlocker(pack: ContentPack, empire: Empire, design: Omit<De
   if (!hullAvailable(pack, empire, design.hull)) return "hull not available";
   const hull = getHull(pack, design.hull);
   if (design.components.length > hull.slots) return `only ${hull.slots} slots`;
-  for (const id of design.components) if (!componentAvailable(pack, empire, id)) return `component "${id}" not available`;
+  for (const id of design.components) {
+    if (!componentAvailable(pack, empire, id)) return `component "${id}" not available`;
+    const part = getComponent(pack, id);
+    if (hull.slots < part.minSlots) return `${part.name} needs a hull with at least ${part.minSlots} slots`;
+  }
   if (empire.designs.some((d) => !d.obsolete && d.name.toLowerCase() === name.toLowerCase())) return "a design with that name exists";
   return null;
 }
@@ -217,6 +249,7 @@ export function newFleet(state: GameState, pack: ContentPack, empire: Empire, de
     progress: 0,
     holding: false,
     invadeColonyId: null,
+    bombardColonyId: null,
   };
   fleet.orders = defaultOrders(fleetArmed(pack, state, fleet));
   fleet.supply = fleetMaxSupply(pack, state, fleet);
