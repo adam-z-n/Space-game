@@ -56,6 +56,8 @@ export function planProduction(ctx: AiContext, strategy: Strategy, warshipId: st
   const wantScouts = unexplored > 0 ? 1 + (p.expansion >= 7 ? 1 : 0) : 0;
   const urgent = strategy.posture === "defend" || strategy.posture === "attack";
 
+  // Planets already being settled this turn (by colony ship or a colony base queued below).
+  const settling = new Set(ctx.commands.flatMap((c) => (c.type === "colonize" ? [c.bodyId] : [])));
   for (const colony of ctx.colonies) {
     if (colony.queue.length > 0) continue;
     const options = buildOptions(ctx.state, pack, empire, colony);
@@ -66,7 +68,6 @@ export function planProduction(ctx: AiContext, strategy: Strategy, warshipId: st
     let pick: QueueItem | null = null;
 
     // A colony base settles a planet in the same system without a colony ship.
-    const settling = new Set(ctx.commands.flatMap((c) => (c.type === "colonize" ? [c.bodyId] : [])));
     const base = options
       .filter((o) => o.kind === "colonyBase" && !settling.has(o.bodyId!))
       .map((o) => ({ item: o, pop: prospectiveMaxPop(pack, empire, ctx.state.galaxy.systems[colony.systemId]!.bodies.find((b) => b.id === o.bodyId)!) }))
@@ -74,7 +75,10 @@ export function planProduction(ctx: AiContext, strategy: Strategy, warshipId: st
       .sort((a, b) => b.pop - a.pop || a.item.bodyId! - b.item.bodyId!)[0];
 
     if (urgent && deficit > 0 && big && can(warItem)) pick = warItem;
-    else if (base && colony.population >= 2 && p.expansion >= 3) pick = base.item;
+    else if (base && colony.population >= 2 && p.expansion >= 3) {
+      pick = base.item;
+      settling.add(base.item.bodyId!);
+    }
     else if (settlers < wantSettlers && big && colonyDesign && can({ kind: "ship", id: colonyDesign.id })) {
       pick = { kind: "ship", id: colonyDesign.id };
       settlers++;
