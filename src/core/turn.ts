@@ -22,8 +22,8 @@ export function resolveTurn(state: GameState, pack: ContentPack): void {
   resolveCombat(state, pack, events);
   resolveBombardment(state, pack, events);
   resolveInvasions(state, pack, events);
-  // Blockades are settled by combat: re-check before the economy runs.
-  updateBlockades(state, pack, null);
+  // Blockades are settled by combat (defenses knocked out): re-check before the economy runs.
+  updateBlockades(state, pack, events);
   resolveEconomy(state, pack, events);
   regenerateDefenses(state, pack);
   const resolved = state.turn;
