@@ -53,6 +53,7 @@ export function migrateState(state: GameState, pack: ContentPack): GameState {
   const old = state as unknown as { version: number; empires: Record<string, unknown>[]; fleets: Record<string, unknown>[]; colonies?: unknown[] };
   const migrated = old as unknown as GameState;
   const startVersion = old.version;
+  if (old.version > STATE_VERSION) throw new Error("this save is from a newer version of the game. Open it in that version instead.");
 
   if (old.version === 1) {
     // v2 added fog of war (sightings) and fleet hold orders.

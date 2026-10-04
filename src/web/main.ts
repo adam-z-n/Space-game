@@ -41,7 +41,11 @@ import { battlePanel, designerPanel, designsPanel, fleetDetail, startDraft, type
 const AUTOSAVE = "autosave";
 const pack = defaultPack();
 applyTheme(pack);
-const store = new LocalSaveStore();
+const APP_VERSION = __APP_VERSION__;
+const ARCHIVE = import.meta.env.VITE_ARCHIVE;
+// Archived releases (served at /vX.Y/) keep their own saves, so playing an old
+// version never upgrades or overwrites the save of the current one.
+const store = new LocalSaveStore(ARCHIVE ? `space4x:v${ARCHIVE}:save:` : undefined);
 const root = document.getElementById("app")!;
 
 // ---------- helpers ----------
@@ -138,7 +142,11 @@ async function showSetup(message?: string): Promise<void> {
       { className: "setup" },
       h("div", { className: "title-art" }, spriteIcon(pack, "dreadnought", pack.presentation.colors.accent, 4)),
       h("h1", { textContent: "Space 4X" }),
-      h("p", { textContent: "A turn-based space empire game. Milestone 6 preview." }),
+      h("p", { className: "version" }, `Version ${APP_VERSION}`),
+      ARCHIVE
+        ? h("p", { className: "archive-note" }, "This is an archived version with its own saves. ", h("a", { href: "../", textContent: "Play the latest version" }))
+        : null,
+      h("p", { textContent: "A turn-based space empire game." }),
       saved ? button("Continue", () => loadAndStart(saved), { className: "primary" }) : null,
       h("h3", { textContent: "Choose your empire" }),
       empires,
@@ -525,7 +533,7 @@ function startGame(game: Game): void {
           void showSetup();
         }
       }),
-      h("div", { className: "debug-note", textContent: `Seed: ${game.state.settings.seed}` }),
+      h("div", { className: "debug-note", textContent: `Version ${APP_VERSION}${ARCHIVE ? " (archived)" : ""} · seed ${game.state.settings.seed}` }),
     );
   }
 

@@ -806,3 +806,24 @@ svg.sprite.dim {
   flex-direction: column;
   gap: 2px;
 }
+
+/* ---------- version ---------- */
+
+.setup p.version {
+  font-family: var(--display-font);
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+  text-align: center;
+  margin: 0;
+}
+
+.setup p.archive-note {
+  border: 1px solid var(--warn);
+  color: var(--warn);
+  padding: 0.5rem 0.75rem;
+}
+
+.setup p.archive-note a {
+  color: var(--accent);
+}
