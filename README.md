@@ -5,7 +5,9 @@ A turn-based space empire game for phones. See [docs/GAME_DESIGN.md](docs/GAME_D
 The game is built web-first in TypeScript: it runs as a mobile web app for playtesting, and will be wrapped
 with Capacitor for the iOS and Android app stores later using the same code.
 
-## Status: Milestone 6
+## Status: version 1.0
+
+Version 1.0 is Milestones 1 to 6 plus the classic theme. See [CHANGELOG.md](CHANGELOG.md) for what changes in each version.
 
 **Milestone 6: defenses, invasion, support ships**
 
@@ -102,12 +104,24 @@ with Capacitor for the iOS and Android app stores later using the same code.
 - Headless tests and a batch simulation runner
 - A preview web app with autosave and save export/import
 
-Next: mobile builds, performance and polish (Milestone 7).
+Next: version 1.1.
 
 ## Play it
 
 The latest `main` is published at **https://adam-z-n.github.io/Space-game/**. Open it on a phone and use
 "Add to Home Screen" for a full-screen app. Saves live in that browser only; use Menu → Export save file to keep one.
+
+Every released version stays playable at its own address, with its own saves, for example
+**https://adam-z-n.github.io/Space-game/v1.0/**.
+
+## Versions and releases
+
+- `main` is the newest version and is what the site root serves. New work reaches it through pull requests.
+- A release is a git tag `vX.Y.Z` on `main` (plus a GitHub Release with notes). The deploy builds the newest patch of
+  every `X.Y` into `/vX.Y/`, so old versions never disappear. Archived builds keep saves separately from the latest version.
+- Bug fixes for an old version go on its `release/X.Y` branch and are tagged `vX.Y.Z+1`.
+- To release: set `version` in `package.json`, add a CHANGELOG entry, merge, then tag the merge commit and push the tag.
+- Saves move forward: a newer version upgrades older saves automatically. An older version refuses a newer save with a clear message.
 
 ## Running it
 

@@ -128,6 +128,13 @@ describe("orders", () => {
 });
 
 describe("save migration", () => {
+  it("refuses a save from a newer version of the game with a clear message", () => {
+    const json = readFileSync(new URL("./fixtures/save-v2-m2.json", import.meta.url), "utf8");
+    const save = JSON.parse(json);
+    save.state.version = 999;
+    expect(() => deserializeSave(JSON.stringify(save), defaultPack())).toThrow(/newer version of the game/);
+  });
+
   it("loads a real Milestone 2 save and keeps playing", () => {
     const json = readFileSync(new URL("./fixtures/save-v2-m2.json", import.meta.url), "utf8");
     const loaded = deserializeSave(json, defaultPack());
