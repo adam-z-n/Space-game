@@ -101,11 +101,13 @@ function rollPlanet(rng: Rng, pack: ContentPack, id: number): Body {
   };
 }
 
-function rollBodies(rng: Rng, pack: ContentPack, starType: ContentPack["starTypes"][number], nextId: () => number): Body[] {
+function rollBodies(rng: Rng, pack: ContentPack, starType: ContentPack["starTypes"][number], nextId: () => number, empty: boolean): Body[] {
   const count = rng.int(starType.minBodies, starType.maxBodies);
   const bodies: Body[] = [];
+  // Empty systems have no planets: only gas giants, asteroid fields, anomalies or nothing.
+  const kinds = empty ? BODY_KINDS.filter((k) => k !== "planet") : BODY_KINDS;
   for (let i = 0; i < count; i++) {
-    const kind = rng.weighted(BODY_KINDS, (k) => pack.bodyKindWeights[k]);
+    const kind = rng.weighted(kinds, (k) => pack.bodyKindWeights[k]);
     bodies.push(kind === "planet" ? rollPlanet(rng, pack, nextId()) : { id: nextId(), kind });
   }
   return bodies;
@@ -159,7 +161,7 @@ export function generateGalaxy(rng: Rng, pack: ContentPack, sizeId: string, firs
       x: p.x,
       y: p.y,
       starType: starType.id,
-      bodies: rollBodies(bodyRng, pack, starType, nextId),
+      bodies: rollBodies(bodyRng, pack, starType, nextId, bodyRng.int(1, 100) <= size.emptyPercent),
     };
   });
 

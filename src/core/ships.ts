@@ -69,6 +69,10 @@ export interface DesignStats {
   cyberDefense: number;
   /** Damage per turn to a colony under bombardment. */
   bombard: number;
+  /** Carries an outpost kit. */
+  outpost: boolean;
+  commandos: number;
+  stealth: boolean;
 }
 
 /** Stats for a design, including the empire's tech bonuses. */
@@ -76,7 +80,25 @@ export function designStats(pack: ContentPack, design: Pick<ShipDesign, "hull" |
   const hull = getHull(pack, design.hull);
   const parts = design.components.map((id) => getComponent(pack, id));
   const sum = (
-    key: "hp" | "shield" | "speed" | "sensorRange" | "fuel" | "cost" | "troops" | "repair" | "mines" | "accuracyBonus" | "jamming" | "pointDefense" | "cyber" | "cyberDefense" | "maneuver" | "bombard",
+    key:
+      | "hp"
+      | "shield"
+      | "speed"
+      | "sensorRange"
+      | "fuel"
+      | "cost"
+      | "troops"
+      | "repair"
+      | "mines"
+      | "accuracyBonus"
+      | "jamming"
+      | "pointDefense"
+      | "cyber"
+      | "cyberDefense"
+      | "maneuver"
+      | "bombard"
+      | "commandos"
+      | "stealth",
   ) => parts.reduce((n, c) => n + c[key], 0);
   const aim = sum("accuracyBonus");
   const weapons: Weapon[] = parts
@@ -91,7 +113,8 @@ export function designStats(pack: ContentPack, design: Pick<ShipDesign, "hull" |
     );
   const colonize = parts.some((c) => c.kind === "colony");
   const armed = weapons.length > 0;
-  const transport = colonize || parts.some((c) => c.kind === "troops");
+  const outpost = parts.some((c) => c.kind === "outpost");
+  const transport = colonize || outpost || parts.some((c) => c.kind === "troops");
   const role: ShipRole = transport ? "transport" : armed ? "combat" : parts.some((c) => c.kind === "sensor") ? "recon" : "support";
   return {
     cost: hull.cost + sum("cost"),
@@ -117,6 +140,9 @@ export function designStats(pack: ContentPack, design: Pick<ShipDesign, "hull" |
     cyber: sum("cyber"),
     cyberDefense: sum("cyberDefense"),
     bombard: Math.floor((sum("bombard") * (100 + fx.damagePercent)) / 100),
+    outpost,
+    commandos: sum("commandos"),
+    stealth: sum("stealth") > 0,
   };
 }
 
@@ -145,6 +171,7 @@ export function designBlocker(pack: ContentPack, empire: Empire, design: Omit<De
     if (!componentAvailable(pack, empire, id)) return `component "${id}" not available`;
     const part = getComponent(pack, id);
     if (hull.slots < part.minSlots) return `${part.name} needs a hull with at least ${part.minSlots} slots`;
+    if (hull.slots > part.maxSlots) return `${part.name} only fits hulls of ${part.maxSlots} slots or fewer`;
   }
   if (empire.designs.some((d) => !d.obsolete && d.name.toLowerCase() === name.toLowerCase())) return "a design with that name exists";
   return null;
@@ -250,6 +277,7 @@ export function newFleet(state: GameState, pack: ContentPack, empire: Empire, de
     holding: false,
     invadeColonyId: null,
     bombardColonyId: null,
+    sabotage: null,
   };
   fleet.orders = defaultOrders(fleetArmed(pack, state, fleet));
   fleet.supply = fleetMaxSupply(pack, state, fleet);
@@ -259,4 +287,10 @@ export function newFleet(state: GameState, pack: ContentPack, empire: Empire, de
 
 export function startingDesigns(pack: ContentPack): ShipDesign[] {
   return pack.startingDesigns.map((d) => ({ ...d, components: [...d.components], obsolete: false }));
+}
+
+/** A fleet made only of cloaked ships: hard to see, slips past blockades. */
+export function fleetStealthy(pack: ContentPack, state: GameState, fleet: Fleet): boolean {
+  const stats = fleetShipStats(pack, state, fleet);
+  return stats.length > 0 && stats.every((s) => s.stealth);
 }

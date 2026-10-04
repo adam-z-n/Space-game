@@ -3,9 +3,10 @@ import { empireEffects } from "./economy";
 import { shortestPaths } from "./graph";
 import { knownAdjacency } from "./vision";
 import { Rng } from "./rng";
-import { designStats, fleetArmed, getDesign, refreshFleetStats, type DesignStats, type Weapon } from "./ships";
+import { designStats, fleetArmed, fleetStealthy, getDesign, refreshFleetStats, type DesignStats, type Weapon } from "./ships";
 import type { BattleReport, BattleShot, Colony, EmpireId, Fleet, FleetId, GameEvent, GameState, Ship, SystemId } from "./state";
 import { colonyDefense, type ColonyDefense } from "./defense";
+import { outpostDefense, outpostName } from "./outposts";
 
 /**
  * Auto-resolved combat. A battle happens in any system holding ships of two
@@ -34,25 +35,61 @@ export function resolveCombat(state: GameState, pack: ContentPack, events: GameE
   const bySystem = new Map<SystemId, Fleet[]>();
   for (const fleet of state.fleets) {
     if (fleet.progress > 0) continue;
+    // Cloaked fleets stay out of battle unless they choose to attack.
+    if (fleet.orders.mission === "evade" && fleetStealthy(pack, state, fleet)) continue;
     bySystem.set(fleet.systemId, [...(bySystem.get(fleet.systemId) ?? []), fleet]);
   }
   const systems = [...bySystem.keys()].sort((a, b) => a - b);
   for (const systemId of systems) {
     const fleets = bySystem.get(systemId)!.sort((a, b) => a.id - b.id);
-    // Colonies with standing defenses take part as a ship that never retreats.
-    const defended = state.colonies
-      .filter((c) => c.systemId === systemId && c.defenseHp > 0)
-      .sort((a, b) => a.id - b.id)
-      .map((colony) => ({ colony, defense: colonyDefense(pack, state.empires[colony.empireId]!, colony) }));
-    const empires = new Set([...fleets.map((f) => f.empireId), ...defended.map((d) => d.colony.empireId)]);
+    // Colonies with standing defenses, and combat outposts, take part as a ship that never retreats.
+    const defended: Station[] = [
+      ...state.colonies
+        .filter((c) => c.systemId === systemId && c.defenseHp > 0)
+        .sort((a, b) => a.id - b.id)
+        .map((colony) => ({
+          key: colony.id,
+          empireId: colony.empireId,
+          name: `Defenses of ${colony.name}`,
+          hp: colony.defenseHp,
+          defense: colonyDefense(pack, state.empires[colony.empireId]!, colony),
+          colony,
+          save: (hp: number) => (colony.defenseHp = hp),
+        })),
+      ...state.outposts
+        .filter((o) => o.systemId === systemId && o.kind === "combat" && o.defenseHp > 0)
+        .sort((a, b) => a.id - b.id)
+        .map((outpost) => ({
+          key: outpost.id,
+          empireId: outpost.empireId,
+          name: outpostName(pack, outpost),
+          hp: outpost.defenseHp,
+          defense: outpostDefense(pack, state.empires[outpost.empireId]!, outpost),
+          colony: null,
+          save: (hp: number) => (outpost.defenseHp = hp),
+        })),
+    ];
+    const empires = new Set([...fleets.map((f) => f.empireId), ...defended.map((d) => d.empireId)]);
     if (empires.size < 2) continue;
     const fleetTriggers = fleets.some((f) => f.orders.mission === "engage" && fleetArmed(pack, state, f));
-    const guns = defended.filter((d) => d.defense.weapons.length > 0 && fleets.some((f) => f.empireId !== d.colony.empireId));
+    const guns = defended.filter((d) => d.defense.weapons.length > 0 && fleets.some((f) => f.empireId !== d.empireId));
     if (!fleetTriggers && guns.length === 0) continue;
     fight(state, pack, rng, systemId, fleets, defended, events);
   }
   state.rngState = rng.state;
   state.fleets = state.fleets.filter((f) => f.ships.length > 0);
+}
+
+/** A colony's defenses or a combat outpost, fighting as one ship that never retreats. */
+interface Station {
+  /** Unique id (the colony's or outpost's), used as its ship id; its fleet id is the negation. */
+  key: number;
+  empireId: EmpireId;
+  name: string;
+  hp: number;
+  defense: ColonyDefense;
+  colony: Colony | null;
+  save(hp: number): void;
 }
 
 function fight(
@@ -61,19 +98,20 @@ function fight(
   rng: Rng,
   systemId: SystemId,
   shipFleets: Fleet[],
-  defended: { colony: Colony; defense: ColonyDefense }[],
+  defended: Station[],
   events: GameEvent[],
 ): void {
   const cfg = pack.combat;
   const combatants = new Map<number, Combatant>();
-  // A stand-in fleet per defended colony: id is the negated colony id, its one "ship" uses the colony id.
-  const stations = new Map<FleetId, Colony>();
-  const defenseFleets: Fleet[] = defended.map(({ colony, defense }) => {
+  // A stand-in fleet per station: its id is the negated station key, its one "ship" uses the key.
+  const stations = new Map<FleetId, Station>();
+  const defenseFleets: Fleet[] = defended.map((station) => {
+    const { key, defense } = station;
     const fleet: Fleet = {
-      id: -colony.id,
-      empireId: colony.empireId,
-      name: `Defenses of ${colony.name}`,
-      ships: [{ id: colony.id, designId: "", hp: colony.defenseHp }],
+      id: -key,
+      empireId: station.empireId,
+      name: station.name,
+      ships: [{ id: key, designId: "", hp: station.hp }],
       orders: { mission: "engage", stance: "balanced", targetPriority: "warships", retreatPercent: 100 },
       supply: 1,
       speed: 0,
@@ -84,13 +122,14 @@ function fight(
       holding: true,
       invadeColonyId: null,
       bombardColonyId: null,
+      sabotage: null,
     };
-    stations.set(fleet.id, colony);
-    combatants.set(colony.id, {
+    stations.set(fleet.id, station);
+    combatants.set(key, {
       ship: fleet.ships[0]!,
       fleet,
       stats: stationStats(defense),
-      designName: `Defenses of ${colony.name}`,
+      designName: station.name,
       formation: "front",
       depleted: false,
     });
@@ -220,11 +259,11 @@ function fight(
   state.lastBattles.push(report);
 
   // Damage to defenses carries over; they repair slowly between battles.
-  for (const [id, colony] of stations) {
-    const station = fleets.find((f) => f.id === id)!;
-    const hp = station.ships[0]?.hp ?? 0;
-    colony.defenseHp = Math.max(0, hp);
-    if (colony.defenseHp === 0) events.push({ type: "defensesDown", turn: state.turn, empireId: colony.empireId, colonyId: colony.id, systemId });
+  for (const [id, station] of stations) {
+    const hp = Math.max(0, fleets.find((f) => f.id === id)!.ships[0]?.hp ?? 0);
+    station.save(hp);
+    const colony = station.colony;
+    if (hp === 0 && colony) events.push({ type: "defensesDown", turn: state.turn, empireId: colony.empireId, colonyId: colony.id, systemId });
   }
 
   // Retreating fleets fall back to the nearest friendly or empty system.
@@ -234,6 +273,7 @@ function fight(
       fleet.holding = false;
       fleet.invadeColonyId = null;
       fleet.bombardColonyId = null;
+      fleet.sabotage = null;
     }
     refreshFleetStats(pack, state, fleet);
   }
@@ -275,7 +315,7 @@ function fire(pack: ContentPack, rng: Rng, fleet: Fleet, attacker: Combatant, we
  * the enemy's; the side with the higher maneuver (its slowest armed line ship) gets
  * its way by one step a round. When they are matched, the range closes.
  */
-function nextRange(pack: ContentPack, range: number, fighting: Fleet[], combatants: Map<number, Combatant>, stations: Map<FleetId, Colony>): number {
+function nextRange(pack: ContentPack, range: number, fighting: Fleet[], combatants: Map<number, Combatant>, stations: Map<FleetId, Station>): number {
   const sides = [...new Set(fighting.map((f) => f.empireId))].sort((a, b) => a - b);
   if (sides.length < 2) return range;
   const firepower = (side: number, at: number) =>
@@ -337,6 +377,9 @@ function stationStats(defense: ColonyDefense): DesignStats {
     cyber: 0,
     cyberDefense: 0,
     bombard: 0,
+    outpost: false,
+    commandos: 0,
+    stealth: false,
   };
 }
 

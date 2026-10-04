@@ -3,6 +3,7 @@ import { designStats } from "../ships";
 import type { Colony, Focus, QueueItem } from "../state";
 import type { AiContext } from "./context";
 import { designWhere } from "./designs";
+import { outpostTargets } from "./operations";
 import type { Strategy } from "./strategy";
 
 /**
@@ -40,6 +41,10 @@ export function planProduction(ctx: AiContext, strategy: Strategy, warshipId: st
   const colonyDesign = designWhere(ctx, (s) => s.colonize);
   const scoutDesign = designWhere(ctx, (s) => s.role === "recon");
   const troopDesign = designWhere(ctx, (s) => s.troops > 0 && !s.colonize);
+  const outpostDesign = designWhere(ctx, (s) => s.outpost);
+  // One outpost ship at a time, while there are free asteroid fields or gas giants in supply range.
+  let outposters = ctx.fleets.filter((f) => f.outpost).length + queuedOf((q) => isShip(q, (s) => s.outpost));
+  const wantOutposters = outpostDesign && ctx.state.outposts.filter((o) => o.empireId === ctx.id).length < ctx.colonies.length && outpostTargets(ctx).length > 0 ? 1 : 0;
   // Invasion force: enough troops for the nearest war-target colony's last known defenders, with a margin.
   const carriedTroops = ctx.fleets.reduce((n, f) => n + f.troops, 0) + queuedOf((q) => isShip(q, (s) => s.troops > 0)) * (troopDesign ? designStats(pack, troopDesign, fx).troops : 0);
   let troopsWanted = 0;
@@ -85,6 +90,9 @@ export function planProduction(ctx: AiContext, strategy: Strategy, warshipId: st
     } else if (troopShortfall > 0 && big && troopDesign && can({ kind: "ship", id: troopDesign.id })) {
       pick = { kind: "ship", id: troopDesign.id };
       troopShortfall -= designStats(pack, troopDesign, fx).troops;
+    } else if (outposters < wantOutposters && big && !urgent && outpostDesign && can({ kind: "ship", id: outpostDesign.id })) {
+      pick = { kind: "ship", id: outpostDesign.id };
+      outposters++;
     } else if (scouts < wantScouts && colony.capital && scoutDesign && can({ kind: "ship", id: scoutDesign.id })) {
       pick = { kind: "ship", id: scoutDesign.id };
       scouts++;

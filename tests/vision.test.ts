@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import {
+  STATE_VERSION,
   applyCommand,
   attentionItems,
   createInitialState,
@@ -140,7 +141,7 @@ describe("save migration", () => {
     const json = readFileSync(new URL("./fixtures/save-v2-m2.json", import.meta.url), "utf8");
     const loaded = deserializeSave(json, defaultPack());
     const state = loaded.state;
-    expect(state.version).toBe(10);
+    expect(state.version).toBe(STATE_VERSION);
     expect(state.empires[0]!.charted.length).toBeGreaterThan(state.empires[0]!.explored.length);
     expect(state.turn).toBe(7);
     // Every empire gets its capital on its homeworld; fleets map to ship templates.

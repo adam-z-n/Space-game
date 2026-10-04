@@ -170,6 +170,16 @@ export function migrateState(state: GameState, pack: ContentPack): GameState {
     old.version = 10;
   }
 
+  if (old.version === 10) {
+    // v11 added outposts, special ops and the outpost ship and infiltrator designs.
+    migrated.outposts = [];
+    for (const fleet of migrated.fleets) fleet.sabotage = null;
+    for (const empire of migrated.empires) {
+      for (const design of startingDesigns(pack)) if (!empire.designs.some((d) => d.id === design.id)) empire.designs.push(design);
+    }
+    old.version = 11;
+  }
+
   if (startVersion !== migrated.version) {
     for (const empire of migrated.empires) refreshEmpireStats(migrated, pack, empire);
     updateSightings(migrated, pack, null, migrated.turn);

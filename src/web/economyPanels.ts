@@ -112,6 +112,7 @@ export function empirePanel(ctx: PanelContext): HTMLElement {
     row("Taxes", `+${eco.income}`),
     row("Idle industry sold", `+${eco.idleCredits}`),
     row(`Food sold (${eco.foodSold})`, `+${eco.foodSales}`),
+    ...(eco.miningIncome || eco.outpostUpkeep ? [row("Mining outposts", `+${eco.miningIncome}`), row("Outpost upkeep", `-${eco.outpostUpkeep}`)] : []),
     row("Building upkeep", `-${eco.buildingUpkeep}`),
     row("Ship upkeep", `-${eco.shipUpkeep}`),
     row("Treasury", `${empire.credits} (${signed(eco.netCredits)} per turn)`),

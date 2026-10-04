@@ -1,11 +1,11 @@
-import type { BattleReport, Body, BodyId, ColonyId, Empire, EmpireId, FleetId, FleetPosition, GameState, Lane, SystemId } from "./state";
+import type { BattleReport, Body, BodyId, ColonyId, Empire, EmpireId, OutpostKind, FleetId, FleetPosition, GameState, Lane, SystemId } from "./state";
 import { colonyOnBody, fleetPosition } from "./state";
 import type { ContentPack } from "../content/schema";
 import { availableTechs, colonizeBlocker } from "./economy";
 import { flagshipHull, fleetArmed, fleetCanColonize, fleetMaxSupply, fleetStrength } from "./ships";
 import { suppliedSystems } from "./supply";
 import { defendingTroops } from "./defense";
-import { positionPoint, sensorSources } from "./vision";
+import { inSensorRange, positionPoint, sensorSources } from "./vision";
 import { knownLanes } from "./graph";
 
 /**
@@ -33,6 +33,18 @@ export interface SystemView {
   bodies: Body[] | null;
   /** Colonies the viewer knows about here: its own, plus rivals' current or last-known. */
   colonies: ColonyMarker[];
+  /** Outposts here: the viewer's own, plus rivals' while in sensor range. */
+  outposts: OutpostMarker[];
+}
+
+export interface OutpostMarker {
+  id: number;
+  empireId: EmpireId;
+  bodyId: BodyId;
+  kind: OutpostKind;
+  depot: boolean;
+  own: boolean;
+  defenseHp: number;
 }
 
 export interface ColonyMarker {
@@ -140,10 +152,11 @@ export function empireView(state: GameState, pack: ContentPack, viewerId: Empire
   }
 
   const charted = new Set(viewer.charted);
+  const sources = sensorSources(state, pack, viewerId);
   const systems: SystemView[] = state.galaxy.systems.map((s) => {
     const known = explored.has(s.id);
     if (!charted.has(s.id)) {
-      return { id: s.id, name: "", x: s.x, y: s.y, starType: "", charted: false, explored: false, survey: "unexplored", bodies: null, colonies: [] };
+      return { id: s.id, name: "", x: s.x, y: s.y, starType: "", charted: false, explored: false, survey: "unexplored", bodies: null, colonies: [], outposts: [] };
     }
     return {
       id: s.id,
@@ -156,6 +169,9 @@ export function empireView(state: GameState, pack: ContentPack, viewerId: Empire
       survey: known ? surveySystem(pack, viewer, s.bodies) : "unexplored",
       bodies: known ? s.bodies : null,
       colonies: (markers.get(s.id) ?? []).sort((a, b) => a.colonyId - b.colonyId),
+      outposts: state.outposts
+        .filter((o) => o.systemId === s.id && (o.empireId === viewerId || inSensorRange(sources, s)))
+        .map((o) => ({ id: o.id, empireId: o.empireId, bodyId: o.bodyId, kind: o.kind, depot: o.depot, own: o.empireId === viewerId, defenseHp: o.defenseHp })),
     };
   });
 
@@ -213,7 +229,7 @@ export function empireView(state: GameState, pack: ContentPack, viewerId: Empire
     lanes: knownLanes(state.galaxy.lanes, charted),
     fleets,
     empires: state.empires.map((e) => ({ id: e.id, name: e.name, color: e.color, met: met.has(e.id) })),
-    sensors: sensorSources(state, pack, viewerId),
+    sensors: sources,
     supplied: [...suppliedSystems(state, pack, viewerId)].sort((a, b) => a - b),
     battles: state.lastBattles.filter((b) => b.empires.includes(viewerId)),
     minefields: state.minefields.filter((m) => m.empireId === viewerId).map((m) => ({ systemId: m.systemId, strength: m.strength })),
@@ -238,6 +254,9 @@ export function omniscientView(state: GameState, pack: ContentPack, viewerId: Em
       charted: true,
       explored: true,
       survey: surveySystem(pack, state.empires[viewerId]!, s.bodies),
+      outposts: state.outposts
+        .filter((o) => o.systemId === s.id)
+        .map((o) => ({ id: o.id, empireId: o.empireId, bodyId: o.bodyId, kind: o.kind, depot: o.depot, own: o.empireId === viewerId, defenseHp: o.defenseHp })),
       colonies: state.colonies
         .filter((c) => c.systemId === s.id)
         .map((c) => ({

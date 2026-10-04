@@ -21,6 +21,8 @@ const GalaxySize = z.object({
   radiusY: z.number().int().positive(),
   /** Minimum distance between two stars. */
   minStarDistance: z.number().int().positive(),
+  /** Share of systems with no planets at all: only gas giants, asteroids, anomalies or nothing. */
+  emptyPercent: z.number().int().min(0).max(100).default(0),
 });
 
 const StarType = z.object({
@@ -129,7 +131,7 @@ const Hull = z.object({
   requires: id.optional(),
 });
 
-export const COMPONENT_KINDS = ["weapon", "hangar", "armor", "shield", "engine", "sensor", "electronics", "colony", "fuel", "troops", "repair", "mines", "bomb"] as const;
+export const COMPONENT_KINDS = ["weapon", "hangar", "armor", "shield", "engine", "sensor", "electronics", "colony", "outpost", "fuel", "troops", "commandos", "repair", "mines", "bomb"] as const;
 /** Weapon ranges: battles start at long range (3) and close (or open) each round. */
 export const RANGE_NAMES = { 1: "short", 2: "medium", 3: "long" } as const;
 /** missile: point defense and ECM work against it. fighters: also hunt support ships past screens. pierce: ignores shields. */
@@ -150,8 +152,13 @@ const Component = z.object({
   /** Longest range the weapon fires at: 1 short, 2 medium, 3 long. */
   range: z.number().int().min(1).max(3).default(2),
   special: z.enum(WEAPON_SPECIALS).optional(),
-  /** Smallest hull (by slots) that can mount it. */
+  /** Smallest and largest hull (by slots) that can mount it. */
   minSlots: z.number().int().min(1).default(1),
+  maxSlots: z.number().int().min(1).default(12),
+  /** Special forces for sabotage. */
+  commandos: z.number().int().nonnegative().default(0),
+  /** Cloaking: a fleet whose ships all have it is hard to see. */
+  stealth: z.number().int().nonnegative().default(0),
   /** Electronics. */
   accuracyBonus: z.number().int().nonnegative().default(0),
   jamming: z.number().int().nonnegative().default(0),
@@ -382,6 +389,40 @@ const Presentation = z.object({
   hullSprites: z.record(z.string(), Sprite),
 });
 
+const OutpostBodies = z.array(z.enum(BODY_KINDS)).min(1);
+/** Outposts on asteroid fields and gas giants: no population, built by ships with an outpost kit. */
+const Outposts = z.object({
+  combat: z.object({
+    name: z.string().min(1),
+    description: z.string(),
+    hp: z.number().int().positive(),
+    weapons: z.array(z.object({ damage: z.number().int().positive(), accuracy: z.number().int().min(1).max(100), count: z.number().int().positive() })),
+    sensorRange: z.number().int().nonnegative(),
+    upkeep: z.number().int().nonnegative(),
+    bodies: OutpostBodies,
+    requires: id.optional(),
+  }),
+  mining: z.object({
+    name: z.string().min(1),
+    description: z.string(),
+    credits: z.number().int().nonnegative(),
+    sensorRange: z.number().int().nonnegative(),
+    upkeep: z.number().int().nonnegative(),
+    bodies: OutpostBodies,
+    requires: id.optional(),
+  }),
+  depot: z.object({
+    name: z.string().min(1),
+    description: z.string(),
+    /** Credits to upgrade a combat outpost. */
+    cost: z.number().int().nonnegative(),
+    upkeep: z.number().int().nonnegative(),
+    supplyRange: z.number().int().nonnegative(),
+    requires: id.optional(),
+  }),
+});
+export type OutpostsData = z.infer<typeof Outposts>;
+
 const Economy = z.object({
   startingCredits: z.number().int(),
   startingFood: z.number().int().nonnegative(),
@@ -467,6 +508,7 @@ export const ContentPackSchema = z
     aiPersonalities: z.array(Personality).min(1),
     difficulties: z.array(Difficulty).min(1),
     taxLevels: z.array(TaxLevel).min(1),
+    outposts: Outposts,
     hulls: z.array(Hull).min(1),
     components: z.array(Component).min(1),
     /** Designs every empire starts with. */
@@ -550,6 +592,10 @@ export const ContentPackSchema = z
     pack.components.forEach((t, i) => {
       if (t.requires && !techIds.has(t.requires)) issue(["components", i, "requires"], `unknown tech "${t.requires}"`);
     });
+    for (const kind of ["combat", "mining", "depot"] as const) {
+      const req = pack.outposts[kind].requires;
+      if (req && !techIds.has(req)) issue(["outposts", kind, "requires"], `unknown tech "${req}"`);
+    }
     const hullById = new Map(pack.hulls.map((h) => [h.id, h]));
     const componentIds = new Set(pack.components.map((c) => c.id));
     pack.startingDesigns.forEach((d, i) => {

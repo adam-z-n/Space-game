@@ -24,6 +24,14 @@ export function suppliedSystems(state: GameState, pack: ContentPack, empireId: E
       if (d <= range) supplied.add(systemId);
     });
   }
+  // Supply depots project supply too.
+  for (const outpost of state.outposts) {
+    if (outpost.empireId !== empireId || !outpost.depot) continue;
+    const { dist } = shortestPaths(adj, outpost.systemId);
+    dist.forEach((d, systemId) => {
+      if (d <= pack.outposts.depot.supplyRange + bonus) supplied.add(systemId);
+    });
+  }
   return supplied;
 }
 
@@ -72,7 +80,10 @@ export function resolveSupply(state: GameState, pack: ContentPack, events: GameE
     }
     if (supplied) {
       fleet.supply = fleetMaxSupply(pack, state, fleet);
-      const docked = fleet.progress === 0 && state.colonies.some((c) => c.empireId === fleet.empireId && c.systemId === fleet.systemId);
+      const docked =
+        fleet.progress === 0 &&
+        (state.colonies.some((c) => c.empireId === fleet.empireId && c.systemId === fleet.systemId) ||
+          state.outposts.some((o) => o.empireId === fleet.empireId && o.systemId === fleet.systemId && o.depot));
       const percent = Math.max(tender, docked ? pack.combat.dockRepairPercent : pack.combat.repairPercent);
       for (const ship of fleet.ships) {
         const max = shipStats(pack, empire, ship).maxHp;

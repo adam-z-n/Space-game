@@ -429,6 +429,15 @@ export class GalaxyMap {
       // The disc shows what is known about the system's worlds; a small core keeps the star's own color.
       parts.push(`<circle cx="${system.x}" cy="${system.y}" r="${starRadius}" fill="${survey[system.survey]}"/>`);
       parts.push(`<circle cx="${system.x}" cy="${system.y}" r="${starRadius * 0.38}" fill="${starType?.color ?? "#fff"}"/>`);
+      // Outposts: small squares left of the star (filled: combat, hollow: mining, ringed: supply depot).
+      system.outposts.forEach((o, i) => {
+        const size = px(7);
+        const ox = system.x - starRadius - px(12) - i * px(10);
+        const oy = system.y - size / 2;
+        const fill = o.kind === "combat" ? color(o.empireId) : "none";
+        parts.push(`<rect x="${ox - size / 2}" y="${oy}" width="${size}" height="${size}" fill="${fill}" stroke="${color(o.empireId)}" stroke-width="${px(1.5)}"/>`);
+        if (o.depot) parts.push(`<rect x="${ox - size / 2 - px(3)}" y="${oy - px(3)}" width="${size + px(6)}" height="${size + px(6)}" fill="none" stroke="${color(o.empireId)}" stroke-width="${px(1)}"/>`);
+      });
       if (system.id === scene.selectedSystem) {
         parts.push(`<circle class="selected-ring" cx="${system.x}" cy="${system.y}" r="${starRadius + px(11)}" stroke-width="${px(1.5)}" stroke-dasharray="${px(4)} ${px(4)}"/>`);
       }

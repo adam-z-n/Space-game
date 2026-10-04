@@ -104,7 +104,7 @@ Version 1.0 is Milestones 1 to 6 plus the classic theme. See [CHANGELOG.md](CHAN
 - Headless tests and a batch simulation runner
 - A preview web app with autosave and save export/import
 
-Next: version 1.1 (in progress; see the CHANGELOG).
+Version 1.1 adds sensor-only fog of war, planning screens, finances, battle range and formations, new weapons, outposts and special operations (see the CHANGELOG).
 
 ## Play it
 
@@ -150,7 +150,8 @@ games run to the content pack's turn limit (200), which takes a minute or two pe
 | `src/core/supply.ts` | Supply networks, onboard supply, repair, attrition, blockades. |
 | `src/core/combat.ts` | Battle resolution and battle reports. |
 | `src/core/ai/` | AI empires: context (knowledge), strategy, operations, production, designs. |
-| `src/core/defense.ts` | Colony defenses, garrisons, minefields and invasions. |
+| `src/core/defense.ts` | Colony defenses, garrisons, minefields, invasions, bombardment and sabotage. |
+| `src/core/outposts.ts` | Combat and mining outposts and supply depots. |
 | `src/core/victory.ts` | Scores, domination, elimination and the turn limit. |
 | `src/core/view.ts` | What one empire may know. The UI renders only this, so fog of war can't leak. |
 | `src/content/` | Content pack schema and loader. |
@@ -174,7 +175,7 @@ These keep games replayable and multiplayer-ready:
 ## Decisions so far
 
 - Engine: TypeScript, web-first, Capacitor for native builds later.
-- Galaxy sizes: about 24 / 48 / 80 systems (tunable in the content pack).
+- Galaxy sizes: 32 / 64 / 100 systems, about 30% without planets (tunable in the content pack).
 - Resources: industry, research, food, credits.
 - Colony management uses focus presets rather than per-worker sliders, to keep it one-thumb friendly.
 - Every empire is hostile to every other; diplomacy is out of scope for v1.
