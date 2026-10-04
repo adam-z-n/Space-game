@@ -3,10 +3,11 @@ name: Deploy to GitHub Pages
 # Publishes the web build from main at the site root, plus every release tag
 # (vX.Y.Z) at its own path (/vX.Y/, newest patch of each X.Y) so old versions
 # stay playable. Requires Settings > Pages > Source: "GitHub Actions".
+# Pushing a release tag runs release.yml, which starts this workflow on main
+# (the github-pages environment only accepts deploys from main).
 on:
   push:
     branches: [main]
-    tags: ["v*.*.*"]
   workflow_dispatch:
 
 permissions:
