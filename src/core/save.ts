@@ -146,6 +146,12 @@ export function migrateState(state: GameState, pack: ContentPack): GameState {
     old.version = 7;
   }
 
+  if (old.version === 7) {
+    // v8 added star charts; they fill in from sensors and explored systems below.
+    for (const empire of migrated.empires) empire.charted = [...empire.explored];
+    old.version = 8;
+  }
+
   if (startVersion !== migrated.version) {
     for (const empire of migrated.empires) refreshEmpireStats(migrated, pack, empire);
     updateSightings(migrated, pack, null, migrated.turn);

@@ -1,5 +1,6 @@
 import type { ContentPack, DesignData } from "../content/schema";
-import { buildAdjacency, findPath, laneLength } from "./graph";
+import { findPath, laneLength } from "./graph";
+import { knownAdjacency } from "./vision";
 import {
   FOCUSES,
   MISSIONS,
@@ -85,7 +86,8 @@ export function planMove(state: GameState, fleetId: FleetId, destinationId: Syst
   const fleet = findFleet(state, fleetId);
   if (!fleet) return `no fleet ${fleetId}`;
   if (!state.galaxy.systems[destinationId]) return `no system ${destinationId}`;
-  const adj = buildAdjacency(state.galaxy.systems.length, state.galaxy.lanes);
+  // Fleets can only plan routes along lanes on their empire's star charts.
+  const adj = knownAdjacency(state, fleet.empireId);
   const plan = (systemId: SystemId, route: SystemId[], progress: number, distance: number): RoutePlan => ({
     systemId,
     route,
@@ -161,7 +163,7 @@ export function validateCommand(state: GameState, command: Command, pack: Conten
       const colony = ownColony(state, command.empireId, command.colonyId);
       if (typeof colony === "string") return colony;
       if (colony.queue.length >= 10) return "queue is full";
-      return buildBlocker(pack, state.empires[command.empireId]!, colony, command.item);
+      return buildBlocker(state, pack, state.empires[command.empireId]!, colony, command.item);
     }
     case "dequeueBuild":
     case "prioritizeBuild": {

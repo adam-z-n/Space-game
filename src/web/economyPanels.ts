@@ -6,7 +6,9 @@ import {
   colonyDefense,
   colonyOutput,
   defendingTroops,
+  coloniesMissing,
   empireEconomy,
+  techUnlocks,
   findColony,
   empireScore,
   getDesign,
@@ -16,6 +18,7 @@ import {
   itemCost,
   itemName,
   queueForecast,
+  prospectiveMaxPop,
   type Colony,
   type ColonyId,
   type Command,
@@ -34,8 +37,11 @@ export interface PanelContext {
   issue(command: Command): boolean;
   openColony(colonyId: ColonyId): void;
   openResearch(): void;
+  openTechTree(): void;
   openEmpire(): void;
   close(): void;
+  /** Re-render after issuing commands directly on the game. */
+  refresh(): void;
   newGame(): void;
 }
 
@@ -168,7 +174,7 @@ export function colonyPanel(ctx: PanelContext, colonyId: ColonyId): HTMLElement 
     const controls = h("span", { className: "row-actions" });
     if (i > 0) controls.append(button("↑", () => ctx.issue({ type: "prioritizeBuild", empireId: game.playerId, colonyId, index: i }), { ariaLabel: "Build next" }));
     controls.append(button("✕", () => ctx.issue({ type: "dequeueBuild", empireId: game.playerId, colonyId, index: i }), { ariaLabel: "Remove" }));
-    const label = h("span", { className: "grow" }, h("div", { textContent: itemName(pack, empire, item) }), h("div", { className: "muted small", textContent: `${turnsText(forecast[i]!)} · ${cost} ⚙` }));
+    const label = h("span", { className: "grow" }, h("div", { textContent: itemName(pack, empire, item, game.state, colony.systemId) }), h("div", { className: "muted small", textContent: `${turnsText(forecast[i]!)} · ${cost} ⚙` }));
     if (i === 0) label.append(bar(colony.progress / cost));
     queue.append(h("li", {}, label, controls));
   });
@@ -188,14 +194,19 @@ export function colonyPanel(ctx: PanelContext, colonyId: ColonyId): HTMLElement 
 
   // What can be added.
   const options = h("ul");
-  for (const item of buildOptions(pack, empire, colony)) {
+  for (const item of buildOptions(game.state, pack, empire, colony)) {
     const itemCostValue = itemCost(pack, empire, item);
-    const description = item.kind === "building" ? pack.buildings.find((b) => b.id === item.id)!.description : designSummary(pack, empire, getDesign(empire, item.id));
+    const description =
+      item.kind === "colonyBase"
+        ? colonyBaseDescription(game, item.bodyId!)
+        : item.kind === "building"
+          ? pack.buildings.find((b) => b.id === item.id)!.description
+          : designSummary(pack, empire, getDesign(empire, item.id));
     const alone = out.industry > 0 ? Math.ceil(itemCostValue / out.industry) : Infinity;
     const li = h(
       "li",
       { className: "tappable" },
-      h("span", { className: "grow" }, h("div", { textContent: `${item.kind === "ship" ? "Ship: " : ""}${itemName(pack, empire, item)}` }), h("div", { className: "muted small", textContent: description })),
+      h("span", { className: "grow" }, h("div", { textContent: `${item.kind === "ship" ? "Ship: " : ""}${itemName(pack, empire, item, game.state, colony.systemId)}` }), h("div", { className: "muted small", textContent: description })),
       h("span", { textContent: `${itemCostValue} ⚙ · ${turnsText(alone)}` }),
     );
     li.onclick = () => ctx.issue({ type: "queueBuild", empireId: game.playerId, colonyId, item });
@@ -277,11 +288,16 @@ export function researchPanel(ctx: PanelContext): HTMLElement {
   if (list.childElementCount === 0) list.append(h("li", {}, h("span", { className: "muted", textContent: "Everything known has been researched." })));
 
   const known = empire.techs.map((id) => getTech(pack, id).name).join(", ") || "None yet";
+  // Researched buildings some colonies still lack, with one-tap queueing.
+  const offers = empire.techs.flatMap((id) => queueEverywhere(ctx, id));
   return h(
     "div",
     { className: "sheet panel tall" },
     h("h2", {}, "Research", closeButton(ctx)),
     header,
+    h("div", { className: "row" }, button("Full research tree", () => ctx.openTechTree())),
+    offers.length ? h("h3", { textContent: "New buildings" }) : null,
+    offers.length ? h("div", { className: "column" }, ...offers) : null,
     h("h3", { textContent: "Available" }),
     list,
     h("h3", { textContent: `Researched (${empire.techs.length}/${pack.techs.length})` }),
@@ -320,4 +336,34 @@ export function gameOverPanel(ctx: PanelContext): HTMLElement | null {
     list,
     button("New game", () => ctx.newGame(), { className: "primary" }),
   );
+}
+
+/** What a colony base would found: the planet and how large the colony could grow. */
+function colonyBaseDescription(game: Game, bodyId: number): string {
+  const pack = game.pack;
+  const empire = game.state.empires[game.playerId]!;
+  const body = game.state.galaxy.systems.flatMap((s) => s.bodies).find((b) => b.id === bodyId)!;
+  const type = pack.planetTypes.find((t) => t.id === body.planetType)?.name ?? "";
+  const size = pack.planetSizes.find((t) => t.id === body.size)?.name ?? "";
+  return `Settle the ${size} ${type} world in this system without a colony ship (max pop ${prospectiveMaxPop(pack, empire, body)}).`;
+}
+
+/**
+ * Buttons to add each building a tech unlocks to every colony that can still build it,
+ * at the back of their queues. Empty when every colony already has it built or queued.
+ */
+export function queueEverywhere(ctx: PanelContext, techId: string): HTMLElement[] {
+  const { game, pack } = ctx;
+  return techUnlocks(pack, techId).buildings.flatMap((buildingId) => {
+    const colonies = coloniesMissing(game.state, pack, game.playerId, buildingId);
+    if (colonies.length === 0) return [];
+    const building = pack.buildings.find((b) => b.id === buildingId)!;
+    const where = colonies.length === 1 ? colonies[0]!.name : `all ${colonies.length} colonies`;
+    return [
+      button(`Queue ${building.name} at ${where} (${building.cost} ⚙ each)`, () => {
+        for (const colony of colonies) game.issue({ type: "queueBuild", empireId: game.playerId, colonyId: colony.id, item: { kind: "building", id: buildingId } });
+        ctx.refresh();
+      }),
+    ];
+  });
 }

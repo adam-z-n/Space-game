@@ -64,6 +64,7 @@ export function createInitialState(settings: GameSettings, pack: ContentPack): G
       difficulty: i !== 0 ? difficulty : null,
       homeSystemId: home,
       explored: [home],
+      charted: [home],
       capitalSensorRange: pack.economy.capitalSensorRange,
       colonySensorRange: pack.economy.colonySensorRange,
       sightings: [],

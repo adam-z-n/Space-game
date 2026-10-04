@@ -1,6 +1,6 @@
 import type { ContentPack, Effects } from "../content/schema";
 import type { Colony, Empire, EmpireId, Focus, GameEvent, GameState, QueueItem, StarSystem } from "./state";
-import { getSystem } from "./state";
+import { colonyOnBody, getSystem } from "./state";
 import { designBuildable, designStats, getDesign, newFleet, refreshFleetStats } from "./ships";
 
 /**
@@ -234,15 +234,29 @@ export function availableTechs(pack: ContentPack, empire: Empire): Tech[] {
 
 /** Ship queue items name one of the owning empire's designs. */
 export function itemCost(pack: ContentPack, empire: Empire, item: QueueItem): number {
+  if (item.kind === "colonyBase") return pack.economy.colonyBaseCost;
   return item.kind === "building" ? getBuilding(pack, item.id).cost : designStats(pack, getDesign(empire, item.id), empireEffects(pack, empire)).cost;
 }
 
-export function itemName(pack: ContentPack, empire: Empire, item: QueueItem): string {
+export function itemName(pack: ContentPack, empire: Empire, item: QueueItem, state?: GameState, systemId?: number): string {
+  if (item.kind === "colonyBase") {
+    const target = state && systemId !== undefined ? ` on ${bodyName(getSystem(state, systemId), item.bodyId!)}` : "";
+    return `Colony Base${target}`;
+  }
   return item.kind === "building" ? getBuilding(pack, item.id).name : getDesign(empire, item.id).name;
 }
 
 /** Why `item` can't be added to `colony`'s queue, or null. */
-export function buildBlocker(pack: ContentPack, empire: Empire, colony: Colony, item: QueueItem): string | null {
+export function buildBlocker(state: GameState, pack: ContentPack, empire: Empire, colony: Colony, item: QueueItem): string | null {
+  if (item.kind === "colonyBase") {
+    const body = item.bodyId === undefined ? undefined : findBody(state, colony.systemId, item.bodyId);
+    if (!body) return "no such planet in this system";
+    if (colonyOnBody(state, body.id)) return "planet already colonized";
+    const blocker = colonizeBlocker(pack, empire, body);
+    if (blocker) return blocker;
+    const queued = state.colonies.some((c) => c.empireId === empire.id && c.queue.some((q) => q.kind === "colonyBase" && q.bodyId === body.id));
+    return queued ? "already queued" : null;
+  }
   if (item.kind === "building") {
     const building = pack.buildings.find((b) => b.id === item.id);
     if (!building || !building.buildable) return "unknown building";
@@ -256,12 +270,13 @@ export function buildBlocker(pack: ContentPack, empire: Empire, colony: Colony, 
   return null;
 }
 
-export function buildOptions(pack: ContentPack, empire: Empire, colony: Colony): QueueItem[] {
+export function buildOptions(state: GameState, pack: ContentPack, empire: Empire, colony: Colony): QueueItem[] {
   const items: QueueItem[] = [
+    ...getSystem(state, colony.systemId).bodies.map((b) => ({ kind: "colonyBase" as const, id: "colony_base", bodyId: b.id })),
     ...pack.buildings.map((b) => ({ kind: "building" as const, id: b.id })),
     ...empire.designs.map((d) => ({ kind: "ship" as const, id: d.id })),
   ];
-  return items.filter((item) => buildBlocker(pack, empire, colony, item) === null);
+  return items.filter((item) => buildBlocker(state, pack, empire, colony, item) === null);
 }
 
 /** Credits to finish the colony's current build this turn, or null if there's nothing to buy. */
@@ -344,7 +359,15 @@ export function resolveEconomy(state: GameState, pack: ContentPack, events: Game
         if (colony.progress < cost) break;
         colony.progress -= cost;
         colony.queue.shift();
-        if (item.kind === "building") {
+        if (item.kind === "colonyBase") {
+          // The target may have been taken (or become unreachable) since it was queued.
+          const body = findBody(state, colony.systemId, item.bodyId!);
+          if (body && !colonyOnBody(state, body.id) && colonizeBlocker(pack, empire, body) === null) {
+            const founded = newColony(state, empire, colony.systemId, body.id, pack.economy.colonyPopulation, false);
+            state.colonies.push(founded);
+            events.push({ type: "colonyFounded", turn, empireId: empire.id, colonyId: founded.id, systemId: colony.systemId });
+          }
+        } else if (item.kind === "building") {
           colony.buildings.push(item.id);
           events.push({ type: "buildingCompleted", turn, empireId: empire.id, colonyId: colony.id, systemId: colony.systemId, buildingId: item.id });
         } else {
@@ -410,4 +433,21 @@ export function resolveEconomy(state: GameState, pack: ContentPack, events: Game
       }
     });
   }
+}
+
+/** Names of the buildings, components and hulls a tech unlocks, for the research screens. */
+export function techUnlocks(pack: ContentPack, techId: string): { buildings: string[]; components: string[]; hulls: string[] } {
+  return {
+    buildings: pack.buildings.filter((b) => b.requires === techId).map((b) => b.id),
+    components: pack.components.filter((c) => c.requires === techId).map((c) => c.id),
+    hulls: pack.hulls.filter((h) => h.requires === techId).map((h) => h.id),
+  };
+}
+
+/** The empire's colonies that could add `buildingId` to their queue right now (not built, not queued). */
+export function coloniesMissing(state: GameState, pack: ContentPack, empireId: EmpireId, buildingId: string): Colony[] {
+  const empire = state.empires[empireId]!;
+  return state.colonies
+    .filter((c) => c.empireId === empireId && c.queue.length < 10 && buildBlocker(state, pack, empire, c, { kind: "building", id: buildingId }) === null)
+    .sort((a, b) => a.id - b.id);
 }

@@ -11,7 +11,7 @@ import {
   type GameState,
 } from "../src/core";
 import { defaultPack } from "../src/content/defaultPack";
-import { relocateCapitals, testFleet, testPack } from "./helpers";
+import { relocateCapitals, testFleet, testPack, chartAll } from "./helpers";
 
 const pack = testPack;
 
@@ -36,6 +36,7 @@ function lineState(): GameState {
     testFleet(state, { id: 100, empireId: 0, systemId: 0, hull: "test100", name: "Blue" }),
     testFleet(state, { id: 200, empireId: 1, systemId: 4, hull: "test100", name: "Red" }),
   ];
+  chartAll(state);
   return state;
 }
 
@@ -139,7 +140,8 @@ describe("save migration", () => {
     const json = readFileSync(new URL("./fixtures/save-v2-m2.json", import.meta.url), "utf8");
     const loaded = deserializeSave(json, defaultPack());
     const state = loaded.state;
-    expect(state.version).toBe(7);
+    expect(state.version).toBe(8);
+    expect(state.empires[0]!.charted.length).toBeGreaterThan(state.empires[0]!.explored.length);
     expect(state.turn).toBe(7);
     // Every empire gets its capital on its homeworld; fleets map to ship templates.
     for (const empire of state.empires) {

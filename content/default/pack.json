@@ -120,7 +120,7 @@
     {
       "id": "barren",
       "name": "Barren",
-      "habitability": 10,
+      "habitability": 20,
       "weight": 24,
       "foodYield": 0,
       "groundDefensePercent": 0
@@ -128,7 +128,7 @@
     {
       "id": "toxic",
       "name": "Toxic",
-      "habitability": 5,
+      "habitability": 15,
       "weight": 14,
       "foodYield": 0,
       "groundDefensePercent": 40
@@ -136,7 +136,7 @@
     {
       "id": "volcanic",
       "name": "Volcanic",
-      "habitability": 5,
+      "habitability": 10,
       "weight": 10,
       "foodYield": 0,
       "groundDefensePercent": 30
@@ -389,7 +389,8 @@
     "taxPercentPerPop": 50,
     "colonyBaseIndustry": 2,
     "colonySupplyRange": 250,
-    "capitalSupplyRange": 400
+    "capitalSupplyRange": 400,
+    "colonyBaseCost": 40
   },
   "researchFields": [
     {
@@ -436,6 +437,19 @@
       "description": "Unlocks Hydroponic Farms."
     },
     {
+      "id": "controlled_environments",
+      "name": "Controlled Environments",
+      "field": "growth",
+      "cost": 90,
+      "requires": [
+        "hydroponics"
+      ],
+      "effects": {
+        "minHabitability": -20
+      },
+      "description": "Sealed habitats: colonize Barren worlds (minimum habitability -20)."
+    },
+    {
       "id": "subterranean_habitats",
       "name": "Subterranean Habitats",
       "field": "growth",
@@ -454,12 +468,14 @@
       "field": "growth",
       "cost": 220,
       "requires": [
-        "subterranean_habitats"
+        "subterranean_habitats",
+        "controlled_environments"
       ],
       "effects": {
-        "minHabitability": -25
+        "minHabitability": -15,
+        "maxPopPercent": 10
       },
-      "description": "Colonize harsher worlds: minimum habitability -25."
+      "description": "Colonize Toxic and Volcanic worlds (minimum habitability -15). +10% max population."
     },
     {
       "id": "cloning_centers",
@@ -1486,6 +1502,12 @@
       "accent": "#5fd3ff",
       "warn": "#ffcf4a",
       "danger": "#ff5a5a"
+    },
+    "surveyColors": {
+      "unexplored": "#8a93a6",
+      "habitable": "#4cd964",
+      "hostile": "#ffcf4a",
+      "barren": "#2f5fb3"
     },
     "hullSprites": {
       "corvette": {

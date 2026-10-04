@@ -65,3 +65,8 @@ export function relocateCapitals(state: GameState, systems: number[]): void {
     empire.colonySensorRange = 0;
   }
 }
+
+/** Put every system on every empire's star charts, so tests can route fleets anywhere. */
+export function chartAll(state: GameState): void {
+  for (const empire of state.empires) empire.charted = state.galaxy.systems.map((s) => s.id);
+}

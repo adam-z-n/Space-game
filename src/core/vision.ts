@@ -1,5 +1,5 @@
 import type { ContentPack } from "../content/schema";
-import { laneLength } from "./graph";
+import { buildAdjacency, knownLanes, laneLength, type Neighbor } from "./graph";
 import { flagshipHull, fleetArmed, fleetStrength } from "./ships";
 import { defendingTroops } from "./defense";
 import { fleetPosition, type EmpireId, type FleetPosition, type FleetSighting, type GameEvent, type GameState } from "./state";
@@ -51,6 +51,28 @@ export function inSensorRange(sources: readonly SensorSource[], p: Point): boole
   });
 }
 
+/** The lane graph as `empireId` knows it: only lanes between charted systems. */
+export function knownAdjacency(state: GameState, empireId: EmpireId): Neighbor[][] {
+  const charted = new Set(state.empires[empireId]!.charted);
+  return buildAdjacency(state.galaxy.systems.length, knownLanes(state.galaxy.lanes, charted));
+}
+
+/** Add systems in sensor range, and neighbors of explored systems, to an empire's charts. */
+export function updateCharts(state: GameState, empireId: EmpireId, sources: readonly SensorSource[]): void {
+  const empire = state.empires[empireId]!;
+  const charted = new Set(empire.charted);
+  const before = charted.size;
+  for (const system of state.galaxy.systems) if (!charted.has(system.id) && inSensorRange(sources, system)) charted.add(system.id);
+  // Visiting a system shows where its lanes lead.
+  const explored = new Set(empire.explored);
+  for (const lane of state.galaxy.lanes) {
+    if (explored.has(lane.a)) charted.add(lane.b);
+    if (explored.has(lane.b)) charted.add(lane.a);
+  }
+  for (const id of explored) charted.add(id);
+  if (charted.size !== before || empire.charted.length !== before) empire.charted = [...charted].sort((a, b) => a - b);
+}
+
 /**
  * Refresh every empire's sightings for the current turn. Fleets in range are
  * stamped with state.turn; others keep their older entry. Sightings of fleets
@@ -59,6 +81,7 @@ export function inSensorRange(sources: readonly SensorSource[], p: Point): boole
 export function updateSightings(state: GameState, pack: ContentPack, events: GameEvent[] | null, eventTurn: number): void {
   for (const empire of state.empires) {
     const sources = sensorSources(state, pack, empire.id);
+    updateCharts(state, empire.id, sources);
     const byId = new Map(empire.sightings.map((s) => [s.fleetId, s]));
     for (const fleet of state.fleets) {
       if (fleet.empireId === empire.id) continue;

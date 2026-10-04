@@ -1,3 +1,4 @@
+import { chartAll } from "./helpers";
 import { describe, expect, it } from "vitest";
 import {
   Game,
@@ -46,6 +47,7 @@ function line(): GameState {
   state.colonies[1]!.systemId = 6;
   for (const c of state.colonies) c.bodyId = state.galaxy.systems[c.systemId]!.bodies[0]?.id ?? c.bodyId;
   state.fleets = [];
+  chartAll(state);
   return state;
 }
 

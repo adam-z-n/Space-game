@@ -9,7 +9,7 @@ import {
   stateHash,
   type GameState,
 } from "../src/core";
-import { relocateCapitals, testFleet, testPack } from "./helpers";
+import { relocateCapitals, testFleet, testPack, chartAll } from "./helpers";
 
 const pack = testPack;
 
@@ -27,6 +27,7 @@ function lineState(): GameState {
   state.fleets = [testFleet(state, { id: 500, empireId: 0, systemId: 0, hull: "test60" })];
   state.empires = state.empires.slice(0, 2);
   relocateCapitals(state, [0, 3]);
+  chartAll(state);
   return state;
 }
 

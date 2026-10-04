@@ -5,7 +5,7 @@ import type { BodyKind, Formation } from "../content/schema";
  * so it can be cloned, saved, hashed, and sent over a network unchanged.
  */
 
-export const STATE_VERSION = 7;
+export const STATE_VERSION = 8;
 
 export type SystemId = number;
 export type EmpireId = number;
@@ -73,6 +73,12 @@ export interface Empire {
   homeSystemId: SystemId;
   /** Systems this empire has visited, ascending. Their bodies are known. */
   explored: SystemId[];
+  /**
+   * Systems on this empire's star charts, ascending: ever inside its sensor range, or one
+   * lane away from a system it explored. Only charted systems and the lanes between them
+   * are known, and fleets can only plan routes through them.
+   */
+  charted: SystemId[];
   /** Sensor ranges of the capital and other colonies (tech bonuses included). */
   capitalSensorRange: number;
   colonySensorRange: number;
@@ -99,9 +105,11 @@ export const FOCUSES = ["balanced", "industry", "research", "food"] as const;
 export type Focus = (typeof FOCUSES)[number];
 
 export interface QueueItem {
-  kind: "building" | "ship";
-  /** Building or ship template id. */
+  /** colonyBase: founds a colony on planet `bodyId` in the same system. */
+  kind: "building" | "ship" | "colonyBase";
+  /** Building or ship design id ("colony_base" for colony bases). */
   id: string;
+  bodyId?: BodyId;
 }
 
 export interface Colony {

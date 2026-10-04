@@ -1,3 +1,4 @@
+import { chartAll } from "./helpers";
 import { describe, expect, it } from "vitest";
 import {
   applyCommand,
@@ -41,6 +42,7 @@ function line(): GameState {
     s.galaxy.systems[c.systemId]!.bodies = [{ id: c.bodyId, kind: "planet", planetType: "terran", size: "medium", richness: "normal" }];
   });
   s.fleets = [];
+  chartAll(s);
   const target = s.colonies[1]!;
   s.empires[0]!.colonySightings = [
     { colonyId: target.id, empireId: 1, systemId: 4, bodyId: target.bodyId, name: target.name, population: target.population, defenseHp: target.defenseHp, troops: 0, turn: 1 },

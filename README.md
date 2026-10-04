@@ -104,7 +104,7 @@ Version 1.0 is Milestones 1 to 6 plus the classic theme. See [CHANGELOG.md](CHAN
 - Headless tests and a batch simulation runner
 - A preview web app with autosave and save export/import
 
-Next: version 1.1.
+Next: version 1.1 (in progress; see the CHANGELOG).
 
 ## Play it
 

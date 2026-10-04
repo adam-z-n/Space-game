@@ -323,6 +323,13 @@ const Presentation = z.object({
     warn: color,
     danger: color,
   }),
+  /** Map colors for systems by what the player has learned about their worlds. */
+  surveyColors: z.object({
+    unexplored: color,
+    habitable: color,
+    hostile: color,
+    barren: color,
+  }),
   /** Sprite per hull id; ships of that hull use it. */
   hullSprites: z.record(z.string(), Sprite),
 });
@@ -354,6 +361,8 @@ const Economy = z.object({
   /** Lane distance within which colonies supply fleets. */
   colonySupplyRange: z.number().int().nonnegative(),
   capitalSupplyRange: z.number().int().nonnegative(),
+  /** Industry to found a colony on another planet in the same system (a colony base). */
+  colonyBaseCost: z.number().int().positive(),
   capitalSensorRange: z.number().int().nonnegative(),
   foodStockCap: z.number().int().nonnegative(),
   /** Share of industry turned into credits when a colony has nothing to build. */
