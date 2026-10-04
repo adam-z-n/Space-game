@@ -7,6 +7,7 @@ import {
   colonyOutput,
   defendingTroops,
   coloniesMissing,
+  taxLevel,
   empireEconomy,
   techUnlocks,
   findColony,
@@ -83,12 +84,34 @@ export function empirePanel(ctx: PanelContext): HTMLElement {
   };
   const colonies = game.state.colonies.filter((c) => c.empireId === game.playerId).sort((a, b) => Number(b.capital) - Number(a.capital) || a.id - b.id);
   const list = h("ul");
+  const tax = taxLevel(pack, empire);
+  const taxes = h("div", { className: "segmented" });
+  for (const level of pack.taxLevels) {
+    taxes.append(
+      button(level.name, () => ctx.issue({ type: "setTaxLevel", empireId: game.playerId, taxLevel: level.id }), {
+        className: level.id === tax.id ? "on" : "",
+        ariaPressed: String(level.id === tax.id),
+      }),
+    );
+  }
+  const cap = pack.economy.foodStockCap;
+  const setReserve = (reserve: number) => ctx.issue({ type: "setFoodReserve", empireId: game.playerId, reserve: Math.max(0, Math.min(cap, reserve)) });
+  const reserve = h(
+    "li",
+    {},
+    h("span", { className: "grow" }, h("div", { textContent: `Food reserve: keep ${empire.foodReserve}` }), h("div", { className: "muted small", textContent: `Food above this is sold for ${pack.economy.foodSalePercent / 100} credit each.` })),
+    h("span", { className: "row-actions" }, button("−10", () => setReserve(empire.foodReserve - 10)), button("+10", () => setReserve(empire.foodReserve + 10))),
+  );
   list.append(
     row("Industry (all colonies)", `${eco.industry} per turn`),
     row("Research", `${eco.research} per turn`),
-    row("Food", `${eco.foodProduced} grown, ${eco.foodEaten} eaten · stock ${empire.food}/${pack.economy.foodStockCap}`),
+    row("Food", `${eco.foodProduced} grown, ${eco.foodEaten} eaten · stock ${empire.food}/${cap}`),
+    reserve,
+    h("li", { className: "section" }, h("span", { textContent: "Finances" })),
+    h("li", { className: "column-item" }, h("div", { className: "muted small", textContent: `Taxes: ${tax.description}` }), taxes),
     row("Taxes", `+${eco.income}`),
     row("Idle industry sold", `+${eco.idleCredits}`),
+    row(`Food sold (${eco.foodSold})`, `+${eco.foodSales}`),
     row("Building upkeep", `-${eco.buildingUpkeep}`),
     row("Ship upkeep", `-${eco.shipUpkeep}`),
     row("Treasury", `${empire.credits} (${signed(eco.netCredits)} per turn)`),
@@ -150,12 +173,38 @@ export function colonyPanel(ctx: PanelContext, colonyId: ColonyId): HTMLElement 
   const focus = h("div", { className: "segmented" });
   for (const f of FOCUSES) {
     focus.append(
-      button(FOCUS_LABELS[f], () => ctx.issue({ type: "setFocus", empireId: game.playerId, colonyId, focus: f }), {
-        className: f === colony.focus ? "on" : "",
-        ariaPressed: String(f === colony.focus),
-      }),
+      button(
+        FOCUS_LABELS[f],
+        () => {
+          // Picking a focus hands workers back to it.
+          if (colony.workers) game.issue({ type: "setWorkers", empireId: game.playerId, colonyId, workers: null });
+          ctx.issue({ type: "setFocus", empireId: game.playerId, colonyId, focus: f });
+        },
+        {
+          className: f === colony.focus && !colony.workers ? "on" : "",
+          ariaPressed: String(f === colony.focus && !colony.workers),
+        },
+      ),
     );
   }
+
+  // Hand-placed workers: "+" moves one worker here from the busiest other job.
+  const jobs = ["farmers", "industry", "research"] as const;
+  const jobLabel = { farmers: "Farmers", industry: "Industry", research: "Research" };
+  const moveWorker = (to: (typeof jobs)[number]) => {
+    const w = { ...out.workers };
+    const from = jobs.filter((j) => j !== to && w[j] > 0).sort((a, b) => w[b] - w[a])[0];
+    if (!from) return;
+    w[from] -= 1;
+    w[to] += 1;
+    ctx.issue({ type: "setWorkers", empireId: game.playerId, colonyId, workers: w });
+  };
+  const workers = h(
+    "div",
+    { className: "workers" },
+    ...jobs.map((j) => h("div", { className: "worker" }, h("span", { textContent: `${jobLabel[j]} ${out.workers[j]}` }), button("+", () => moveWorker(j), { ariaLabel: `Move a worker to ${jobLabel[j]}`, disabled: out.workers[j] === colony.population }))),
+    colony.workers ? button("Auto", () => ctx.issue({ type: "setWorkers", empireId: game.playerId, colonyId, workers: null }), { title: "Let the focus place workers again" }) : null,
+  );
 
   const stats = h(
     "div",
@@ -213,7 +262,20 @@ export function colonyPanel(ctx: PanelContext, colonyId: ColonyId): HTMLElement 
     options.append(li);
   }
 
-  const buildings = colony.buildings.map((id) => pack.buildings.find((b) => b.id === id)!.name).join(", ") || "None";
+  const buildings = h("ul");
+  for (const id of colony.buildings) {
+    const building = pack.buildings.find((b) => b.id === id)!;
+    const refund = Math.floor((building.cost * pack.economy.scrapRefundPercent) / 100);
+    const scrap = building.buildable
+      ? button(`Scrap +${refund} ¢`, () => {
+          if (confirm(`Scrap the ${building.name}? You get ${refund} credits back and its upkeep (${building.upkeep}) stops.`)) {
+            ctx.issue({ type: "scrapBuilding", empireId: game.playerId, colonyId, buildingId: id });
+          }
+        }, { className: "small-button" })
+      : h("span", { className: "muted small", textContent: "permanent" });
+    buildings.append(h("li", {}, h("span", { className: "grow" }, h("div", { textContent: building.name }), h("div", { className: "muted small", textContent: `${building.description} Upkeep ${building.upkeep}.` })), scrap));
+  }
+  if (colony.buildings.length === 0) buildings.append(h("li", {}, h("span", { className: "muted", textContent: "None" })));
 
   return h(
     "div",
@@ -221,6 +283,7 @@ export function colonyPanel(ctx: PanelContext, colonyId: ColonyId): HTMLElement 
     h("h2", {}, `${colony.capital ? "★ " : ""}${colony.name}`, closeButton(ctx)),
     h("div", { className: "sub", textContent: `Population ${colony.population}/${out.maxPop} · ${growthText}` }),
     focus,
+    workers,
     stats,
     defensePanel(ctx, colony),
     h("h3", { textContent: "Building" }),
@@ -229,7 +292,7 @@ export function colonyPanel(ctx: PanelContext, colonyId: ColonyId): HTMLElement 
     h("h3", { textContent: "Add to queue" }),
     options,
     h("h3", { textContent: "Buildings" }),
-    h("div", { className: "muted", textContent: buildings }),
+    buildings,
   );
 }
 

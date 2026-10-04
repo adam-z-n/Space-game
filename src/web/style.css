@@ -881,3 +881,33 @@ svg.sprite.dim {
 .sheet li.tech.locked {
   opacity: 0.55;
 }
+
+/* ---------- finances ---------- */
+
+.workers {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  margin: 8px 0;
+}
+
+.workers .worker {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 2px 2px 8px;
+  border: 1px solid var(--line);
+  font-size: 0.85rem;
+}
+
+.workers .worker button {
+  min-width: 34px;
+  padding: 4px 8px;
+}
+
+.sheet li.column-item {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
+}

@@ -71,6 +71,8 @@ export function createInitialState(settings: GameSettings, pack: ContentPack): G
       colonySightings: [],
       credits: pack.economy.startingCredits,
       food: pack.economy.startingFood,
+      foodReserve: pack.economy.foodStockCap,
+      taxLevel: "normal",
       techs: [],
       research: { current: null, progress: 0 },
       shipsBuilt: {},

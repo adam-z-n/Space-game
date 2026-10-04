@@ -339,8 +339,6 @@ const Economy = z.object({
   startingFood: z.number().int().nonnegative(),
   capitalPopulation: z.number().int().positive(),
   colonyPopulation: z.number().int().positive(),
-  /** Credits per population per turn, in percent (50 = half a credit per population). */
-  taxPercentPerPop: z.number().int().nonnegative(),
   /** Food eaten per population per turn. */
   foodPerPop: z.number().int().nonnegative(),
   workerIndustry: z.number().int().nonnegative(),
@@ -371,6 +369,20 @@ const Economy = z.object({
   buyCreditsPerIndustry: z.number().int().positive(),
   /** Industry and research lost while the treasury is negative. */
   debtPenaltyPercent: z.number().int().min(0).max(100),
+  /** Credits per 100 food for food above the empire's reserve (it is sold rather than wasted). */
+  foodSalePercent: z.number().int().min(0).max(100),
+  /** Share of the build cost refunded as credits when scrapping a building or a ship. */
+  scrapRefundPercent: z.number().int().min(0).max(100),
+});
+
+/** An empire-wide tax setting: income per population against growth and output. */
+const TaxLevel = z.object({
+  id,
+  name: z.string().min(1),
+  description: z.string(),
+  /** Credits per population per turn, in percent (50 = half a credit per population). */
+  taxPercentPerPop: z.number().int().nonnegative(),
+  effects: EffectsSchema,
 });
 
 const StartingFleet = z.object({
@@ -406,6 +418,7 @@ export const ContentPackSchema = z
     victory: Victory,
     aiPersonalities: z.array(Personality).min(1),
     difficulties: z.array(Difficulty).min(1),
+    taxLevels: z.array(TaxLevel).min(1),
     hulls: z.array(Hull).min(1),
     components: z.array(Component).min(1),
     /** Designs every empire starts with. */
@@ -441,6 +454,7 @@ export const ContentPackSchema = z
     unique("aiPersonalities", pack.aiPersonalities.map((t) => t.id));
     unique("species", pack.species.map((t) => t.id));
     unique("difficulties", pack.difficulties.map((t) => t.id));
+    unique("taxLevels", pack.taxLevels.map((t) => t.id));
 
     const techIds = new Set(pack.techs.map((t) => t.id));
     const fieldIds = new Set(pack.researchFields.map((f) => f.id));
@@ -458,6 +472,7 @@ export const ContentPackSchema = z
       }
     }
     if (!pack.difficulties.some((d) => d.id === "normal")) issue(["difficulties"], `needs a "normal" difficulty`);
+    if (!pack.taxLevels.some((t) => t.id === "normal")) issue(["taxLevels"], `needs a "normal" tax level`);
     pack.aiPersonalities.forEach((p, i) => {
       for (const field of Object.keys(p.researchFields)) if (!fieldIds.has(field)) issue(["aiPersonalities", i, "researchFields"], `unknown research field "${field}"`);
     });

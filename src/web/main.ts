@@ -19,6 +19,7 @@ import {
   empireView,
   omniscientView,
   planMove,
+  scrapValue,
   serializeSave,
   type ColonyId,
   type EmpireView,
@@ -706,7 +707,9 @@ function startGame(game: Game): void {
       );
       actions.append(
         button("Disband", () => {
-          if (confirm(`Scrap ${fleet.name}? Its upkeep stops and nothing is refunded.`)) {
+          const refund = scrapValue(game.state, pack, findFleet(game.state, fleet.id)!);
+          const refundText = refund > 0 ? `You get ${refund} credits back for the parts.` : "Outside supply, nothing can be salvaged.";
+          if (confirm(`Scrap ${fleet.name}? Its upkeep stops. ${refundText}`)) {
             ctx.issue({ type: "disbandFleet", empireId: game.playerId, fleetId: fleet.id });
             selectTarget(null);
           }

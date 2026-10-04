@@ -24,9 +24,10 @@ import {
   type QueueItem,
   type SystemId,
 } from "./state";
-import { buildBlocker, buyCost, colonizeBlocker, itemCost, newColony, techAvailable } from "./economy";
-import { designBlocker, fleetCanColonize, fleetMaxSupply, fleetShipStats, refreshFleetStats } from "./ships";
-import { fleetTroops } from "./defense";
+import { buildBlocker, buyCost, colonizeBlocker, empireEffects, itemCost, newColony, techAvailable } from "./economy";
+import { designBlocker, designStats, fleetCanColonize, fleetMaxSupply, fleetShipStats, getDesign, refreshFleetStats } from "./ships";
+import { suppliedSystems } from "./supply";
+import { colonyDefense, fleetTroops } from "./defense";
 import { resolveTurn } from "./turn";
 
 /**
@@ -64,8 +65,15 @@ export type Command =
    * The fleet must be at (or heading for) the colony's system; null cancels the order.
    */
   | { type: "invade"; empireId: EmpireId; fleetId: FleetId; colonyId: ColonyId | null }
-  /** Scrap a fleet to stop paying its upkeep. Nothing is refunded. */
+  /** Scrap a fleet to stop paying its upkeep. Inside supply, part of its build cost comes back as credits. */
   | { type: "disbandFleet"; empireId: EmpireId; fleetId: FleetId }
+  /** Demolish a building for part of its cost back; its upkeep stops. */
+  | { type: "scrapBuilding"; empireId: EmpireId; colonyId: ColonyId; buildingId: string }
+  /** Place a colony's workers by hand (they must add up to its population); null returns control to the focus. */
+  | { type: "setWorkers"; empireId: EmpireId; colonyId: ColonyId; workers: { farmers: number; industry: number; research: number } | null }
+  | { type: "setTaxLevel"; empireId: EmpireId; taxLevel: string }
+  /** Food to keep in store; the surplus above it is sold each turn. */
+  | { type: "setFoodReserve"; empireId: EmpireId; reserve: number }
   /** Ends the orders phase for everyone and resolves the turn. */
   | { type: "endTurn" };
 
@@ -224,6 +232,25 @@ export function validateCommand(state: GameState, command: Command, pack: Conten
       const fleet = ownFleet(state, command.empireId, command.fleetId);
       return typeof fleet === "string" ? fleet : null;
     }
+    case "scrapBuilding": {
+      const colony = ownColony(state, command.empireId, command.colonyId);
+      if (typeof colony === "string") return colony;
+      if (!colony.buildings.includes(command.buildingId)) return "no such building here";
+      return pack.buildings.find((b) => b.id === command.buildingId)?.buildable ? null : "that building can't be scrapped";
+    }
+    case "setWorkers": {
+      const colony = ownColony(state, command.empireId, command.colonyId);
+      if (typeof colony === "string") return colony;
+      const w = command.workers;
+      if (w === null) return null;
+      const counts = [w.farmers, w.industry, w.research];
+      if (!counts.every((n) => Number.isInteger(n) && n >= 0)) return "worker counts must be whole numbers";
+      return counts.reduce((a, b) => a + b, 0) === colony.population ? null : `workers must add up to the population (${colony.population})`;
+    }
+    case "setTaxLevel":
+      return pack.taxLevels.some((t) => t.id === command.taxLevel) ? null : `unknown tax level ${command.taxLevel}`;
+    case "setFoodReserve":
+      return Number.isInteger(command.reserve) && command.reserve >= 0 && command.reserve <= pack.economy.foodStockCap ? null : `reserve must be 0-${pack.economy.foodStockCap}`;
     case "invade": {
       const fleet = ownFleet(state, command.empireId, command.fleetId);
       if (typeof fleet === "string") return fleet;
@@ -354,7 +381,27 @@ export function applyCommand(state: GameState, command: Command, pack: ContentPa
       break;
     }
     case "disbandFleet":
+      next.empires[command.empireId]!.credits += scrapValue(next, pack, findFleet(next, command.fleetId)!);
       next.fleets = next.fleets.filter((f) => f.id !== command.fleetId);
+      break;
+    case "scrapBuilding": {
+      const colony = findColony(next, command.colonyId)!;
+      colony.buildings.splice(colony.buildings.indexOf(command.buildingId), 1);
+      const building = pack.buildings.find((b) => b.id === command.buildingId)!;
+      next.empires[command.empireId]!.credits += Math.floor((building.cost * pack.economy.scrapRefundPercent) / 100);
+      const defense = colonyDefense(pack, next.empires[command.empireId]!, colony);
+      colony.defenseHp = Math.min(colony.defenseHp, defense.maxHp);
+      colony.troops = Math.min(colony.troops, defense.maxTroops);
+      break;
+    }
+    case "setWorkers":
+      findColony(next, command.colonyId)!.workers = command.workers && { ...command.workers };
+      break;
+    case "setTaxLevel":
+      next.empires[command.empireId]!.taxLevel = command.taxLevel;
+      break;
+    case "setFoodReserve":
+      next.empires[command.empireId]!.foodReserve = command.reserve;
       break;
     case "invade":
       findFleet(next, command.fleetId)!.invadeColonyId = command.colonyId;
@@ -370,4 +417,16 @@ export function applyCommand(state: GameState, command: Command, pack: ContentPa
       break;
   }
   return { ok: true, state: next };
+}
+
+/**
+ * Credits returned for scrapping a fleet: part of its ships' build cost, but only
+ * inside the empire's supply network, where there are yards to take the parts.
+ */
+export function scrapValue(state: GameState, pack: ContentPack, fleet: Fleet): number {
+  if (isInTransit(fleet) || !suppliedSystems(state, pack, fleet.empireId).has(fleet.systemId)) return 0;
+  const empire = state.empires[fleet.empireId]!;
+  const fx = empireEffects(pack, empire);
+  const cost = fleet.ships.reduce((n, ship) => n + designStats(pack, getDesign(empire, ship.designId), fx).cost, 0);
+  return Math.floor((cost * pack.economy.scrapRefundPercent) / 100);
 }

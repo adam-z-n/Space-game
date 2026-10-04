@@ -152,6 +152,16 @@ export function migrateState(state: GameState, pack: ContentPack): GameState {
     old.version = 8;
   }
 
+  if (old.version === 8) {
+    // v9 added tax levels, food sales and hand-placed workers.
+    for (const empire of migrated.empires) {
+      empire.taxLevel = "normal";
+      empire.foodReserve = pack.economy.foodStockCap;
+    }
+    for (const colony of migrated.colonies) colony.workers = null;
+    old.version = 9;
+  }
+
   if (startVersion !== migrated.version) {
     for (const empire of migrated.empires) refreshEmpireStats(migrated, pack, empire);
     updateSightings(migrated, pack, null, migrated.turn);

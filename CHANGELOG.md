@@ -21,6 +21,15 @@ Colonization:
   Controlled Environments (new) opens Barren worlds; Terraforming opens Toxic and Volcanic ones.
 - Colony bases: a colony can build a colony base to settle another habitable planet in its own system, no colony ship needed.
 
+Finances:
+
+- Tax levels (Empire screen): Low, Normal, High and Crushing trade income against growth and output.
+- Surplus food is sold instead of wasted. Set a food reserve on the Empire screen; food above it sells for half a credit.
+- Place workers by hand: "+" on a job moves a worker to it from the busiest other job; "Auto" hands control back to the focus.
+- Scrap buildings for a quarter of their cost back; their upkeep stops.
+- Scrapping a fleet inside your supply network returns a quarter of its ships' cost.
+- The Empire screen breaks income down by source: taxes, idle industry, food sales and upkeep.
+
 ## 1.0.0
 
 The first complete version: Milestones 1 to 6 and the classic space opera theme.

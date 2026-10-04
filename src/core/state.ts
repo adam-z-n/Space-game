@@ -5,7 +5,7 @@ import type { BodyKind, Formation } from "../content/schema";
  * so it can be cloned, saved, hashed, and sent over a network unchanged.
  */
 
-export const STATE_VERSION = 8;
+export const STATE_VERSION = 9;
 
 export type SystemId = number;
 export type EmpireId = number;
@@ -90,6 +90,10 @@ export interface Empire {
   credits: number;
   /** Stored food, shared by all colonies. */
   food: number;
+  /** Food kept in store; anything above it (up to the stock cap) is sold each turn. */
+  foodReserve: number;
+  /** Tax level id (content). */
+  taxLevel: string;
   /** Researched tech ids, in the order completed. */
   techs: string[];
   /** Tech being researched, or null. Points bank up while nothing is chosen. */
@@ -123,6 +127,8 @@ export interface Colony {
   /** Points toward the next population; see economy.growthThreshold. */
   growth: number;
   focus: Focus;
+  /** Workers placed by hand, overriding the focus; null lets the focus decide. */
+  workers: { farmers: number; industry: number; research: number } | null;
   buildings: string[];
   queue: QueueItem[];
   /** Industry invested in queue[0]. */

@@ -186,6 +186,10 @@ function manageFocus(ctx: AiContext): void {
 /** Out of money: stop adding upkeep, cancel queued upkeep buildings, and in deep debt scrap the weakest warship group. */
 function avoidDebt(ctx: AiContext, strategy: Strategy, room: { upkeep: number }): void {
   const steadyNet = ctx.economy.income - ctx.economy.buildingUpkeep - ctx.economy.shipUpkeep;
+  // Raise taxes while the treasury runs dry; lower them again once it has recovered.
+  const tax = ctx.empire.taxLevel;
+  if (tax === "normal" && ctx.empire.credits < 20 && steadyNet <= 0) ctx.commands.push({ type: "setTaxLevel", empireId: ctx.id, taxLevel: "high" });
+  else if (tax === "high" && ctx.empire.credits > 80 + ctx.colonies.length * 10) ctx.commands.push({ type: "setTaxLevel", empireId: ctx.id, taxLevel: "normal" });
   if (ctx.empire.credits >= 0 || steadyNet > 0) return;
   for (const colony of ctx.colonies) {
     for (let i = colony.queue.length - 1; i >= 0; i--) {

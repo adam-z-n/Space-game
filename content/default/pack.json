@@ -386,11 +386,12 @@
     "idleIndustryCreditsPercent": 25,
     "debtPenaltyPercent": 50,
     "buyCreditsPerIndustry": 2,
-    "taxPercentPerPop": 50,
     "colonyBaseIndustry": 2,
     "colonySupplyRange": 250,
     "capitalSupplyRange": 400,
-    "colonyBaseCost": 40
+    "colonyBaseCost": 40,
+    "foodSalePercent": 50,
+    "scrapRefundPercent": 25
   },
   "researchFields": [
     {
@@ -1488,6 +1489,45 @@
         "researchPercent": 40,
         "creditsPercent": 40,
         "sensorRange": 60
+      }
+    }
+  ],
+  "taxLevels": [
+    {
+      "id": "low",
+      "name": "Low",
+      "description": "A credit per 4 population. Content citizens: +20% growth.",
+      "taxPercentPerPop": 25,
+      "effects": {
+        "growthPercent": 20
+      }
+    },
+    {
+      "id": "normal",
+      "name": "Normal",
+      "description": "A credit per 2 population.",
+      "taxPercentPerPop": 50,
+      "effects": {}
+    },
+    {
+      "id": "high",
+      "name": "High",
+      "description": "3 credits per 4 population. Grumbling: -20% growth, -5% industry.",
+      "taxPercentPerPop": 75,
+      "effects": {
+        "growthPercent": -20,
+        "industryPercent": -5
+      }
+    },
+    {
+      "id": "crushing",
+      "name": "Crushing",
+      "description": "A credit per population. Unrest: -40% growth, -10% industry and research.",
+      "taxPercentPerPop": 100,
+      "effects": {
+        "growthPercent": -40,
+        "industryPercent": -10,
+        "researchPercent": -10
       }
     }
   ],

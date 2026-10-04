@@ -58,7 +58,12 @@ export function getBuilding(pack: ContentPack, id: string): Building {
 function innateEffects(pack: ContentPack, empire: Empire): Effects[] {
   const species = pack.species.find((s) => s.id === empire.species)?.effects;
   const difficulty = empire.difficulty ? pack.difficulties.find((d) => d.id === empire.difficulty)?.effects : undefined;
-  return [...(species ? [species] : []), ...(difficulty ? [difficulty] : [])];
+  const tax = taxLevel(pack, empire).effects;
+  return [...(species ? [species] : []), ...(difficulty ? [difficulty] : []), tax];
+}
+
+export function taxLevel(pack: ContentPack, empire: Empire): ContentPack["taxLevels"][number] {
+  return pack.taxLevels.find((t) => t.id === empire.taxLevel) ?? pack.taxLevels.find((t) => t.id === "normal")!;
 }
 
 /** Empire-wide modifiers: researched techs, species traits, and difficulty bonuses for AI empires. */
@@ -134,6 +139,23 @@ export function allocateWorkers(population: number, focus: Focus, foodYield: num
   }
 }
 
+/**
+ * Hand-placed workers adjusted to the current population: new population joins
+ * industry; when population falls, research gives way first, then industry, then farms.
+ */
+export function fitWorkers(placed: Workers, population: number): Workers {
+  const w = { ...placed };
+  let diff = population - (w.farmers + w.industry + w.research);
+  if (diff > 0) w.industry += diff;
+  for (const key of ["research", "industry", "farmers"] as const) {
+    if (diff >= 0) break;
+    const take = Math.min(w[key], -diff);
+    w[key] -= take;
+    diff += take;
+  }
+  return w;
+}
+
 export interface ColonyOutput {
   workers: Workers;
   industry: number;
@@ -155,7 +177,7 @@ export function colonyOutput(state: GameState, pack: ContentPack, colony: Colony
   const fx = colonyEffects(pack, empire, colony);
   const eco = pack.economy;
   const pop = colony.population;
-  const workers = allocateWorkers(pop, colony.focus, stats.foodYield, eco.foodPerPop);
+  const workers = colony.workers ? fitWorkers(colony.workers, pop) : allocateWorkers(pop, colony.focus, stats.foodYield, eco.foodPerPop);
   const debt = empire.credits < 0 ? eco.debtPenaltyPercent : 0;
 
   const rawIndustry = Math.floor((workers.industry * eco.workerIndustry * stats.yieldPercent) / 100) + eco.colonyBaseIndustry + fx.industry;
@@ -163,7 +185,7 @@ export function colonyOutput(state: GameState, pack: ContentPack, colony: Colony
   const industry = Math.max(0, pct(pct(rawIndustry, fx.industryPercent), -debt));
   const research = Math.max(0, pct(pct(rawResearch, fx.researchPercent), -debt));
   const food = Math.max(0, pct(workers.farmers * stats.foodYield + fx.food, fx.foodPercent));
-  const credits = colony.blockaded ? 0 : Math.max(0, pct(Math.floor((pop * eco.taxPercentPerPop) / 100) + fx.credits, fx.creditsPercent));
+  const credits = colony.blockaded ? 0 : Math.max(0, pct(Math.floor((pop * taxLevel(pack, empire).taxPercentPerPop) / 100) + fx.credits, fx.creditsPercent));
   const upkeep = colony.buildings.reduce((sum, id) => sum + getBuilding(pack, id).upkeep, 0);
   const maxPop = maxPopulation(pack, body, fx);
   const growth = pop >= maxPop ? 0 : pct(eco.growthBase + Math.floor((pop * (maxPop - pop) * eco.growthRate) / maxPop), fx.growthPercent);
@@ -181,6 +203,9 @@ export interface EmpireEconomy {
   shipUpkeep: number;
   /** Industry converted to credits by colonies with empty queues. */
   idleCredits: number;
+  /** Food above the reserve sold this turn, and the credits it brings. */
+  foodSold: number;
+  foodSales: number;
   /** Net credits per turn. */
   netCredits: number;
   netFood: number;
@@ -196,6 +221,8 @@ export function empireEconomy(state: GameState, pack: ContentPack, empireId: Emp
     buildingUpkeep: 0,
     shipUpkeep: 0,
     idleCredits: 0,
+    foodSold: 0,
+    foodSales: 0,
     netCredits: 0,
     netFood: 0,
   };
@@ -216,8 +243,13 @@ export function empireEconomy(state: GameState, pack: ContentPack, empireId: Emp
     if (fleet.empireId !== empireId) continue;
     for (const ship of fleet.ships) totals.shipUpkeep += designStats(pack, getDesign(empire, ship.designId), fx).upkeep;
   }
-  totals.netCredits = totals.income + totals.idleCredits - totals.buildingUpkeep - totals.shipUpkeep;
   totals.netFood = totals.foodProduced - totals.foodEaten;
+  // Surplus beyond the reserve (and anything that would overflow the store) is sold.
+  const stock = empire.food + totals.netFood;
+  const keep = Math.min(empire.foodReserve, pack.economy.foodStockCap);
+  totals.foodSold = Math.max(0, stock - keep);
+  totals.foodSales = Math.floor((totals.foodSold * pack.economy.foodSalePercent) / 100);
+  totals.netCredits = totals.income + totals.idleCredits + totals.foodSales - totals.buildingUpkeep - totals.shipUpkeep;
   return totals;
 }
 
@@ -327,6 +359,7 @@ export function newColony(state: GameState, empire: Empire, systemId: number, bo
     population,
     growth: 0,
     focus: "balanced",
+    workers: null,
     buildings: [],
     queue: [],
     progress: 0,
@@ -384,7 +417,7 @@ export function resolveEconomy(state: GameState, pack: ContentPack, events: Game
     if (empire.credits < 0) events.push({ type: "inDebt", turn, empireId: empire.id, credits: empire.credits });
 
     // Food.
-    empire.food = Math.min(eco.foodStockCap, empire.food + summary.netFood);
+    empire.food = Math.min(eco.foodStockCap, empire.food + summary.netFood - summary.foodSold);
     const starving = empire.food < 0;
     if (starving) {
       empire.food = 0;
