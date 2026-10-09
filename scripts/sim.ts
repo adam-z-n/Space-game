@@ -4,6 +4,7 @@
  * reports galaxy, economy, combat and win-rate statistics.
  *
  *   npm run sim -- [--games 20] [--turns 200] [--size medium] [--ai 4] [--difficulty normal]
+ *                  [--open-research]   (every species gets full research access: a balance control)
  */
 import { parseArgs } from "node:util";
 import { Game, buildAdjacency, empireScore, replay, shortestPaths, stateHash, type GameEvent, type GameSettings } from "../src/core";
@@ -16,10 +17,12 @@ const { values } = parseArgs({
     size: { type: "string" },
     ai: { type: "string", default: "4" },
     difficulty: { type: "string", default: "normal" },
+    "open-research": { type: "boolean", default: false },
   },
 });
 
 const pack = defaultPack();
+if (values["open-research"]) for (const species of pack.species) species.research = { access: "full", affinityPercent: 0 };
 const games = Number(values.games);
 const sizes = values.size ? [values.size] : pack.galaxySizes.map((g) => g.id);
 const avg = (xs: number[]) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : 0);
