@@ -54,8 +54,9 @@ Combat:
   repair tenders and Damage Control fix one per ship per turn in the field.
 - Pursuit: a fleet that withdraws takes a parting volley from enemy ships more maneuverable than its slowest ship.
   Hit-and-Run Doctrine avoids it; Tractor Beams let every one of your ships take the shot.
-- Fleet size: fleets of more than 8 ships (14 with a command network) lose 3% accuracy and evasion per extra ship,
-  up to 24%. The AI keeps its fleets within the limit.
+- Fleet size: fleets of more than 8 warships (14 with a command network) lose 3% accuracy and evasion per extra
+  warship, up to 24%. Only armed ships count: supply ships, troop transports and other support ships ride along
+  free. The AI keeps its fleets within the limit.
 - Battle replays show parting shots and knocked-out parts; the fleet sheet shows the size limit, damaged parts and
   missile salvos left.
 

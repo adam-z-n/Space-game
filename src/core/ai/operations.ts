@@ -1,4 +1,4 @@
-import { fleetShipStats } from "../ships";
+import { combatShipCount, fleetShipStats } from "../ships";
 import { colonyOnBody, type FleetOrders, type OutpostKind, type SystemId } from "../state";
 import { outpostBlocker } from "../outposts";
 import { fleetAt, moveTo, withinReach, type AiContext, type FleetInfo } from "./context";
@@ -265,7 +265,7 @@ function garrison(ctx: AiContext, strategy: Strategy): void {
 function gather(ctx: AiContext): void {
   if (!ctx.capital) return;
   const home = ctx.capital.systemId;
-  // Stay within the fleet size limit (larger with a command network aboard).
+  // Stay within the fleet size limit (larger with a command network aboard); only warships count.
   const limit = (info: FleetInfo) =>
     ctx.pack.combat.fleetSizeLimit + (fleetShipStats(ctx.pack, ctx.state, info.fleet).some((s) => s.command > 0) ? ctx.pack.combat.commandSizeBonus : 0);
   const style = ctx.personality.designStyle === "raider" ? 4 : Infinity;
@@ -275,13 +275,14 @@ function gather(ctx: AiContext): void {
   for (const [systemId, group] of [...bySystem].sort((a, b) => a[0] - b[0])) {
     group.sort((a, b) => b.strength - a.strength || a.fleet.id - b.fleet.id);
     const anchor = group[0]!;
-    let ships = anchor.fleet.ships.length;
+    const count = (info: FleetInfo) => combatShipCount(ctx.pack, ctx.state, info.fleet);
+    let ships = count(anchor);
     const maxShips = Math.min(style, limit(anchor));
     ctx.busy.add(anchor.fleet.id);
     for (const other of group.slice(1)) {
       ctx.busy.add(other.fleet.id);
-      if (ships + other.fleet.ships.length > maxShips) continue;
-      ships += other.fleet.ships.length;
+      if (ships + count(other) > maxShips) continue;
+      ships += count(other);
       ctx.commands.push({ type: "mergeFleets", empireId: ctx.id, fleetId: other.fleet.id, intoFleetId: anchor.fleet.id });
     }
     if (systemId !== home && !ctx.colonies.some((c) => c.systemId === systemId) && !ctx.supplied.has(systemId)) {

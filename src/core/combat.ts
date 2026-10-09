@@ -3,7 +3,7 @@ import { empireEffects, hasFlag } from "./economy";
 import { shortestPaths } from "./graph";
 import { knownAdjacency } from "./vision";
 import { Rng } from "./rng";
-import { DAMAGEABLE_KINDS, designStats, fleetArmed, fleetStealthy, getComponent, getDesign, refreshFleetStats, shipStats, type DesignStats, type Weapon } from "./ships";
+import { DAMAGEABLE_KINDS, combatShipCount, designStats, fleetArmed, fleetStealthy, getComponent, getDesign, refreshFleetStats, shipStats, type DesignStats, type Weapon } from "./ships";
 import type { BattleReport, BattleShot, Colony, Empire, EmpireId, Fleet, FleetId, GameEvent, GameState, Ship, SystemId } from "./state";
 import { colonyDefense, type ColonyDefense } from "./defense";
 import { outpostDefense, outpostName } from "./outposts";
@@ -206,11 +206,12 @@ function fight(
   const living = (list: Fleet[]) => list.flatMap((f) => f.ships.map((s) => combatants.get(s.id)!));
 
   // Oversized fleets fight less well together; a command network lets a fleet run larger.
+  // Only warships count: support ships ride along free.
   const oversize = new Map(
     fleets.map((f) => {
       if (stations.has(f.id)) return [f.id, 0];
       const limit = cfg.fleetSizeLimit + (commandBonus(f, combatants) > 0 ? cfg.commandSizeBonus : 0);
-      return [f.id, Math.min(cfg.oversizePenaltyMax, Math.max(0, f.ships.length - limit) * cfg.oversizePenalty)];
+      return [f.id, Math.min(cfg.oversizePenaltyMax, Math.max(0, combatShipCount(pack, state, f) - limit) * cfg.oversizePenalty)];
     }),
   );
   const tractor = new Set(report.empires.filter((e) => hasFlag(pack, state.empires[e]!, "tractorBeams")));

@@ -1,6 +1,6 @@
 import { chartAll } from "./helpers";
 import { describe, expect, it } from "vitest";
-import { applyCommand, createInitialState, defendingTroops, newFleet, type BattleReport, type Command, type Formation, type GameState } from "../src/core";
+import { applyCommand, combatShipCount, createInitialState, defendingTroops, newFleet, type BattleReport, type Command, type Formation, type GameState } from "../src/core";
 import { defaultPack } from "../src/content/defaultPack";
 
 const pack = defaultPack();
@@ -317,5 +317,24 @@ describe("1.2 combat extras", () => {
       return shots.filter((x) => x.damage > 0).length / shots.length;
     };
     expect(hitRate(16)).toBeLessThan(hitRate(8));
+  });
+
+  it("only warships count toward the fleet size limit", () => {
+    const hitRate = (frigates: number, support: string[]) => {
+      let s = line();
+      design(s, "target", "dreadnought", ["laser", ...Array.from({ length: 11 }, () => "crystalline_armor")]);
+      const fleet = newFleet(s, pack, s.empires[0]!, [...Array.from({ length: frigates }, () => "frigate"), ...support], 3);
+      const target = newFleet(s, pack, s.empires[1]!, ["target", "target"], 3);
+      for (const f of [fleet, target]) f.orders = { ...f.orders, mission: "engage", retreatPercent: 100 };
+      s.fleets.push(fleet, target);
+      expect(combatShipCount(pack, s, fleet)).toBe(frigates);
+      s = run(s, end);
+      const mine = new Set(fleet.ships.map((x) => x.id));
+      const shots = battle(s).rounds.flatMap((r) => r.shots).filter((x) => mine.has(x.attacker));
+      return shots.filter((x) => x.damage > 0).length / shots.length;
+    };
+    const support = [...Array.from({ length: 4 }, () => "supply_ship"), ...Array.from({ length: 4 }, () => "troop_transport")];
+    // Eight frigates escorting eight support ships shoot like eight frigates alone, not like sixteen.
+    expect(hitRate(8, support)).toBeGreaterThan(hitRate(16, []));
   });
 });
