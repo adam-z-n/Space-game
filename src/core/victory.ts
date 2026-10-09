@@ -5,6 +5,7 @@ import type { EmpireId, GameEvent, GameOutcome, GameState } from "./state";
 /**
  * How a game ends. An empire wins by holding a dominant share of all population,
  * by being the last one standing, or by having the best score at the turn limit.
+ * The victory mode chosen at setup sets the turn limit (if any) and the share needed.
  */
 
 export interface Score {
@@ -31,8 +32,13 @@ export function empireScore(state: GameState, pack: ContentPack, empireId: Empir
   };
 }
 
-export function turnLimit(state: GameState, pack: ContentPack): number {
-  return state.settings.turnLimit ?? pack.victory.turnLimit;
+export function victoryMode(state: GameState, pack: ContentPack): ContentPack["victory"]["modes"][number] {
+  return pack.victory.modes.find((m) => m.id === state.settings.victory) ?? pack.victory.modes[0]!;
+}
+
+/** The last turn of the game, or null when it runs until someone wins. */
+export function turnLimit(state: GameState, pack: ContentPack): number | null {
+  return state.settings.turnLimit ?? victoryMode(state, pack).turnLimit;
 }
 
 /** Share of the galaxy's population each empire holds, in percent (floored). */
@@ -68,10 +74,12 @@ export function checkVictory(state: GameState, pack: ContentPack, events: GameEv
     outcome = { winnerId: alive[0]!.id, reason: "elimination", turn };
   } else if (turn >= pack.victory.dominationMinTurn) {
     const shares = populationShares(state);
-    const dominant = alive.find((e) => shares.get(e.id)! >= pack.victory.dominationPercent);
+    const needed = victoryMode(state, pack).dominationPercent;
+    const dominant = alive.find((e) => shares.get(e.id)! >= needed);
     if (dominant) outcome = { winnerId: dominant.id, reason: "domination", turn };
   }
-  if (!outcome && turn >= turnLimit(state, pack)) {
+  const limit = turnLimit(state, pack);
+  if (!outcome && limit !== null && turn >= limit) {
     const best = [...alive].sort((a, b) => empireScore(state, pack, b.id).total - empireScore(state, pack, a.id).total || a.id - b.id)[0]!;
     outcome = { winnerId: best.id, reason: "turnLimit", turn };
   }

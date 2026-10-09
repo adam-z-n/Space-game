@@ -2990,8 +2990,36 @@
     }
   ],
   "victory": {
-    "turnLimit": 200,
-    "dominationPercent": 50,
+    "modes": [
+      {
+        "id": "turns200",
+        "name": "200 turns",
+        "description": "The highest score after 200 turns wins. Holding half the galaxy's population, or outlasting every rival, wins early.",
+        "turnLimit": 200,
+        "dominationPercent": 50
+      },
+      {
+        "id": "turns400",
+        "name": "400 turns",
+        "description": "A longer game: the highest score after 400 turns wins. Holding half the galaxy's population, or outlasting every rival, wins early.",
+        "turnLimit": 400,
+        "dominationPercent": 50
+      },
+      {
+        "id": "domination",
+        "name": "Domination",
+        "description": "No turn limit. Hold 75% of the galaxy's population, or outlast every rival.",
+        "turnLimit": null,
+        "dominationPercent": 75
+      },
+      {
+        "id": "total",
+        "name": "Total domination",
+        "description": "No turn limit. Hold all of the galaxy's population: every rival colony taken or destroyed.",
+        "turnLimit": null,
+        "dominationPercent": 100
+      }
+    ],
     "dominationMinTurn": 50,
     "score": {
       "population": 10,

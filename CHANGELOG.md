@@ -2,6 +2,12 @@
 
 ## 1.2.0 (in progress)
 
+Victory conditions:
+
+- Choose how to win at setup: 200 turns (as before), 400 turns, Domination (no turn limit; hold 75% of the
+  galaxy's population) or Total domination (no turn limit; hold all of it). Outlasting every rival always wins.
+  Saves from earlier versions play as 200-turn games.
+
 Logistics, experience and command:
 
 - Fleets resupply only at your colonies (unless blockaded) and supply depots. Every turn away costs a turn of

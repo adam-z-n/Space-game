@@ -4,7 +4,7 @@
  * reports galaxy, economy, combat and win-rate statistics.
  *
  *   npm run sim -- [--games 20] [--turns 200] [--size medium] [--ai 4] [--difficulty normal]
- *                  [--open-research]   (every species gets full research access: a balance control)
+ *                  [--victory turns200|turns400|domination|total] [--open-research]   (every species gets full research access: a balance control)
  */
 import { parseArgs } from "node:util";
 import { Game, buildAdjacency, empireScore, replay, shortestPaths, stateHash, type GameEvent, type GameSettings } from "../src/core";
@@ -17,6 +17,7 @@ const { values } = parseArgs({
     size: { type: "string" },
     ai: { type: "string", default: "4" },
     difficulty: { type: "string", default: "normal" },
+    victory: { type: "string" },
     "open-research": { type: "boolean", default: false },
   },
 });
@@ -24,6 +25,7 @@ const { values } = parseArgs({
 const pack = defaultPack();
 if (values["open-research"]) for (const species of pack.species) species.research = { access: "full", affinityPercent: 0, twoSchools: [] };
 const games = Number(values.games);
+const openEnded = (pack.victory.modes.find((m) => m.id === values.victory) ?? pack.victory.modes[0]!).turnLimit === null;
 const sizes = values.size ? [values.size] : pack.galaxySizes.map((g) => g.id);
 const avg = (xs: number[]) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : 0);
 const fmt = (x: number) => x.toFixed(1);
@@ -60,7 +62,9 @@ for (const galaxySize of sizes) {
       // Rotate which empire (and so species) empire 0 plays, so every species gets a fair sample.
       playerEmpire: g % pack.empires.length,
       difficulty: values.difficulty,
-      ...(values.turns ? { turnLimit: Number(values.turns) } : {}),
+      ...(values.victory ? { victory: values.victory } : {}),
+      // Open-ended victory modes get a safety cap so a stalemate can't run forever.
+      ...(values.turns ? { turnLimit: Number(values.turns) } : openEnded ? { turnLimit: 1000 } : {}),
     };
     const game = Game.create(settings, pack);
     const { galaxy } = game.state;

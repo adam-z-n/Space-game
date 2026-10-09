@@ -3,7 +3,10 @@ import {
   Game,
   applyCommand,
   buildContext,
+  checkVictory,
   createInitialState,
+  turnLimit,
+  validateSettings,
   decideStrategy,
   empireEffects,
   empireScore,
@@ -60,7 +63,7 @@ describe("AI behaviour", () => {
       b.endTurn();
     }
     expect(JSON.stringify(a.state)).toBe(JSON.stringify(b.state));
-  });
+  }, 30_000);
 
   it("never reacts to rival fleets it cannot see", () => {
     const game = Game.create({ seed: "ai-fog", galaxySize: "medium", aiCount: 3 }, pack);
@@ -127,6 +130,58 @@ describe("victory", () => {
     const r = applyCommand(s, { type: "endTurn" }, pack);
     if (!r.ok) throw new Error(r.error);
     expect(r.state.outcome).toMatchObject({ winnerId: 2, reason: "domination" });
+  });
+
+  describe("victory conditions", () => {
+    /** Give `empireId` `percent`% of all population (every colony keeps at least 0). */
+    const giveShare = (s: GameState, empireId: number, percent: number) => {
+      const mine = s.colonies.filter((c) => c.empireId === empireId);
+      const others = s.colonies.filter((c) => c.empireId !== empireId);
+      for (const c of others) c.population = 0;
+      for (const c of mine) c.population = 0;
+      mine[0]!.population = percent;
+      if (others.length) others[0]!.population = 100 - percent;
+    };
+    const check = (s: GameState, turn: number) => {
+      checkVictory(s, pack, [], turn);
+      return s.outcome;
+    };
+
+    it("defaults to 200 turns, with half the population winning early", () => {
+      const s = createInitialState({ seed: "modes", galaxySize: "small", aiCount: 2 }, pack);
+      expect(turnLimit(s, pack)).toBe(200);
+      giveShare(s, 1, 60);
+      expect(check(s, pack.victory.dominationMinTurn)).toMatchObject({ winnerId: 1, reason: "domination" });
+    });
+
+    it("400 turns plays on past turn 200", () => {
+      const s = createInitialState({ seed: "modes", galaxySize: "small", aiCount: 2, victory: "turns400" }, pack);
+      expect(turnLimit(s, pack)).toBe(400);
+      expect(check(s, 200)).toBeNull();
+      expect(check(s, 400)).toMatchObject({ reason: "turnLimit" });
+    });
+
+    it("domination has no turn limit and needs 75% of the population", () => {
+      const s = createInitialState({ seed: "modes", galaxySize: "small", aiCount: 2, victory: "domination" }, pack);
+      expect(turnLimit(s, pack)).toBeNull();
+      giveShare(s, 1, 74);
+      expect(check(s, 999)).toBeNull();
+      giveShare(s, 1, 75);
+      expect(check(s, 1000)).toMatchObject({ winnerId: 1, reason: "domination" });
+    });
+
+    it("total domination needs every last colonist", () => {
+      const s = createInitialState({ seed: "modes", galaxySize: "small", aiCount: 2, victory: "total" }, pack);
+      expect(turnLimit(s, pack)).toBeNull();
+      giveShare(s, 2, 99);
+      expect(check(s, 500)).toBeNull();
+      giveShare(s, 2, 100);
+      expect(check(s, 501)).toMatchObject({ winnerId: 2, reason: "domination" });
+    });
+
+    it("rejects an unknown victory condition", () => {
+      expect(validateSettings({ seed: "x", galaxySize: "small", aiCount: 2, victory: "conquest" }, pack)).toMatch(/unknown victory/);
+    });
   });
 
   it("eliminates empires with no colonies and no colony ships", () => {

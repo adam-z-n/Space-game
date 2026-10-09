@@ -389,12 +389,21 @@ const Difficulty = z.object({
   effects: EffectsSchema,
 });
 
-const Victory = z.object({
-  /** The game ends after this many turns; highest score wins. */
-  turnLimit: z.number().int().positive(),
-  /** Holding this share of all population wins outright... */
+/** A win condition chosen at setup. Being the last empire standing always wins too. */
+const VictoryMode = z.object({
+  id,
+  name: z.string().min(1),
+  description: z.string(),
+  /** The game ends after this many turns and the highest score wins; null for no limit. */
+  turnLimit: z.number().int().positive().nullable(),
+  /** Holding this share of all population wins outright. */
   dominationPercent: z.number().int().min(1).max(100),
-  /** ...once the game has run this long. */
+});
+
+const Victory = z.object({
+  /** The first mode is the default (and applies to saves from before modes existed). */
+  modes: z.array(VictoryMode).min(1),
+  /** Domination can't be won before this turn. */
   dominationMinTurn: z.number().int().nonnegative(),
   score: z.object({
     population: z.number().int().nonnegative(),

@@ -21,6 +21,7 @@ export function validateSettings(settings: GameSettings, pack: ContentPack): str
     return "unknown player empire";
   }
   if (settings.difficulty !== undefined && !pack.difficulties.some((d) => d.id === settings.difficulty)) return `unknown difficulty "${settings.difficulty}"`;
+  if (settings.victory !== undefined && !pack.victory.modes.some((m) => m.id === settings.victory)) return `unknown victory condition "${settings.victory}"`;
   if (settings.turnLimit !== undefined && (!Number.isInteger(settings.turnLimit) || settings.turnLimit < 10)) return "turn limit must be at least 10";
   return null;
 }

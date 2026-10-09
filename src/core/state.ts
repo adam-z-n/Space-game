@@ -23,7 +23,9 @@ export interface GameSettings {
   allAI?: boolean;
   /** Content difficulty id for AI empires; defaults to "normal". */
   difficulty?: string;
-  /** Overrides the content pack's turn limit. */
+  /** Win condition: a content victory mode id; defaults to the pack's first mode. */
+  victory?: string;
+  /** Overrides the victory mode's turn limit. */
   turnLimit?: number;
   /** Index into the content pack's empires for the player; AIs draw from the rest. Defaults to 0. */
   playerEmpire?: number;

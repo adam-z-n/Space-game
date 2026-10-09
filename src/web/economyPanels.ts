@@ -18,6 +18,7 @@ import {
   getTech,
   populationShares,
   turnLimit,
+  victoryMode,
   itemCost,
   itemName,
   queueForecast,
@@ -124,11 +125,14 @@ export function empirePanel(ctx: PanelContext): HTMLElement {
   // Score and the road to victory.
   const score = empireScore(game.state, pack, game.playerId);
   const share = populationShares(game.state).get(game.playerId) ?? 0;
+  const mode = victoryMode(game.state, pack);
+  const limit = turnLimit(game.state, pack);
   list.append(
     h("li", { className: "section" }, h("span", { textContent: "Victory" })),
     row("Your score", `${score.total}`),
-    row("Share of galaxy population", `${share}% (domination at ${pack.victory.dominationPercent}% from turn ${pack.victory.dominationMinTurn})`),
-    row("Turn limit", `${turnLimit(game.state, pack)}: highest score wins`),
+    row("Victory condition", mode.name),
+    row("Share of galaxy population", `${share}% (domination at ${mode.dominationPercent}% from turn ${pack.victory.dominationMinTurn})`),
+    row("Turn limit", limit === null ? "none: play until someone dominates" : `${limit}: highest score wins`),
   );
 
   // Rivals: what we know. Personalities show once we've met them.
@@ -387,7 +391,8 @@ export function gameOverPanel(ctx: PanelContext): HTMLElement | null {
   if (!outcome) return null;
   const won = outcome.winnerId === game.playerId;
   const winner = game.state.empires[outcome.winnerId]!;
-  const reason = { domination: "by holding a dominant share of the galaxy's population", turnLimit: "with the highest score at the turn limit", elimination: "as the last empire standing" }[outcome.reason];
+  const needed = victoryMode(game.state, pack).dominationPercent;
+  const reason = { domination: needed >= 100 ? "by holding the galaxy's entire population" : `by holding ${needed}% of the galaxy's population`, turnLimit: "with the highest score at the turn limit", elimination: "as the last empire standing" }[outcome.reason];
   const list = h("ul");
   const standings = game.state.empires
     .map((e) => ({ e, score: empireScore(game.state, pack, e.id) }))
