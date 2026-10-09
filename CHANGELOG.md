@@ -13,6 +13,10 @@ Victory conditions:
   the offensive; after turn 300, if the human players hold under 20% between them, every AI does; after turn 350,
   every AI does regardless. Driving AIs attack whatever their temperament, raiders mass into full fleets and
   invade, and banked credits go into warships.
+- AI attack fixes (all modes): a strike force launched toward a target more than a turn away was called back to its
+  staging system every turn and never arrived; and troop transports that had plotted a retreat after a skirmish at
+  staging were never loaded, so the strike force couldn't invade. AI empires now capture about twice as many
+  colonies per game.
 
 Logistics, experience and command:
 
