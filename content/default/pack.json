@@ -3335,7 +3335,7 @@
       },
       "research": {
         "access": "limited",
-        "affinity": "growth",
+        "affinity": "logistics",
         "affinityPercent": 20
       }
     },
@@ -3459,11 +3459,11 @@
       "description": "Living stone that thrives on dead worlds.",
       "traits": [
         "Can settle hostile worlds (-30 habitability needed)",
-        "-30% population growth"
+        "-15% population growth"
       ],
       "effects": {
         "minHabitability": -30,
-        "growthPercent": -30
+        "growthPercent": -15
       },
       "research": {
         "access": "limited",

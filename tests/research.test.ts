@@ -70,7 +70,7 @@ describe("research tree", () => {
 
 describe("schools", () => {
   it("researching a school closes its rivals for limited races", () => {
-    const s = fresh("saurak"); // affinity: Biology
+    const s = fresh("saurak");
     learn(s, "plasma_lances"); // Beam Weapons
     const empire = s.empires[0]!;
     expect(empire.schools).toContain("beams");
@@ -80,12 +80,14 @@ describe("schools", () => {
   });
 
   it("allows two schools in the affinity field", () => {
-    const s = fresh("saurak");
+    const s = fresh("saurak"); // affinity: Logistics & Trade
     const empire = s.empires[0]!;
-    learn(s, "gene_tailoring");
-    expect(techAvailable(pack, empire, "soil_enrichment")).toBe(true);
-    learn(s, "soil_enrichment");
-    expect(techAvailable(pack, empire, "neural_implants")).toBe(false);
+    expect(schoolsAllowed(pack, empire, "logistics")).toBe(2);
+    expect(schoolsAllowed(pack, empire, "growth")).toBe(1);
+    const [a, b, c] = pack.researchSchools.filter((x) => x.field === "logistics").map((x) => pack.techs.filter((t) => t.school === x.id));
+    learn(s, a![0]!.id);
+    learn(s, b![0]!.id);
+    expect(c!.every((t) => schoolBlocker(pack, empire, t) !== null)).toBe(true);
   });
 
   it("allows two schools in a race's twoSchools fields", () => {
