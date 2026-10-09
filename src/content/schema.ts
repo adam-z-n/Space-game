@@ -415,15 +415,17 @@ const Species = z.object({
   effects: EffectsSchema.default({}),
   /**
    * full: may research every school. limited: one school per field, two in the affinity
-   * field, where research also goes affinityPercent faster.
+   * field (where research also goes affinityPercent faster) and in each of twoSchools.
    */
   research: z
     .object({
       access: z.enum(["full", "limited"]),
       affinity: id.optional(),
       affinityPercent: z.number().int().min(0).max(200).default(0),
+      /** Further fields where a limited race may follow two schools. */
+      twoSchools: z.array(id).default([]),
     })
-    .default({ access: "full", affinityPercent: 0 }),
+    .default({ access: "full", affinityPercent: 0, twoSchools: [] }),
 });
 
 const EmpireTemplate = z.object({
@@ -688,6 +690,7 @@ export const ContentPackSchema = z
     });
     pack.species.forEach((s, i) => {
       if (s.research.affinity && !fieldIds.has(s.research.affinity)) issue(["species", i, "research"], `unknown affinity field "${s.research.affinity}"`);
+      for (const f of s.research.twoSchools) if (!fieldIds.has(f)) issue(["species", i, "research"], `unknown field "${f}" in twoSchools`);
     });
     for (const kind of ["combat", "mining", "depot"] as const) {
       const req = pack.outposts[kind].requires;

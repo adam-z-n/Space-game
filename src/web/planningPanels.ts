@@ -120,7 +120,7 @@ export function techTreePanel(ctx: PanelContext): HTMLElement {
   const rules =
     access.access === "full"
       ? `${species?.name ?? "Your species"} can research every school.`
-      : `${species?.name ?? "Your species"} follow one school per field (two in ${pack.researchFields.find((f) => f.id === access.affinity)?.name ?? "their affinity field"}). Your first tech in a school commits you to it and closes the others. Conquest can still capture closed techs.`;
+      : `${species?.name ?? "Your species"} follow one school per field (two in ${[access.affinity, ...access.twoSchools].map((f) => pack.researchFields.find((x) => x.id === f)?.name ?? f).join(" and ")}). Your first tech in a school commits you to it and closes the others. Conquest can still capture closed techs.`;
   return h(
     "div",
     { className: "sheet panel tall" },

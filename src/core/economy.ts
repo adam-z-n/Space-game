@@ -286,14 +286,14 @@ export function techAvailable(pack: ContentPack, empire: Empire, techId: string)
 
 /** The empire's species research rules. */
 export function researchAccess(pack: ContentPack, empire: Empire): ContentPack["species"][number]["research"] {
-  return pack.species.find((s) => s.id === empire.species)?.research ?? { access: "full", affinityPercent: 0 };
+  return pack.species.find((s) => s.id === empire.species)?.research ?? { access: "full", affinityPercent: 0, twoSchools: [] };
 }
 
-/** How many schools of `field` the empire may follow: all for full access, else one (two in its affinity field). */
+/** How many schools of `field` the empire may follow: all for full access, else one (two in its affinity and twoSchools fields). */
 export function schoolsAllowed(pack: ContentPack, empire: Empire, field: string): number {
   const access = researchAccess(pack, empire);
   if (access.access === "full") return Infinity;
-  return access.affinity === field ? 2 : 1;
+  return access.affinity === field || access.twoSchools.includes(field) ? 2 : 1;
 }
 
 /** Why a school tech is closed to the empire (it chose rival schools), or null. */

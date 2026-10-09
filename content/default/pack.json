@@ -3352,7 +3352,10 @@
       "research": {
         "access": "limited",
         "affinity": "weapons",
-        "affinityPercent": 40
+        "affinityPercent": 40,
+        "twoSchools": [
+          "propulsion"
+        ]
       }
     },
     {
@@ -3360,15 +3363,20 @@
       "name": "Kraal",
       "description": "A hive that never stops working.",
       "traits": [
-        "+30% industry"
+        "+30% industry",
+        "-10% ship cost"
       ],
       "effects": {
-        "industryPercent": 30
+        "industryPercent": 30,
+        "shipCostPercent": -10
       },
       "research": {
         "access": "limited",
         "affinity": "engineering",
-        "affinityPercent": 50
+        "affinityPercent": 50,
+        "twoSchools": [
+          "logistics"
+        ]
       }
     },
     {
@@ -3384,7 +3392,10 @@
       "research": {
         "access": "limited",
         "affinity": "defense",
-        "affinityPercent": 40
+        "affinityPercent": 40,
+        "twoSchools": [
+          "weapons"
+        ]
       }
     },
     {
@@ -3392,15 +3403,22 @@
       "name": "Aviari",
       "description": "Born to the void; their ships are swift.",
       "traits": [
-        "+30 ship speed"
+        "+30 ship speed",
+        "+5% ship evasion",
+        "+15% credits"
       ],
       "effects": {
-        "speed": 30
+        "speed": 30,
+        "creditsPercent": 15,
+        "shipEvasion": 5
       },
       "research": {
         "access": "limited",
         "affinity": "propulsion",
-        "affinityPercent": 50
+        "affinityPercent": 50,
+        "twoSchools": [
+          "sensors"
+        ]
       }
     },
     {
@@ -3450,7 +3468,10 @@
       "research": {
         "access": "limited",
         "affinity": "logistics",
-        "affinityPercent": 50
+        "affinityPercent": 50,
+        "twoSchools": [
+          "engineering"
+        ]
       }
     }
   ],

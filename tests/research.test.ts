@@ -8,6 +8,8 @@ import {
   designBlocker,
   getTech,
   hullSlots,
+  schoolBlocker,
+  schoolsAllowed,
   techAvailable,
   techCost,
   updateSightings,
@@ -58,7 +60,8 @@ describe("research tree", () => {
     const core = pack.techs.filter((t) => !t.school).length;
     for (const species of pack.species) {
       if (species.research.access === "full") continue;
-      const reachable = core + pack.researchFields.length * 3 + 3; // one school per field, two in the affinity field
+      const doubled = 1 + species.research.twoSchools.length; // two schools in the affinity field and each twoSchools field
+      const reachable = core + pack.researchFields.length * 3 + doubled * 3;
       expect(reachable / total, species.id).toBeGreaterThanOrEqual(0.6);
     }
     expect(pack.species.filter((s) => s.research.access === "full").map((s) => s.id).sort()).toEqual(["mekkan", "psyrrh", "terran"]);
@@ -83,6 +86,18 @@ describe("schools", () => {
     expect(techAvailable(pack, empire, "soil_enrichment")).toBe(true);
     learn(s, "soil_enrichment");
     expect(techAvailable(pack, empire, "neural_implants")).toBe(false);
+  });
+
+  it("allows two schools in a race's twoSchools fields", () => {
+    const s = fresh("felari"); // two schools in Propulsion as well as Weapons
+    const empire = s.empires[0]!;
+    expect(schoolsAllowed(pack, empire, "propulsion")).toBe(2);
+    expect(schoolsAllowed(pack, empire, "defense")).toBe(1);
+    const [a, b, c] = pack.researchSchools.filter((x) => x.field === "propulsion").map((x) => pack.techs.filter((t) => t.school === x.id));
+    learn(s, a![0]!.id);
+    learn(s, b![0]!.id);
+    expect(empire.schools.filter((x) => pack.researchSchools.find((y) => y.id === x)?.field === "propulsion")).toHaveLength(2);
+    expect(c!.every((t) => schoolBlocker(pack, empire, t) !== null)).toBe(true);
   });
 
   it("leaves every school open to full-access races", () => {

@@ -22,7 +22,7 @@ const { values } = parseArgs({
 });
 
 const pack = defaultPack();
-if (values["open-research"]) for (const species of pack.species) species.research = { access: "full", affinityPercent: 0 };
+if (values["open-research"]) for (const species of pack.species) species.research = { access: "full", affinityPercent: 0, twoSchools: [] };
 const games = Number(values.games);
 const sizes = values.size ? [values.size] : pack.galaxySizes.map((g) => g.id);
 const avg = (xs: number[]) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : 0);

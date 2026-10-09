@@ -126,7 +126,7 @@ async function showSetup(message?: string): Promise<void> {
             textContent:
               species.research.access === "full"
                 ? "Research: every school open"
-                : `Research: one school per field; ${pack.researchFields.find((f) => f.id === species.research.affinity)?.name ?? "affinity"} +${species.research.affinityPercent}%, two schools`,
+                : `Research: one school per field, two in ${[species.research.affinity, ...species.research.twoSchools].map((f) => pack.researchFields.find((x) => x.id === f)?.name ?? f).join(" and ")}; ${pack.researchFields.find((f) => f.id === species.research.affinity)?.name ?? "affinity"} +${species.research.affinityPercent}%`,
           }),
         );
         return card;
