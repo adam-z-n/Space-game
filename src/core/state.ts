@@ -5,7 +5,7 @@ import type { BodyKind, Formation } from "../content/schema";
  * so it can be cloned, saved, hashed, and sent over a network unchanged.
  */
 
-export const STATE_VERSION = 13;
+export const STATE_VERSION = 14;
 
 export type SystemId = number;
 export type EmpireId = number;
@@ -214,6 +214,10 @@ export interface Ship {
   hp: number;
   /** Combat experience; see the content pack's ranks. */
   xp: number;
+  /** Missile salvos fired since the ship last rearmed at a colony or depot. */
+  salvos: number;
+  /** Indexes into the design's components knocked out in battle, until repaired at a colony or depot. */
+  damaged: number[];
 }
 
 export const STANCES = ["aggressive", "balanced", "cautious"] as const;
@@ -335,6 +339,8 @@ export interface BattleShot {
   destroyed: boolean;
   /** Shot down by point defense (missiles and fighters). */
   intercepted?: boolean;
+  /** Name of the component this hit knocked out. */
+  knockedOut?: string;
 }
 
 export interface BattleReport {
@@ -343,8 +349,11 @@ export interface BattleReport {
   systemId: SystemId;
   empires: EmpireId[];
   ships: BattleShip[];
-  /** Per round: the range it was fought at (1 short, 2 medium, 3 long), ships whose weapons cyber attack shut down, shots, and who withdrew. */
-  rounds: { range: number; disrupted: ShipId[]; shots: BattleShot[]; retreated: FleetId[] }[];
+  /**
+   * Per round: the range it was fought at (1 short, 2 medium, 3 long), ships whose weapons cyber attack
+   * shut down, shots, who withdrew, and the parting shots the withdrawing fleets took.
+   */
+  rounds: { range: number; disrupted: ShipId[]; shots: BattleShot[]; retreated: FleetId[]; pursuit: BattleShot[] }[];
   /** Per empire: ships lost and fleets that withdrew. */
   results: { empireId: EmpireId; shipsLost: number; retreated: FleetId[]; damageDealt: number }[];
 }

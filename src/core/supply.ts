@@ -77,11 +77,20 @@ export function resolveSupply(state: GameState, pack: ContentPack, events: GameE
     if (supplied) {
       fleet.supply = max;
       fleet.stores = fleetMaxStores(pack, state, fleet);
+      // Rearm missiles and fix every knocked-out component.
+      for (const ship of fleet.ships) {
+        ship.salvos = 0;
+        ship.damaged = [];
+      }
       repair(Math.max(tender, pack.combat.dockRepairPercent));
       refreshFleetStats(pack, state, fleet);
       continue;
     }
-    if (tender > 0) repair(tender);
+    if (tender > 0) {
+      repair(tender);
+      // Repair crews also get one knocked-out component per ship working again.
+      for (const ship of fleet.ships) if (ship.damaged.length > 0) ship.damaged = ship.damaged.slice(1);
+    }
     const had = fleet.supply;
     // Solar Sails: no supply spent while between systems.
     const sailing = fleet.progress > 0 && hasFlag(pack, empire, "solarSails");

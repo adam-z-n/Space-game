@@ -151,6 +151,7 @@ describe("invasion", () => {
     const cap = enemyCapital(s);
     cap.buildings.push("defense_platform");
     cap.defenseHp = 500; // can't be knocked out this turn
+    s.fleets[0]!.orders.retreatPercent = 10; // they pull out once the guns start to tell
     s = run(s, { type: "invade", empireId: 0, fleetId: s.fleets[0]!.id, colonyId: cap.id }, end);
     expect(s.colonies.find((c) => c.id === cap.id)!.empireId).toBe(1);
     expect(s.lastTurnEvents.some((e) => e.type === "invasion")).toBe(false);

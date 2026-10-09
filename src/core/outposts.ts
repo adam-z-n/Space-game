@@ -32,7 +32,7 @@ export function outpostDefense(pack: ContentPack, empire: Empire, outpost: Outpo
   if (outpost.kind !== "combat") return { maxHp: 0, shield: 0, weapons: [], maxTroops: 0, mines: 0 };
   const pct = 100 + empireEffects(pack, empire).defensePercent;
   const config = pack.outposts.combat;
-  const weapons = config.weapons.flatMap((w) => Array.from({ length: w.count }, () => ({ damage: Math.floor((w.damage * pct) / 100), accuracy: w.accuracy, range: 3 })));
+  const weapons = config.weapons.flatMap((w) => Array.from({ length: w.count }, () => ({ damage: Math.floor((w.damage * pct) / 100), accuracy: w.accuracy, range: 3, ammo: 0 })));
   return { maxHp: Math.floor((config.hp * pct) / 100), shield: 0, weapons, maxTroops: 0, mines: 0 };
 }
 

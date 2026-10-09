@@ -35,6 +35,8 @@ export interface Weapon {
   /** Longest range it fires at: 1 short, 2 medium, 3 long. */
   range: number;
   special?: WeaponSpecial;
+  /** Missile salvos carried (0: unlimited). */
+  ammo: number;
 }
 
 export interface DesignStats {
@@ -114,6 +116,7 @@ export function designStats(pack: ContentPack, design: Pick<ShipDesign, "hull" |
         damage: Math.floor((c.damage * (100 + fx.damagePercent)) / 100),
         accuracy: Math.min(100, c.accuracy + aim),
         range: c.range,
+        ammo: c.ammo,
         ...(c.special ? { special: c.special } : {}),
       })),
     );
@@ -154,8 +157,14 @@ export function designStats(pack: ContentPack, design: Pick<ShipDesign, "hull" |
   };
 }
 
+/** Component kinds that battle damage can knock out (structure, armor and cargo can't be). */
+export const DAMAGEABLE_KINDS: ReadonlySet<string> = new Set(["weapon", "hangar", "shield", "engine", "sensor", "electronics", "bomb"]);
+
+/** A ship's current stats: its design, less any components knocked out in battle. */
 export function shipStats(pack: ContentPack, empire: Empire, ship: Ship): DesignStats {
-  return designStats(pack, getDesign(empire, ship.designId), empireEffects(pack, empire));
+  const design = getDesign(empire, ship.designId);
+  const working = ship.damaged.length === 0 ? design : { hull: design.hull, components: design.components.filter((_, i) => !ship.damaged.includes(i)) };
+  return designStats(pack, working, empireEffects(pack, empire));
 }
 
 export function hullAvailable(pack: ContentPack, empire: Empire, hullId: string): boolean {
@@ -215,7 +224,11 @@ export function defaultOrders(armed: boolean): FleetOrders {
 export function fleetShipStats(pack: ContentPack, state: GameState, fleet: Fleet): DesignStats[] {
   const empire = state.empires[fleet.empireId]!;
   const fx = empireEffects(pack, empire);
-  return fleet.ships.map((ship) => designStats(pack, getDesign(empire, ship.designId), fx));
+  return fleet.ships.map((ship) =>
+    ship.damaged.length === 0
+      ? designStats(pack, getDesign(empire, ship.designId), fx)
+      : shipStats(pack, empire, ship),
+  );
 }
 
 /** Turns of supply a full fleet carries: its shortest-legged ship plus any fuel tanks aboard. */
@@ -286,6 +299,8 @@ export function newFleet(state: GameState, pack: ContentPack, empire: Empire, de
     designId,
     hp: designStats(pack, getDesign(empire, designId), fx).maxHp,
     xp,
+    salvos: 0,
+    damaged: [],
   }));
   const fleet: Fleet = {
     id: state.nextId++,

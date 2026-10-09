@@ -244,3 +244,78 @@ describe("experience and command", () => {
     expect(hitRate(true)).toBeGreaterThan(hitRate(false));
   });
 });
+
+describe("1.2 combat extras", () => {
+  it("missile launchers run dry after their salvos until rearmed at a colony", () => {
+    let s = line();
+    design(s, "launcher", "battleship", Array.from({ length: 8 }, () => "torpedo"));
+    design(s, "wall", "dreadnought", ["laser", ...Array.from({ length: 11 }, () => "crystalline_armor")]);
+    const launcher = newFleet(s, pack, s.empires[0]!, ["launcher"], 3);
+    const wall = newFleet(s, pack, s.empires[1]!, ["wall"], 3);
+    for (const f of [launcher, wall]) f.orders = { ...f.orders, mission: "engage", retreatPercent: 100 };
+    s.fleets.push(launcher, wall);
+    s = run(s, end);
+    const launcherShip = launcher.ships[0]!.id;
+    // Eight launchers, three salvos each (parting shots at a fleeing target spend salvos too).
+    const torpedoes = battle(s).rounds.flatMap((r) => [...r.shots, ...r.pursuit]).filter((x) => x.attacker === launcherShip);
+    expect(torpedoes).toHaveLength(8 * 3);
+    expect(s.fleets.find((f) => f.id === launcher.id)!.ships[0]!.salvos).toBe(3);
+    s.fleets.find((f) => f.id === launcher.id)!.systemId = 0;
+    s = run(s, end);
+    expect(s.fleets.find((f) => f.id === launcher.id)!.ships[0]!.salvos).toBe(0);
+  });
+
+  it("heavy hits knock out components, which stay out until repaired at a colony", () => {
+    let s = line();
+    design(s, "hammer", "dreadnought", Array.from({ length: 12 }, () => "starburst_torpedo"));
+    design(s, "victim", "cruiser", ["laser", "laser", "deflector", "afterburner", "composite_armor"]);
+    const hammer = newFleet(s, pack, s.empires[0]!, ["hammer"], 3);
+    const victims = newFleet(s, pack, s.empires[1]!, Array.from({ length: 6 }, () => "victim"), 3);
+    for (const f of [hammer, victims]) f.orders = { ...f.orders, mission: "engage", retreatPercent: 100 };
+    s.fleets.push(hammer, victims);
+    s = run(s, end);
+    const knocked = battle(s).rounds.flatMap((r) => r.shots).filter((x) => x.knockedOut);
+    expect(knocked.length).toBeGreaterThan(0);
+    const survivors = s.fleets.find((f) => f.id === victims.id);
+    const damaged = survivors?.ships.filter((x) => x.damaged.length > 0) ?? [];
+    if (damaged.length > 0) {
+      survivors!.systemId = 6; // home colony
+      s = run(s, end);
+      expect(s.fleets.find((f) => f.id === victims.id)!.ships.every((x) => x.damaged.length === 0)).toBe(true);
+    }
+  });
+
+  it("faster enemies take parting shots at a retreating fleet; hit-and-run training avoids them", () => {
+    const parting = (hitAndRun: boolean) => {
+      let s = line();
+      design(s, "hunter", "corvette", ["laser", "laser"]);
+      design(s, "lumber", "battleship", ["laser", ...Array.from({ length: 7 }, () => "armor_plating")]);
+      if (hitAndRun) s.empires[1]!.techs.push("hit_and_run");
+      const hunters = newFleet(s, pack, s.empires[0]!, Array.from({ length: 6 }, () => "hunter"), 3);
+      const slow = newFleet(s, pack, s.empires[1]!, ["lumber"], 3);
+      hunters.orders = { ...hunters.orders, mission: "engage", retreatPercent: 100 };
+      slow.orders = { ...slow.orders, mission: "engage", retreatPercent: 1 };
+      s.fleets.push(hunters, slow);
+      s = run(s, end);
+      return battle(s).rounds.flatMap((r) => r.pursuit).length;
+    };
+    expect(parting(false)).toBeGreaterThan(0);
+    expect(parting(true)).toBe(0);
+  });
+
+  it("oversized fleets fight less well together", () => {
+    const hitRate = (size: number) => {
+      let s = line();
+      design(s, "target", "dreadnought", ["laser", ...Array.from({ length: 11 }, () => "crystalline_armor")]);
+      const fleet = newFleet(s, pack, s.empires[0]!, Array.from({ length: size }, () => "frigate"), 3);
+      const target = newFleet(s, pack, s.empires[1]!, ["target", "target"], 3);
+      for (const f of [fleet, target]) f.orders = { ...f.orders, mission: "engage", retreatPercent: 100 };
+      s.fleets.push(fleet, target);
+      s = run(s, end);
+      const mine = new Set(fleet.ships.map((x) => x.id));
+      const shots = battle(s).rounds.flatMap((r) => r.shots).filter((x) => mine.has(x.attacker));
+      return shots.filter((x) => x.damage > 0).length / shots.length;
+    };
+    expect(hitRate(16)).toBeLessThan(hitRate(8));
+  });
+});

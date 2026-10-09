@@ -1,10 +1,10 @@
 import type { ContentPack, Formation } from "../content/schema";
-import { empireEffects } from "./economy";
+import { empireEffects, hasFlag } from "./economy";
 import { shortestPaths } from "./graph";
 import { knownAdjacency } from "./vision";
 import { Rng } from "./rng";
-import { designStats, fleetArmed, fleetStealthy, getDesign, refreshFleetStats, type DesignStats, type Weapon } from "./ships";
-import type { BattleReport, BattleShot, Colony, EmpireId, Fleet, FleetId, GameEvent, GameState, Ship, SystemId } from "./state";
+import { DAMAGEABLE_KINDS, designStats, fleetArmed, fleetStealthy, getComponent, getDesign, refreshFleetStats, shipStats, type DesignStats, type Weapon } from "./ships";
+import type { BattleReport, BattleShot, Colony, Empire, EmpireId, Fleet, FleetId, GameEvent, GameState, Ship, SystemId } from "./state";
 import { colonyDefense, type ColonyDefense } from "./defense";
 import { outpostDefense, outpostName } from "./outposts";
 
@@ -29,6 +29,9 @@ interface Combatant {
   depleted: boolean;
   /** Accuracy and evasion from the crew's experience rank. */
   veteran: number;
+  /** The design's component ids (empty for defenses), for battle damage. */
+  parts: string[];
+  empire: Empire | null;
 }
 
 /** Index into the content pack's ranks for an amount of experience. */
@@ -132,7 +135,7 @@ function fight(
       id: -key,
       empireId: station.empireId,
       name: station.name,
-      ships: [{ id: key, designId: "", hp: station.hp, xp: 0 }],
+      ships: [{ id: key, designId: "", hp: station.hp, xp: 0, salvos: 0, damaged: [] }],
       orders: { mission: "engage", stance: "balanced", targetPriority: "warships", retreatPercent: 100 },
       supply: 1,
       stores: 0,
@@ -155,6 +158,8 @@ function fight(
       formation: "front",
       depleted: false,
       veteran: 0,
+      parts: [],
+      empire: null,
     });
     return fleet;
   });
@@ -168,11 +173,13 @@ function fight(
       combatants.set(ship.id, {
         ship,
         fleet,
-        stats: designStats(pack, design, fx),
+        stats: ship.damaged.length > 0 ? shipStats(pack, empire, ship) : designStats(pack, design, fx),
         designName: design.name,
         formation: design.formation,
         depleted: fleet.supply <= 0,
         veteran: veteranBonus(pack, design.hull, ship.xp),
+        parts: design.components,
+        empire,
       });
     }
   }
@@ -197,6 +204,59 @@ function fight(
   const damageDealt = new Map<EmpireId, number>();
   const active = () => fleets.filter((f) => !retreated.has(f.id) && f.ships.length > 0);
   const living = (list: Fleet[]) => list.flatMap((f) => f.ships.map((s) => combatants.get(s.id)!));
+
+  // Oversized fleets fight less well together; a command network lets a fleet run larger.
+  const oversize = new Map(
+    fleets.map((f) => {
+      if (stations.has(f.id)) return [f.id, 0];
+      const limit = cfg.fleetSizeLimit + (commandBonus(f, combatants) > 0 ? cfg.commandSizeBonus : 0);
+      return [f.id, Math.min(cfg.oversizePenaltyMax, Math.max(0, f.ships.length - limit) * cfg.oversizePenalty)];
+    }),
+  );
+  const tractor = new Set(report.empires.filter((e) => hasFlag(pack, state.empires[e]!, "tractorBeams")));
+  const hitAndRun = new Set(report.empires.filter((e) => hasFlag(pack, state.empires[e]!, "hitAndRun")));
+
+  /** Apply a volley: damage, battle damage to components, kills. */
+  const land = (volley: BattleShot[]) => {
+    for (const shot of volley) {
+      if (shot.damage === 0) continue;
+      const target = combatants.get(shot.target)!;
+      const wasAlive = target.ship.hp > 0;
+      target.ship.hp -= shot.damage;
+      if (wasAlive && target.ship.hp <= 0) shot.destroyed = true;
+      const attackerEmpire = combatants.get(shot.attacker)!.fleet.empireId;
+      damageDealt.set(attackerEmpire, (damageDealt.get(attackerEmpire) ?? 0) + shot.damage);
+      // Heavy hits can knock out a component until the ship is repaired at a colony or depot.
+      if (target.ship.hp > 0 && target.empire && rng.int(1, 100) <= Math.min(cfg.criticalMaxPercent, Math.floor((shot.damage * 100) / target.stats.maxHp))) {
+        const working = target.parts.map((id, i) => ({ id, i })).filter(({ id, i }) => !target.ship.damaged.includes(i) && DAMAGEABLE_KINDS.has(getComponent(pack, id).kind));
+        if (working.length > 0) {
+          const hit = rng.pick(working);
+          target.ship.damaged = [...target.ship.damaged, hit.i].sort((a, b) => a - b);
+          target.stats = shipStats(pack, target.empire, target.ship);
+          shot.knockedOut = getComponent(pack, hit.id).name;
+        }
+      }
+    }
+  };
+
+  /** Every weapon of `fleet` in reach fires once at `targets`; missiles spend a salvo. */
+  const volley = (fleet: Fleet, targets: Combatant[], disrupted: Set<number>, pointDefense: Map<FleetId, number>, command: Map<FleetId, number>, range: number, only?: (c: Combatant) => boolean): BattleShot[] => {
+    const shots: BattleShot[] = [];
+    for (const ship of fleet.ships) {
+      if (disrupted.has(ship.id)) continue;
+      const attacker = combatants.get(ship.id)!;
+      if (only && !only(attacker)) continue;
+      let launched = false;
+      for (const weapon of attacker.stats.weapons) {
+        if (weapon.range < range) continue; // out of reach at this range
+        if (weapon.ammo > 0 && ship.salvos >= weapon.ammo) continue; // magazines empty
+        if (weapon.ammo > 0) launched = true;
+        shots.push(fire(pack, rng, fleet, attacker, weapon, targets, pointDefense, command, oversize));
+      }
+      if (launched) ship.salvos += 1;
+    }
+    return shots;
+  };
 
   // Battles open at long range; each round the more maneuverable side moves the range toward its liking.
   let range = 3;
@@ -225,29 +285,12 @@ function fight(
     const command = new Map(fighting.map((f) => [f.id, commandBonus(f, combatants)]));
     const shots: BattleShot[] = [];
     for (const fleet of fighting) {
-      const enemyFleets = fighting.filter((f) => f.empireId !== fleet.empireId);
-      const enemies = living(enemyFleets);
-      if (enemies.length === 0) continue;
-      for (const ship of fleet.ships) {
-        if (disrupted.has(ship.id)) continue;
-        const attacker = combatants.get(ship.id)!;
-        for (const weapon of attacker.stats.weapons) {
-          if (weapon.range < range) continue; // out of reach at this range
-          shots.push(fire(pack, rng, fleet, attacker, weapon, enemies, pointDefense, command));
-        }
-      }
+      const enemies = living(fighting.filter((f) => f.empireId !== fleet.empireId));
+      if (enemies.length > 0) shots.push(...volley(fleet, enemies, disrupted, pointDefense, command, range));
     }
 
     // Simultaneous resolution: every shot this round lands, then the dead are removed.
-    for (const shot of shots) {
-      if (shot.damage === 0) continue;
-      const target = combatants.get(shot.target)!;
-      const wasAlive = target.ship.hp > 0;
-      target.ship.hp -= shot.damage;
-      if (wasAlive && target.ship.hp <= 0) shot.destroyed = true;
-      const attackerEmpire = combatants.get(shot.attacker)!.fleet.empireId;
-      damageDealt.set(attackerEmpire, (damageDealt.get(attackerEmpire) ?? 0) + shot.damage);
-    }
+    land(shots);
     for (const fleet of fighting) fleet.ships = fleet.ships.filter((s) => s.hp > 0);
 
     const withdrew: FleetId[] = [];
@@ -262,13 +305,29 @@ function fight(
         withdrew.push(fleet.id);
       }
     }
-    report.rounds.push({ range, disrupted: [...disrupted].sort((a, b) => a - b), shots, retreated: withdrew });
+    // Pursuit: a withdrawing fleet takes a parting volley from enemies more agile than it is
+    // (all of them, if the enemy has tractor beams; none, with hit-and-run training).
+    const pursuit: BattleShot[] = [];
+    for (const id of withdrew) {
+      const fleeing = fleets.find((f) => f.id === id)!;
+      const pace = Math.min(...fleeing.ships.map((s) => combatants.get(s.id)!.stats.maneuver));
+      const prey = living([fleeing]);
+      for (const hunter of active()) {
+        if (hunter.empireId === fleeing.empireId) continue;
+        const grabbed = tractor.has(hunter.empireId);
+        if (hitAndRun.has(fleeing.empireId) && !grabbed) continue;
+        pursuit.push(...volley(hunter, prey, disrupted, pointDefense, command, range, (c) => grabbed || c.stats.maneuver > pace));
+      }
+    }
+    land(pursuit);
+    for (const fleet of fleets) fleet.ships = fleet.ships.filter((s) => s.hp > 0);
+    report.rounds.push({ range, disrupted: [...disrupted].sort((a, b) => a - b), shots, retreated: withdrew, pursuit });
     range = nextRange(pack, range, active(), combatants, stations);
   }
 
   // Experience for every ship that came through: a battle survived, kills, and odds overcome.
   const kills = new Map<number, number>();
-  for (const r of report.rounds) for (const shot of r.shots) if (shot.destroyed) kills.set(shot.attacker, (kills.get(shot.attacker) ?? 0) + 1);
+  for (const r of report.rounds) for (const shot of [...r.shots, ...r.pursuit]) if (shot.destroyed) kills.set(shot.attacker, (kills.get(shot.attacker) ?? 0) + 1);
   const sideHp = new Map<EmpireId, number>();
   for (const f of fleets) sideHp.set(f.empireId, (sideHp.get(f.empireId) ?? 0) + startHp.get(f.id)!);
   for (const fleet of shipFleets) {
@@ -331,6 +390,7 @@ function fire(
   enemies: Combatant[],
   pointDefense: Map<FleetId, number>,
   command: Map<FleetId, number>,
+  oversize: Map<FleetId, number>,
 ): BattleShot {
   const cfg = pack.combat;
   const fighters = weapon.special === "fighters";
@@ -353,8 +413,9 @@ function fire(
     (target.formation === "support" ? cfg.supportEvasion : 0) +
     (guided ? target.stats.jamming : 0) +
     target.veteran +
-    Math.floor((command.get(target.fleet.id) ?? 0) / 2);
-  const accuracy = weapon.accuracy + attacker.veteran + (command.get(fleet.id) ?? 0);
+    Math.floor((command.get(target.fleet.id) ?? 0) / 2) -
+    (oversize.get(target.fleet.id) ?? 0);
+  const accuracy = weapon.accuracy + attacker.veteran + (command.get(fleet.id) ?? 0) - (oversize.get(fleet.id) ?? 0);
   const chance = Math.max(5, accuracy - evasion);
   let damage = 0;
   if (rng.int(1, 100) <= chance) {

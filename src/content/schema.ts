@@ -177,6 +177,8 @@ const Component = z.object({
   accuracy: z.number().int().min(0).max(100).default(0),
   /** Shots per round (hangars launch several craft). */
   shots: z.number().int().positive().default(1),
+  /** Missiles: salvos carried before the launcher must resupply at a colony or depot (0: unlimited). */
+  ammo: z.number().int().nonnegative().default(0),
   /** Longest range the weapon fires at: 1 short, 2 medium, 3 long. */
   range: z.number().int().min(1).max(3).default(2),
   special: z.enum(WEAPON_SPECIALS).optional(),
@@ -336,6 +338,14 @@ const Combat = z.object({
   colonyGunAccuracy: z.number().int().min(0).max(100),
   /** Militia lost to a failed invasion that returns each turn (when not under siege). */
   militiaRegenPerTurn: z.number().int().nonnegative(),
+  /** A hit can knock out one of the target's components: chance is the damage as a share of the ship's hull, capped here. */
+  criticalMaxPercent: z.number().int().min(0).max(100),
+  /** Fleets larger than this fight less well together; a command network raises the limit. */
+  fleetSizeLimit: z.number().int().positive(),
+  commandSizeBonus: z.number().int().nonnegative(),
+  /** Accuracy and evasion lost per ship over the limit, and the most it can cost. */
+  oversizePenalty: z.number().int().nonnegative(),
+  oversizePenaltyMax: z.number().int().nonnegative(),
   /** Chance, in percent, that capturing a colony yields one of its old owner's techs. */
   techCapturePercent: z.number().int().min(0).max(100),
   /** Experience ranks, lowest first: the experience needed for each. */

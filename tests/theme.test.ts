@@ -62,7 +62,7 @@ describe("flagship hull", () => {
     expect(flagshipHull(pack, s, fleet)).toBe(expected);
     const battleship = { id: "bb", name: "BB", hull: "battleship", components: [], formation: "front" as const, obsolete: false };
     empire.designs.push(battleship);
-    fleet.ships.push({ id: 9999, designId: "bb", hp: 1, xp: 0 });
+    fleet.ships.push({ id: 9999, designId: "bb", hp: 1, xp: 0, salvos: 0, damaged: [] });
     expect(flagshipHull(pack, s, fleet)).toBe("battleship");
   });
 });

@@ -28,7 +28,7 @@ export function colonyDefense(pack: ContentPack, empire: Empire, colony: Colony)
   const cfg = pack.combat;
   // Every colony has planetary batteries that grow with its population; buildings add the rest.
   const result: ColonyDefense = { maxHp: colony.population * cfg.colonyDefenseHpPerPop, shield: 0, weapons: [], maxTroops: 0, mines: 0 };
-  for (let i = 0; i < Math.floor(colony.population / cfg.colonyPopPerGun); i++) result.weapons.push({ damage: cfg.colonyGunDamage, accuracy: cfg.colonyGunAccuracy, range: 3 });
+  for (let i = 0; i < Math.floor(colony.population / cfg.colonyPopPerGun); i++) result.weapons.push({ damage: cfg.colonyGunDamage, accuracy: cfg.colonyGunAccuracy, range: 3, ammo: 0 });
   for (const id of colony.buildings) {
     const d = getBuilding(pack, id).defense;
     result.maxHp += d.hp ?? 0;
@@ -36,7 +36,7 @@ export function colonyDefense(pack: ContentPack, empire: Empire, colony: Colony)
     result.maxTroops += d.troops ?? 0;
     result.mines += d.mines ?? 0;
     for (const w of d.weapons ?? []) {
-      for (let i = 0; i < w.count; i++) result.weapons.push({ damage: w.damage, accuracy: w.accuracy, range: 3 });
+      for (let i = 0; i < w.count; i++) result.weapons.push({ damage: w.damage, accuracy: w.accuracy, range: 3, ammo: 0 });
     }
   }
   result.maxHp = Math.floor((result.maxHp * pct) / 100);

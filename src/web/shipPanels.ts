@@ -19,6 +19,8 @@ import {
   getHull,
   hullAvailable,
   type BattleReport,
+  type BattleShot,
+  type Ship,
   type Command,
   type ContentPack,
   type Empire,
@@ -294,6 +296,7 @@ export function fleetDetail(ctx: ShipContext, fleetId: FleetId): HTMLElement | n
         { className: "grow" },
         h("div", {}, `${on ? "☑ " : ""}${getDesign(empire, ship.designId).name}`, h("span", { className: "muted small", textContent: ` · ${rankLabel(pack, getDesign(empire, ship.designId).hull, ship.xp)}` })),
         bar(ship.hp / s.maxHp),
+        shipCondition(pack, empire, ship),
       ),
       h("span", { className: "small", textContent: `${ship.hp}/${s.maxHp}` }),
     );
@@ -327,10 +330,20 @@ export function fleetDetail(ctx: ShipContext, fleetId: FleetId): HTMLElement | n
     );
   }
 
+  const limit = pack.combat.fleetSizeLimit + (stats.some((s) => s.command > 0) ? pack.combat.commandSizeBonus : 0);
+  const over = fleet.ships.length - limit;
+  const sizeWarning =
+    over > 0
+      ? h("div", {
+          className: "warn-text small",
+          textContent: `Too big to fight as one: ${fleet.ships.length} ships, limit ${limit}. −${Math.min(pack.combat.oversizePenaltyMax, over * pack.combat.oversizePenalty)}% accuracy and evasion. Split it, or add a command network.`,
+        })
+      : null;
   return h(
     "div",
     {},
-    h("div", { className: "muted small", textContent: `${fleet.ships.length} ship${fleet.ships.length > 1 ? "s" : ""} · strength ${fleetStrength(pack, game.state, fleet)} · speed ${fleet.speed}` }),
+    h("div", { className: "muted small", textContent: `${fleet.ships.length} ship${fleet.ships.length > 1 ? "s" : ""} (limit ${limit}) · strength ${fleetStrength(pack, game.state, fleet)} · speed ${fleet.speed}` }),
+    sizeWarning,
     supply,
     ships,
     fleet.ships.length > 1 ? h("div", { className: "hint", textContent: "Tap ships to select them for detaching." }) : null,
@@ -367,7 +380,9 @@ export function battlePanel(ctx: ShipContext, report: BattleReport, round: numbe
   const shipInfo = new Map(report.ships.map((s) => [s.shipId, s]));
   // Replay hit points up to the end of the chosen round.
   const hp = new Map(report.ships.map((s) => [s.shipId, s.hp]));
-  for (let r = 0; r <= round && r < report.rounds.length; r++) for (const shot of report.rounds[r]!.shots) hp.set(shot.target, hp.get(shot.target)! - shot.damage);
+  for (let r = 0; r <= round && r < report.rounds.length; r++) {
+    for (const shot of [...report.rounds[r]!.shots, ...report.rounds[r]!.pursuit]) hp.set(shot.target, hp.get(shot.target)! - shot.damage);
+  }
 
   const label = (shipId: number) => {
     const s = shipInfo.get(shipId)!;
@@ -416,13 +431,18 @@ export function battlePanel(ctx: ShipContext, report: BattleReport, round: numbe
     const intercepted = current.shots.filter((s) => s.intercepted).length;
     const misses = current.shots.length - hits.length - intercepted;
     if (intercepted > 0) log.append(h("li", {}, h("span", { className: "small accent-text", textContent: `Point defense shot down ${intercepted} missile${intercepted > 1 ? "s" : ""} or fighter${intercepted > 1 ? "s" : ""}` })));
-    for (const shot of hits) {
-      log.append(h("li", {}, h("span", { className: "small", textContent: `${label(shot.attacker)} hit ${label(shot.target)} for ${shot.damage}${shot.destroyed ? " — destroyed" : ""}` })));
-    }
+    const describe = (shot: BattleShot) =>
+      `${label(shot.attacker)} hit ${label(shot.target)} for ${shot.damage}${shot.destroyed ? " — destroyed" : shot.knockedOut ? ` — ${shot.knockedOut} knocked out` : ""}`;
+    for (const shot of hits) log.append(h("li", {}, h("span", { className: "small", textContent: describe(shot) })));
     if (misses > 0) log.append(h("li", {}, h("span", { className: "muted small", textContent: `${misses} shot${misses > 1 ? "s" : ""} missed` })));
     for (const fleetId of current.retreated) {
       const ship = report.ships.find((s) => s.fleetId === fleetId);
       if (ship) log.append(h("li", {}, h("span", { className: "warn-text small", textContent: `${ctx.empireName(ship.empireId)} fleet withdrew` })));
+    }
+    if (current.pursuit.length > 0) {
+      const parting = current.pursuit.filter((s) => s.damage > 0);
+      log.append(h("li", { className: "section" }, h("span", { textContent: `Parting shots: ${parting.length} of ${current.pursuit.length} hit` })));
+      for (const shot of parting) log.append(h("li", {}, h("span", { className: "small", textContent: describe(shot) })));
     }
   }
 
@@ -443,4 +463,14 @@ export function rankLabel(pack: ContentPack, hullId: string, xp: number): string
   const rank = pack.combat.ranks[rankOf(pack, xp)]!;
   const bonus = veteranBonus(pack, hullId, xp);
   return bonus > 0 ? `${rank.name} (+${bonus}%)` : rank.name;
+}
+
+/** Battle damage and missile salvos left, for a ship row; null when there is nothing to report. */
+function shipCondition(pack: ContentPack, empire: Empire, ship: Ship): HTMLElement | null {
+  const design = getDesign(empire, ship.designId);
+  const out = ship.damaged.map((i) => getComponent(pack, design.components[i]!).name);
+  const launchers = design.components.map((id) => getComponent(pack, id)).filter((c) => c.ammo > 0);
+  const salvos = launchers.length > 0 ? Math.max(0, Math.min(...launchers.map((c) => c.ammo)) - ship.salvos) : null;
+  const notes = [out.length ? `Knocked out: ${out.join(", ")}` : "", salvos !== null ? `missiles: ${salvos} salvo${salvos === 1 ? "" : "s"} left` : ""].filter(Boolean);
+  return notes.length ? h("div", { className: out.length || salvos === 0 ? "warn-text small" : "muted small", textContent: notes.join(" · ") }) : null;
 }

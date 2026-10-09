@@ -100,7 +100,7 @@ export function migrateState(state: GameState, pack: ContentPack): GameState {
       const designId = empire.designs.some((d) => d.id === fleet.templateId) ? fleet.templateId! : "frigate";
       delete fleet.templateId;
       const maxHp = designStats(pack, empire.designs.find((d) => d.id === designId)!, empireEffects(pack, empire)).maxHp;
-      fleet.ships = [{ id: migrated.nextId++, designId, hp: maxHp, xp: 0 }];
+      fleet.ships = [{ id: migrated.nextId++, designId, hp: maxHp, xp: 0, salvos: 0, damaged: [] }];
       fleet.orders = defaultOrders(fleetArmed(pack, migrated, fleet));
       fleet.supply = fleetMaxSupply(pack, migrated, fleet);
     }
@@ -198,6 +198,18 @@ export function migrateState(state: GameState, pack: ContentPack): GameState {
       empire.schools = [...new Set(empire.techs.map((id) => pack.techs.find((t) => t.id === id)?.school).filter((s): s is string => !!s))].sort();
     }
     old.version = 13;
+  }
+
+  if (old.version === 13) {
+    // v14: missile salvos, battle damage to components, pursuit in battle reports.
+    for (const fleet of migrated.fleets) {
+      for (const ship of fleet.ships) {
+        ship.salvos = 0;
+        ship.damaged = [];
+      }
+    }
+    migrated.lastBattles = [];
+    old.version = 14;
   }
 
   if (startVersion !== migrated.version) {

@@ -32,7 +32,7 @@ export function testFleet(state: GameState, opts: { id: number; empireId: number
     id: opts.id,
     empireId: opts.empireId,
     name: opts.name ?? `Test ${opts.id}`,
-    ships: [{ id: opts.id * 10, designId: opts.hull, hp: 10, xp: 0 }],
+    ships: [{ id: opts.id * 10, designId: opts.hull, hp: 10, xp: 0, salvos: 0, damaged: [] }],
     orders: { mission: "evade", stance: "cautious", targetPriority: "any", retreatPercent: 25 },
     supply: 99,
     stores: 0,

@@ -2370,7 +2370,12 @@
     "xpPerBattle": 2,
     "xpPerKill": 1,
     "xpOutnumbered": 2,
-    "techCapturePercent": 25
+    "techCapturePercent": 25,
+    "criticalMaxPercent": 40,
+    "fleetSizeLimit": 8,
+    "commandSizeBonus": 6,
+    "oversizePenalty": 3,
+    "oversizePenaltyMax": 24
   },
   "hulls": [
     {
@@ -2503,13 +2508,14 @@
       "id": "torpedo",
       "name": "Nuclear Missile",
       "kind": "weapon",
-      "description": "12 damage, 50% accuracy, long range. Missile: point defense can shoot it down.",
+      "description": "12 damage, 50% accuracy, long range. Missile: point defense can shoot it down. 3 salvos, then it must rearm at a colony or depot.",
       "cost": 10,
       "damage": 12,
       "accuracy": 50,
       "requires": "guided_torpedoes",
       "range": 3,
-      "special": "missile"
+      "special": "missile",
+      "ammo": 3
     },
     {
       "id": "armor_plating",
@@ -2619,13 +2625,14 @@
       "id": "hellfire_missile",
       "name": "Hellfire Missile",
       "kind": "weapon",
-      "description": "16 damage, 60% accuracy, long range. Missile.",
+      "description": "16 damage, 60% accuracy, long range. Missile. 3 salvos, then it must rearm at a colony or depot.",
       "cost": 12,
       "damage": 16,
       "accuracy": 60,
       "range": 3,
       "special": "missile",
-      "requires": "hellfire_missiles"
+      "requires": "hellfire_missiles",
+      "ammo": 3
     },
     {
       "id": "plasma_lance",
@@ -2642,13 +2649,14 @@
       "id": "starburst_torpedo",
       "name": "Starburst Torpedo",
       "kind": "weapon",
-      "description": "26 damage, 55% accuracy, long range. Missile.",
+      "description": "26 damage, 55% accuracy, long range. Missile. 2 salvos, then it must rearm at a colony or depot.",
       "cost": 18,
       "damage": 26,
       "accuracy": 55,
       "range": 3,
       "special": "missile",
-      "requires": "starburst_torpedoes"
+      "requires": "starburst_torpedoes",
+      "ammo": 2
     },
     {
       "id": "disruptor",
@@ -2844,14 +2852,15 @@
       "id": "swarm_missile",
       "name": "Swarm Missile Rack",
       "kind": "weapon",
-      "description": "Three 7-damage missiles a round, 70% accuracy, long range. Missiles.",
+      "description": "Three 7-damage missiles a round, 70% accuracy, long range. Missiles. 3 salvos, then it must rearm at a colony or depot.",
       "cost": 16,
       "damage": 7,
       "accuracy": 70,
       "shots": 3,
       "range": 3,
       "special": "missile",
-      "requires": "swarm_missiles"
+      "requires": "swarm_missiles",
+      "ammo": 3
     },
     {
       "id": "spinal_mass_driver",

@@ -35,6 +35,20 @@ Research tree:
 - The research tree screen groups each field into core techs and schools, shows which schools you follow and which
   are closed, and the empire picker shows each race's research access.
 
+Combat:
+
+- Missile ammunition: missile launchers carry a few salvos (Nuclear Missiles, Hellfire and Swarm 3, Starburst 2)
+  and rearm only at your colonies and depots. Beams never run dry.
+- Battle damage: a heavy hit can knock out one of a ship's weapons, shields, engines or electronics (chance is the
+  damage as a share of its hull, up to 40%). Knocked-out parts stay out until repaired at a colony or depot;
+  repair tenders and Damage Control fix one per ship per turn in the field.
+- Pursuit: a fleet that withdraws takes a parting volley from enemy ships more maneuverable than its slowest ship.
+  Hit-and-Run Doctrine avoids it; Tractor Beams let every one of your ships take the shot.
+- Fleet size: fleets of more than 8 ships (14 with a command network) lose 3% accuracy and evasion per extra ship,
+  up to 24%. The AI keeps its fleets within the limit.
+- Battle replays show parting shots and knocked-out parts; the fleet sheet shows the size limit, damaged parts and
+  missile salvos left.
+
 ## 1.1.0
 
 Map and planning:
