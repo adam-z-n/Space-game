@@ -1,5 +1,5 @@
 import type { ContentPack, DesignData, ShipRole, WeaponSpecial } from "../content/schema";
-import { empireEffects, type Totals } from "./economy";
+import { empireEffects, hasFlag, type Totals } from "./economy";
 import type { Empire, Fleet, FleetOrders, GameState, Ship, ShipDesign } from "./state";
 
 /**
@@ -110,7 +110,7 @@ export function designStats(pack: ContentPack, design: Pick<ShipDesign, "hull" |
   const weapons: Weapon[] = parts
     .filter((c) => c.kind === "weapon" || c.kind === "hangar")
     .flatMap((c) =>
-      Array.from({ length: c.shots }, () => ({
+      Array.from({ length: c.shots + (c.kind === "hangar" ? fx.hangarShots : 0) }, () => ({
         damage: Math.floor((c.damage * (100 + fx.damagePercent)) / 100),
         accuracy: Math.min(100, c.accuracy + aim),
         range: c.range,
@@ -123,14 +123,14 @@ export function designStats(pack: ContentPack, design: Pick<ShipDesign, "hull" |
   const transport = colonize || outpost || parts.some((c) => c.kind === "troops");
   const role: ShipRole = transport ? "transport" : armed ? "combat" : parts.some((c) => c.kind === "sensor") ? "recon" : "support";
   return {
-    cost: hull.cost + sum("cost"),
-    upkeep: hull.upkeep,
-    maxHp: hull.structure + sum("hp"),
+    cost: Math.max(1, Math.floor(((hull.cost + sum("cost")) * (100 + fx.shipCostPercent)) / 100)),
+    upkeep: Math.floor((hull.upkeep * (100 + fx.shipUpkeepPercent)) / 100),
+    maxHp: Math.floor((hull.structure * (100 + fx.structurePercent)) / 100) + sum("hp"),
     shield: sum("shield"),
     weapons,
     speed: hull.speed + sum("speed") + fx.speed,
     sensorRange: hull.sensorRange + sum("sensorRange") + fx.sensorRange,
-    evasion: hull.evasion,
+    evasion: hull.evasion + fx.shipEvasion,
     endurance: hull.endurance + fx.endurance,
     fuel: sum("fuel"),
     troops: sum("troops"),
@@ -149,8 +149,8 @@ export function designStats(pack: ContentPack, design: Pick<ShipDesign, "hull" |
     outpost,
     commandos: sum("commandos"),
     stealth: sum("stealth") > 0,
-    stores: sum("stores"),
-    command: sum("command"),
+    stores: Math.floor((sum("stores") * (100 + fx.storesPercent)) / 100),
+    command: sum("command") > 0 ? sum("command") + fx.commandBonus : 0,
   };
 }
 
@@ -174,15 +174,30 @@ export function designBlocker(pack: ContentPack, empire: Empire, design: Omit<De
   if (name.length === 0 || name.length > 30) return "name must be 1-30 characters";
   if (!hullAvailable(pack, empire, design.hull)) return "hull not available";
   const hull = getHull(pack, design.hull);
-  if (design.components.length > hull.slots) return `only ${hull.slots} slots`;
+  const slots = hullSlots(pack, empire, hull.id);
+  if (design.components.length > slots) return `only ${slots} slots`;
   for (const id of design.components) {
     if (!componentAvailable(pack, empire, id)) return `component "${id}" not available`;
     const part = getComponent(pack, id);
-    if (hull.slots < part.minSlots) return `${part.name} needs a hull with at least ${part.minSlots} slots`;
-    if (hull.slots > part.maxSlots) return `${part.name} only fits hulls of ${part.maxSlots} slots or fewer`;
+    if (!componentFits(pack, empire, hull.id, id)) {
+      return hull.slots < part.minSlots ? `${part.name} needs a hull with at least ${part.minSlots} slots` : `${part.name} only fits hulls of ${part.maxSlots} slots or fewer`;
+    }
   }
   if (empire.designs.some((d) => !d.obsolete && d.name.toLowerCase() === name.toLowerCase())) return "a design with that name exists";
   return null;
+}
+
+/** Component slots on a hull for this empire (Miniaturization adds one). */
+export function hullSlots(pack: ContentPack, empire: Empire, hullId: string): number {
+  return getHull(pack, hullId).slots + empireEffects(pack, empire).slots;
+}
+
+/** Whether a component suits the hull's size (by its base slots). Stealth Hulls lift the cloaking size limit. */
+export function componentFits(pack: ContentPack, empire: Empire, hullId: string, componentId: string): boolean {
+  const hull = getHull(pack, hullId);
+  const part = getComponent(pack, componentId);
+  if (hull.slots < part.minSlots) return false;
+  return hull.slots <= part.maxSlots || (part.stealth > 0 && hasFlag(pack, empire, "stealthHulls"));
 }
 
 export function designBuildable(pack: ContentPack, empire: Empire, design: ShipDesign): boolean {

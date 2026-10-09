@@ -1,3 +1,4 @@
+import { empireEffects, hasFlag } from "./economy";
 import type { ContentPack } from "../content/schema";
 import { fleetArmed, fleetMaxSupply, fleetShipStats, refreshFleetStats, shipStats } from "./ships";
 import type { EmpireId, Fleet, GameEvent, GameState, SystemId } from "./state";
@@ -64,8 +65,9 @@ export function resolveSupply(state: GameState, pack: ContentPack, events: GameE
     const empire = state.empires[fleet.empireId]!;
     const supplied = fleetInSupply(fleet, networks.get(fleet.empireId)!);
     const max = fleetMaxSupply(pack, state, fleet);
-    // Repair tenders mend the whole fleet wherever it is.
-    const tender = fleetShipStats(pack, state, fleet).reduce((n, s) => Math.max(n, s.repair), 0);
+    // Repair tenders (and Damage Control) mend the whole fleet wherever it is.
+    const fx = empireEffects(pack, empire);
+    const tender = Math.max(fx.fieldRepairPercent, fleetShipStats(pack, state, fleet).reduce((n, s) => Math.max(n, s.repair), 0));
     const repair = (percent: number) => {
       for (const ship of fleet.ships) {
         const hp = shipStats(pack, empire, ship).maxHp;
@@ -81,7 +83,11 @@ export function resolveSupply(state: GameState, pack: ContentPack, events: GameE
     }
     if (tender > 0) repair(tender);
     const had = fleet.supply;
-    if (fleet.supply > 0) {
+    // Solar Sails: no supply spent while between systems.
+    const sailing = fleet.progress > 0 && hasFlag(pack, empire, "solarSails");
+    if (sailing) {
+      // nothing spent
+    } else if (fleet.supply > 0) {
       fleet.supply -= 1;
     } else {
       const before = fleet.ships.length;

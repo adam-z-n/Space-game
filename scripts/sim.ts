@@ -45,7 +45,8 @@ for (const galaxySize of sizes) {
   let captures = 0;
   let capitalMoves = 0;
   const byPersonality = new Map<string, { games: number; wins: number; score: number; colonies: number; debtTurns: number; battles: number }>();
-  const bySpecies = new Map<string, { games: number; wins: number; score: number }>();
+  const bySpecies = new Map<string, { games: number; wins: number; score: number; techs: number; colonies: number }>();
+  let techsCaptured = 0;
 
   for (let g = 0; g < games; g++) {
     const settings: GameSettings = {
@@ -53,6 +54,8 @@ for (const galaxySize of sizes) {
       galaxySize,
       aiCount: Number(values.ai),
       allAI: true,
+      // Rotate which empire (and so species) empire 0 plays, so every species gets a fair sample.
+      playerEmpire: g % pack.empires.length,
       difficulty: values.difficulty,
       ...(values.turns ? { turnLimit: Number(values.turns) } : {}),
     };
@@ -79,6 +82,7 @@ for (const galaxySize of sizes) {
           if (e.captured) captures++;
         }
         if (e.type === "capitalMoved") capitalMoves++;
+        if (e.type === "techCaptured") techsCaptured++;
         if (e.type === "inDebt") debt.set(e.empireId, (debt.get(e.empireId) ?? 0) + 1);
         if (e.type === "battle") battles.set(e.empireId, (battles.get(e.empireId) ?? 0) + 1);
       }
@@ -105,10 +109,12 @@ for (const galaxySize of sizes) {
       row.debtTurns += debt.get(empire.id) ?? 0;
       row.battles += battles.get(empire.id) ?? 0;
       byPersonality.set(key, row);
-      const sp = bySpecies.get(empire.species) ?? { games: 0, wins: 0, score: 0 };
+      const sp = bySpecies.get(empire.species) ?? { games: 0, wins: 0, score: 0, techs: 0, colonies: 0 };
       sp.games++;
       sp.wins += game.state.outcome!.winnerId === empire.id ? 1 : 0;
       sp.score += score.total;
+      sp.techs += empire.techs.length;
+      sp.colonies += score.colonies;
       bySpecies.set(empire.species, sp);
     }
 
@@ -142,9 +148,12 @@ for (const galaxySize of sizes) {
       `  ${name.padEnd(16)} ${String(r.games).padStart(5)}  ${fmt((r.wins * 100) / r.games).padStart(5)}  ${String(Math.round(r.score / r.games)).padStart(6)}  ${fmt(r.colonies / r.games).padStart(8)}  ${fmt(r.debtTurns / r.games).padStart(10)}  ${fmt(r.battles / r.games).padStart(7)}`,
     );
   }
-  console.log(`  species           games  win%   score`);
+  console.log(`  techs captured by conquest: ${fmt(techsCaptured / games)} per game`);
+  console.log(`  species           games  win%   score  techs  colonies`);
   for (const [name, r] of [...bySpecies].sort((a, b) => b[1].wins / b[1].games - a[1].wins / a[1].games)) {
-    console.log(`  ${name.padEnd(16)} ${String(r.games).padStart(5)}  ${fmt((r.wins * 100) / r.games).padStart(5)}  ${String(Math.round(r.score / r.games)).padStart(6)}`);
+    console.log(
+      `  ${name.padEnd(16)} ${String(r.games).padStart(5)}  ${fmt((r.wins * 100) / r.games).padStart(5)}  ${String(Math.round(r.score / r.games)).padStart(6)}  ${fmt(r.techs / r.games).padStart(5)}  ${fmt(r.colonies / r.games).padStart(8)}`,
+    );
   }
 }
 

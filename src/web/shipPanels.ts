@@ -8,6 +8,8 @@ import {
   findFleet,
   fleetMaxSupply,
   fleetMaxStores,
+  componentFits,
+  hullSlots,
   rankOf,
   veteranBonus,
   fleetShipStats,
@@ -145,9 +147,9 @@ export function designerPanel(ctx: ShipContext): HTMLElement {
 
   const hulls = h("div", { className: "segmented wrap" });
   for (const option of pack.hulls.filter((x) => hullAvailable(pack, empire, x.id))) {
-    const b = button(`${option.name} (${option.slots})`, () => {
+    const b = button(`${option.name} (${hullSlots(pack, empire, option.id)})`, () => {
         d.hull = option.id;
-        d.components = d.components.slice(0, option.slots);
+        d.components = d.components.slice(0, hullSlots(pack, empire, option.id));
         ctx.rerender();
       }, { className: `hull-option${option.id === d.hull ? " on" : ""}` });
     b.prepend(spriteIcon(pack, option.id, empire.color, 2));
@@ -168,19 +170,20 @@ export function designerPanel(ctx: ShipContext): HTMLElement {
       ),
     );
   });
-  for (let i = d.components.length; i < hull.slots; i++) slots.append(h("li", {}, h("span", { className: "muted", textContent: "Empty slot" })));
+  const slotCount = hullSlots(pack, empire, hull.id);
+  for (let i = d.components.length; i < slotCount; i++) slots.append(h("li", {}, h("span", { className: "muted", textContent: "Empty slot" })));
 
   const parts = h("ul");
   for (const c of pack.components.filter((x) => componentAvailable(pack, empire, x.id))) {
-    const fits = hull.slots >= c.minSlots;
+    const fits = componentFits(pack, empire, hull.id, c.id);
     const li = h(
       "li",
-      { className: d.components.length < hull.slots && fits ? "tappable" : "muted" },
+      { className: d.components.length < slotCount && fits ? "tappable" : "muted" },
       h("span", { className: "grow" }, h("div", { textContent: c.name }), h("div", { className: "muted small", textContent: fits ? c.description : `${c.description} Needs a bigger hull.` })),
       h("span", { textContent: `${c.cost} ⚙` }),
     );
     li.onclick = () => {
-      if (d.components.length >= hull.slots || !fits) return;
+      if (d.components.length >= slotCount || !fits) return;
       d.components.push(c.id);
       ctx.rerender();
     };
@@ -229,9 +232,9 @@ export function designerPanel(ctx: ShipContext): HTMLElement {
     name,
     h("h3", { textContent: "Hull" }),
     hulls,
-    h("div", { className: "muted small", textContent: `${hull.description} ${hull.slots} slots, maneuver ${hull.maneuver}, sensors ${stats.sensorRange}, evasion ${stats.evasion + stats.maneuver * pack.combat.maneuverEvasion}%.${d.components.length ? ` As designed: a ${ROLE_LABELS[stats.role]}.` : ""}` }),
+    h("div", { className: "muted small", textContent: `${hull.description} ${slotCount} slots, maneuver ${hull.maneuver}, sensors ${stats.sensorRange}, evasion ${stats.evasion + stats.maneuver * pack.combat.maneuverEvasion}%.${d.components.length ? ` As designed: a ${ROLE_LABELS[stats.role]}.` : ""}` }),
     summary,
-    h("h3", { textContent: `Slots (${d.components.length}/${hull.slots})` }),
+    h("h3", { textContent: `Slots (${d.components.length}/${slotCount})` }),
     slots,
     h("h3", { textContent: "Formation" }),
     formation,

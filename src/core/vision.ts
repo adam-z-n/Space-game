@@ -1,3 +1,4 @@
+import { hasFlag } from "./economy";
 import type { ContentPack } from "../content/schema";
 import { buildAdjacency, knownLanes, laneLength, type Neighbor } from "./graph";
 import { flagshipHull, fleetArmed, fleetStealthy, fleetStrength } from "./ships";
@@ -67,10 +68,12 @@ export function knownAdjacency(state: GameState, empireId: EmpireId): Neighbor[]
 }
 
 /** Add systems in sensor range, and neighbors of explored systems, to an empire's charts. */
-export function updateCharts(state: GameState, empireId: EmpireId, sources: readonly SensorSource[]): void {
+export function updateCharts(state: GameState, empireId: EmpireId, sources: readonly SensorSource[], surveyed = false): void {
   const empire = state.empires[empireId]!;
   const charted = new Set(empire.charted);
   const before = charted.size;
+  // Galactic Survey: the whole map is charted.
+  if (surveyed) for (const system of state.galaxy.systems) charted.add(system.id);
   for (const system of state.galaxy.systems) if (!charted.has(system.id) && inSensorRange(sources, system)) charted.add(system.id);
   // Visiting a system shows where its lanes lead.
   const explored = new Set(empire.explored);
@@ -90,10 +93,11 @@ export function updateCharts(state: GameState, empireId: EmpireId, sources: read
 export function updateSightings(state: GameState, pack: ContentPack, events: GameEvent[] | null, eventTurn: number): void {
   for (const empire of state.empires) {
     const sources = sensorSources(state, pack, empire.id);
-    updateCharts(state, empire.id, sources);
+    updateCharts(state, empire.id, sources, hasFlag(pack, empire, "galacticSurvey"));
     const byId = new Map(empire.sightings.map((s) => [s.fleetId, s]));
-    // Cloaked fleets show up only well inside sensor range.
-    const close = sources.map((s) => ({ ...s, range: Math.floor((s.range * STEALTH_DETECTION_PERCENT) / 100) }));
+    // Cloaked fleets show up only well inside sensor range (Tachyon Scanners see them at full range).
+    const tachyon = hasFlag(pack, empire, "tachyonScanners");
+    const close = tachyon ? sources : sources.map((s) => ({ ...s, range: Math.floor((s.range * STEALTH_DETECTION_PERCENT) / 100) }));
     for (const fleet of state.fleets) {
       if (fleet.empireId === empire.id) continue;
       const pos = fleetPosition(fleet);
@@ -110,7 +114,8 @@ export function updateSightings(state: GameState, pack: ContentPack, events: Gam
         ...pos,
         ships: fleet.ships.length,
         hull: flagshipHull(pack, state, fleet),
-        strength: fleetStrength(pack, state, fleet),
+        // Sensor Spoofing: rivals read the fleet at half its strength.
+        strength: Math.floor(fleetStrength(pack, state, fleet) / (hasFlag(pack, state.empires[fleet.empireId]!, "sensorSpoofing") ? 2 : 1)),
         armed: fleetArmed(pack, state, fleet),
         turn: state.turn,
       });

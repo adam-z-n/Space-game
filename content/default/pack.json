@@ -434,15 +434,15 @@
   "researchFields": [
     {
       "id": "growth",
-      "name": "Growth"
+      "name": "Biology"
     },
     {
       "id": "engineering",
-      "name": "Engineering"
+      "name": "Construction"
     },
     {
       "id": "science",
-      "name": "Science"
+      "name": "Computers"
     },
     {
       "id": "propulsion",
@@ -450,11 +450,11 @@
     },
     {
       "id": "sensors",
-      "name": "Sensors"
+      "name": "Electronics"
     },
     {
       "id": "logistics",
-      "name": "Logistics"
+      "name": "Logistics & Trade"
     },
     {
       "id": "weapons",
@@ -502,6 +502,20 @@
       "description": "+20% max population on every colony. Unlocks Habitat Domes."
     },
     {
+      "id": "planetary_medicine",
+      "name": "Planetary Medicine",
+      "field": "growth",
+      "cost": 160,
+      "requires": [
+        "hydroponics"
+      ],
+      "effects": {
+        "growthPercent": 20,
+        "maxPop": 1
+      },
+      "description": "+20% population growth and +1 max population on every colony."
+    },
+    {
       "id": "terraforming",
       "name": "Terraforming",
       "field": "growth",
@@ -530,6 +544,134 @@
       "description": "+50% population growth."
     },
     {
+      "id": "gene_tailoring",
+      "name": "Gene Tailoring",
+      "field": "growth",
+      "cost": 200,
+      "requires": [
+        "subterranean_habitats"
+      ],
+      "effects": {
+        "maxPopPercent": 15
+      },
+      "description": "+15% max population.",
+      "school": "genetic_engineering"
+    },
+    {
+      "id": "adaptive_physiology",
+      "name": "Adaptive Physiology",
+      "field": "growth",
+      "cost": 340,
+      "requires": [
+        "gene_tailoring"
+      ],
+      "effects": {
+        "minHabitability": -10,
+        "growthPercent": 10
+      },
+      "description": "Colonists thrive in harsher places: minimum habitability -10, +10% growth.",
+      "school": "genetic_engineering"
+    },
+    {
+      "id": "uplifted_workers",
+      "name": "Uplifted Workers",
+      "field": "growth",
+      "cost": 560,
+      "requires": [
+        "adaptive_physiology"
+      ],
+      "effects": {
+        "industryPercent": 10,
+        "researchPercent": 10
+      },
+      "description": "+10% industry and research.",
+      "school": "genetic_engineering"
+    },
+    {
+      "id": "soil_enrichment",
+      "name": "Soil Enrichment",
+      "field": "growth",
+      "cost": 180,
+      "requires": [
+        "hydroponics"
+      ],
+      "effects": {
+        "foodPercent": 30
+      },
+      "description": "+30% food.",
+      "school": "gaia_ecology"
+    },
+    {
+      "id": "gaia_transformation",
+      "name": "Gaia Transformation",
+      "field": "growth",
+      "cost": 380,
+      "requires": [
+        "soil_enrichment"
+      ],
+      "effects": {
+        "maxPop": 2
+      },
+      "description": "+2 max population on every colony.",
+      "school": "gaia_ecology"
+    },
+    {
+      "id": "living_worlds",
+      "name": "Living Worlds",
+      "field": "growth",
+      "cost": 600,
+      "requires": [
+        "gaia_transformation"
+      ],
+      "effects": {
+        "maxPopPercent": 25
+      },
+      "description": "+25% max population.",
+      "school": "gaia_ecology"
+    },
+    {
+      "id": "neural_implants",
+      "name": "Neural Implants",
+      "field": "growth",
+      "cost": 200,
+      "requires": [
+        "hydroponics"
+      ],
+      "effects": {
+        "researchPercent": 10
+      },
+      "description": "+10% research.",
+      "school": "cybernetics"
+    },
+    {
+      "id": "augmented_soldiers",
+      "name": "Augmented Soldiers",
+      "field": "growth",
+      "cost": 340,
+      "requires": [
+        "neural_implants"
+      ],
+      "effects": {
+        "groundPercent": 30
+      },
+      "description": "+30% troop strength.",
+      "school": "cybernetics"
+    },
+    {
+      "id": "cyborg_crews",
+      "name": "Cyborg Crews",
+      "field": "growth",
+      "cost": 560,
+      "requires": [
+        "augmented_soldiers"
+      ],
+      "effects": {
+        "xpPercent": 50
+      },
+      "description": "Ship crews learn 50% faster from battle.",
+      "school": "cybernetics"
+    },
+    {
       "id": "automation",
       "name": "Automation",
       "field": "engineering",
@@ -539,6 +681,35 @@
         "industryPercent": 10
       },
       "description": "+10% industry. Unlocks Automated Factories."
+    },
+    {
+      "id": "outpost_construction",
+      "name": "Outpost Construction",
+      "field": "engineering",
+      "cost": 80,
+      "requires": [],
+      "effects": {},
+      "description": "Unlocks the Outpost Kit: combat outposts on asteroid fields and gas giants."
+    },
+    {
+      "id": "cruiser_hulls",
+      "name": "Cruiser Hulls",
+      "field": "engineering",
+      "cost": 90,
+      "requires": [],
+      "effects": {},
+      "description": "Unlocks the Cruiser hull."
+    },
+    {
+      "id": "field_repair",
+      "name": "Field Repair",
+      "field": "engineering",
+      "cost": 110,
+      "requires": [
+        "automation"
+      ],
+      "effects": {},
+      "description": "Unlocks the Repair Bay for repair tenders."
     },
     {
       "id": "robotic_workforce",
@@ -554,6 +725,17 @@
       "description": "+2 industry on every colony."
     },
     {
+      "id": "capital_ships",
+      "name": "Battleship Hulls",
+      "field": "engineering",
+      "cost": 280,
+      "requires": [
+        "cruiser_hulls"
+      ],
+      "effects": {},
+      "description": "Unlocks the Battleship hull."
+    },
+    {
       "id": "nano_assembly",
       "name": "Nano Assembly",
       "field": "engineering",
@@ -567,6 +749,138 @@
       "description": "+15% industry. Unlocks Nano Forges."
     },
     {
+      "id": "dreadnought_hulls",
+      "name": "Dreadnought Hulls",
+      "field": "engineering",
+      "cost": 450,
+      "requires": [
+        "capital_ships"
+      ],
+      "effects": {},
+      "description": "Unlocks the Dreadnought hull."
+    },
+    {
+      "id": "deep_core_mining",
+      "name": "Deep Core Mining",
+      "field": "engineering",
+      "cost": 220,
+      "requires": [
+        "robotic_workforce"
+      ],
+      "effects": {
+        "industryPercent": 10
+      },
+      "description": "+10% industry.",
+      "school": "heavy_industry"
+    },
+    {
+      "id": "megafactories",
+      "name": "Megafactories",
+      "field": "engineering",
+      "cost": 400,
+      "requires": [
+        "deep_core_mining"
+      ],
+      "effects": {},
+      "description": "Unlocks the Megafactory.",
+      "school": "heavy_industry"
+    },
+    {
+      "id": "orbital_shipyards",
+      "name": "Orbital Shipyards",
+      "field": "engineering",
+      "cost": 620,
+      "requires": [
+        "megafactories"
+      ],
+      "effects": {
+        "shipCostPercent": -20
+      },
+      "description": "Ships cost 20% less to build.",
+      "school": "heavy_industry"
+    },
+    {
+      "id": "reinforced_frames",
+      "name": "Reinforced Frames",
+      "field": "engineering",
+      "cost": 220,
+      "requires": [
+        "cruiser_hulls"
+      ],
+      "effects": {
+        "structurePercent": 20
+      },
+      "description": "+20% hull structure for every ship.",
+      "school": "ship_architecture"
+    },
+    {
+      "id": "miniaturization",
+      "name": "Miniaturization",
+      "field": "engineering",
+      "cost": 420,
+      "requires": [
+        "reinforced_frames"
+      ],
+      "effects": {
+        "slots": 1
+      },
+      "description": "Smaller parts: +1 slot on every hull.",
+      "school": "ship_architecture"
+    },
+    {
+      "id": "damage_control",
+      "name": "Damage Control",
+      "field": "engineering",
+      "cost": 600,
+      "requires": [
+        "miniaturization"
+      ],
+      "effects": {
+        "fieldRepairPercent": 10
+      },
+      "description": "Every ship repairs 10% of its hull each turn, anywhere.",
+      "school": "ship_architecture"
+    },
+    {
+      "id": "fighter_squadrons",
+      "name": "Fighter Squadrons",
+      "field": "engineering",
+      "cost": 260,
+      "requires": [
+        "cruiser_hulls"
+      ],
+      "effects": {},
+      "description": "Unlocks the Fighter Bay for cruisers and larger.",
+      "school": "carrier_doctrine"
+    },
+    {
+      "id": "flight_operations",
+      "name": "Flight Operations",
+      "field": "engineering",
+      "cost": 400,
+      "requires": [
+        "fighter_squadrons"
+      ],
+      "effects": {
+        "hangarShots": 1
+      },
+      "description": "Every hangar launches one more craft.",
+      "school": "carrier_doctrine"
+    },
+    {
+      "id": "strike_drones",
+      "name": "Strike Drones",
+      "field": "engineering",
+      "cost": 560,
+      "requires": [
+        "flight_operations",
+        "capital_ships"
+      ],
+      "effects": {},
+      "description": "Unlocks the Strike Drone Bay for battleships and larger.",
+      "school": "carrier_doctrine"
+    },
+    {
       "id": "research_methods",
       "name": "Research Methods",
       "field": "science",
@@ -576,6 +890,17 @@
         "researchPercent": 10
       },
       "description": "+10% research."
+    },
+    {
+      "id": "battle_computers",
+      "name": "Battle Computers",
+      "field": "science",
+      "cost": 100,
+      "requires": [
+        "research_methods"
+      ],
+      "effects": {},
+      "description": "Unlocks the Targeting Computer."
     },
     {
       "id": "neural_networks",
@@ -591,6 +916,19 @@
       "description": "+15% research. Unlocks Neural Institutes."
     },
     {
+      "id": "planetary_databanks",
+      "name": "Planetary Databanks",
+      "field": "science",
+      "cost": 200,
+      "requires": [
+        "neural_networks"
+      ],
+      "effects": {
+        "research": 2
+      },
+      "description": "+2 research on every colony."
+    },
+    {
       "id": "quantum_computing",
       "name": "Quantum Computing",
       "field": "science",
@@ -604,6 +942,129 @@
       "description": "+3 research on every colony."
     },
     {
+      "id": "expert_systems",
+      "name": "Expert Systems",
+      "field": "science",
+      "cost": 220,
+      "requires": [
+        "neural_networks"
+      ],
+      "effects": {
+        "researchPercent": 15
+      },
+      "description": "+15% research.",
+      "school": "artificial_intelligence"
+    },
+    {
+      "id": "autonomous_factories",
+      "name": "Autonomous Factories",
+      "field": "science",
+      "cost": 400,
+      "requires": [
+        "expert_systems"
+      ],
+      "effects": {
+        "industryPercent": 15
+      },
+      "description": "+15% industry.",
+      "school": "artificial_intelligence"
+    },
+    {
+      "id": "sentient_computers",
+      "name": "Sentient Computers",
+      "field": "science",
+      "cost": 650,
+      "requires": [
+        "autonomous_factories"
+      ],
+      "effects": {
+        "researchPercent": 25
+      },
+      "description": "+25% research.",
+      "school": "artificial_intelligence"
+    },
+    {
+      "id": "fleet_command",
+      "name": "Fleet Command",
+      "field": "science",
+      "cost": 300,
+      "requires": [
+        "battle_computers",
+        "capital_ships"
+      ],
+      "effects": {},
+      "description": "Unlocks the Fleet Command Network for battleships and dreadnoughts.",
+      "school": "command_control"
+    },
+    {
+      "id": "tactical_datalinks",
+      "name": "Tactical Datalinks",
+      "field": "science",
+      "cost": 420,
+      "requires": [
+        "fleet_command"
+      ],
+      "effects": {
+        "commandBonus": 5
+      },
+      "description": "Command networks give +5% more accuracy.",
+      "school": "command_control"
+    },
+    {
+      "id": "battle_coordination",
+      "name": "Battle Coordination AI",
+      "field": "science",
+      "cost": 620,
+      "requires": [
+        "tactical_datalinks"
+      ],
+      "effects": {
+        "commandBonus": 5,
+        "maneuver": 1
+      },
+      "description": "Command networks give +5% more accuracy; +1 maneuver for every ship.",
+      "school": "command_control"
+    },
+    {
+      "id": "cyber_warfare",
+      "name": "Cyber Warfare",
+      "field": "science",
+      "cost": 280,
+      "requires": [
+        "battle_computers"
+      ],
+      "effects": {},
+      "description": "Unlocks the Cyber Warfare Suite.",
+      "school": "cyber_school"
+    },
+    {
+      "id": "hardened_firewalls",
+      "name": "Hardened Firewalls",
+      "field": "science",
+      "cost": 360,
+      "requires": [
+        "cyber_warfare"
+      ],
+      "effects": {},
+      "description": "Unlocks the Hardened Firewall.",
+      "school": "cyber_school"
+    },
+    {
+      "id": "data_theft",
+      "name": "Data Theft",
+      "field": "science",
+      "cost": 560,
+      "requires": [
+        "hardened_firewalls"
+      ],
+      "effects": {
+        "techCapturePercent": 25,
+        "sabotagePercent": 10
+      },
+      "description": "+25% chance to capture a tech when taking a colony; +10% sabotage odds.",
+      "school": "cyber_school"
+    },
+    {
       "id": "ion_drives",
       "name": "Ion Drives",
       "field": "propulsion",
@@ -613,6 +1074,17 @@
         "speed": 20
       },
       "description": "+20 speed for every ship."
+    },
+    {
+      "id": "combat_thrusters",
+      "name": "Combat Thrusters",
+      "field": "propulsion",
+      "cost": 100,
+      "requires": [
+        "ion_drives"
+      ],
+      "effects": {},
+      "description": "Unlocks Combat Thrusters (+1 maneuver)."
     },
     {
       "id": "fusion_drives",
@@ -628,17 +1100,6 @@
       "description": "+30 speed for every ship."
     },
     {
-      "id": "combat_thrusters",
-      "name": "Combat Thrusters",
-      "field": "propulsion",
-      "cost": 100,
-      "requires": [
-        "ion_drives"
-      ],
-      "effects": {},
-      "description": "Unlocks Combat Thrusters (+1 maneuver)."
-    },
-    {
       "id": "inertial_dampers",
       "name": "Inertial Dampers",
       "field": "propulsion",
@@ -652,6 +1113,151 @@
       "description": "+1 maneuver for every ship."
     },
     {
+      "id": "antimatter_drives",
+      "name": "Antimatter Drives",
+      "field": "propulsion",
+      "cost": 420,
+      "requires": [
+        "fusion_drives"
+      ],
+      "effects": {
+        "speed": 30
+      },
+      "description": "+30 speed for every ship."
+    },
+    {
+      "id": "interceptor_tuning",
+      "name": "Interceptor Tuning",
+      "field": "propulsion",
+      "cost": 220,
+      "requires": [
+        "combat_thrusters"
+      ],
+      "effects": {
+        "maneuver": 1
+      },
+      "description": "+1 maneuver for every ship.",
+      "school": "fast_attack"
+    },
+    {
+      "id": "hit_and_run",
+      "name": "Hit-and-Run Doctrine",
+      "field": "propulsion",
+      "cost": 360,
+      "requires": [
+        "interceptor_tuning"
+      ],
+      "effects": {
+        "shipEvasion": 5
+      },
+      "description": "+5% evasion; retreating fleets take no parting shots.",
+      "school": "fast_attack",
+      "flags": [
+        "hitAndRun"
+      ]
+    },
+    {
+      "id": "overdrive_engines",
+      "name": "Overdrive Engines",
+      "field": "propulsion",
+      "cost": 560,
+      "requires": [
+        "hit_and_run"
+      ],
+      "effects": {
+        "speed": 40
+      },
+      "description": "+40 speed for every ship.",
+      "school": "fast_attack"
+    },
+    {
+      "id": "long_range_tanks",
+      "name": "Long-Range Tanks",
+      "field": "propulsion",
+      "cost": 200,
+      "requires": [
+        "ion_drives"
+      ],
+      "effects": {
+        "endurance": 3
+      },
+      "description": "+3 turns of supply for every ship.",
+      "school": "deep_space"
+    },
+    {
+      "id": "solar_sails",
+      "name": "Solar Sails",
+      "field": "propulsion",
+      "cost": 360,
+      "requires": [
+        "long_range_tanks"
+      ],
+      "effects": {},
+      "description": "Fleets use no supply while travelling between systems.",
+      "school": "deep_space",
+      "flags": [
+        "solarSails"
+      ]
+    },
+    {
+      "id": "hyperspace_jump",
+      "name": "Hyperspace Jump",
+      "field": "propulsion",
+      "cost": 600,
+      "requires": [
+        "solar_sails"
+      ],
+      "effects": {
+        "speed": 50
+      },
+      "description": "+50 speed for every ship.",
+      "school": "deep_space"
+    },
+    {
+      "id": "tractor_beams",
+      "name": "Tractor Beams",
+      "field": "propulsion",
+      "cost": 300,
+      "requires": [
+        "fusion_drives"
+      ],
+      "effects": {},
+      "description": "Enemies fleeing your fleets take a full round of parting shots.",
+      "school": "gravitics",
+      "flags": [
+        "tractorBeams"
+      ]
+    },
+    {
+      "id": "gravity_wells",
+      "name": "Gravity Wells",
+      "field": "propulsion",
+      "cost": 450,
+      "requires": [
+        "tractor_beams"
+      ],
+      "effects": {
+        "defensePercent": 20
+      },
+      "description": "+20% colony defenses.",
+      "school": "gravitics"
+    },
+    {
+      "id": "inertialess_drive",
+      "name": "Inertialess Drive",
+      "field": "propulsion",
+      "cost": 680,
+      "requires": [
+        "gravity_wells"
+      ],
+      "effects": {
+        "speed": 30,
+        "maneuver": 1
+      },
+      "description": "+30 speed and +1 maneuver for every ship.",
+      "school": "gravitics"
+    },
+    {
       "id": "improved_scanners",
       "name": "Improved Scanners",
       "field": "sensors",
@@ -661,6 +1267,26 @@
         "sensorRange": 50
       },
       "description": "+50 sensor range for ships and colonies."
+    },
+    {
+      "id": "point_defense",
+      "name": "Point Defense",
+      "field": "sensors",
+      "cost": 120,
+      "requires": [],
+      "effects": {},
+      "description": "Unlocks Point Defense against missiles and fighters."
+    },
+    {
+      "id": "electronic_warfare",
+      "name": "Electronic Warfare",
+      "field": "sensors",
+      "cost": 160,
+      "requires": [
+        "improved_scanners"
+      ],
+      "effects": {},
+      "description": "Unlocks the ECM Jammer against missiles and fighters."
     },
     {
       "id": "deep_space_arrays",
@@ -676,49 +1302,17 @@
       "description": "+80 sensor range for ships and colonies."
     },
     {
-      "id": "battle_computers",
-      "name": "Battle Computers",
+      "id": "long_range_probes",
+      "name": "Long-Range Probes",
       "field": "sensors",
-      "cost": 100,
+      "cost": 280,
       "requires": [
-        "improved_scanners"
+        "deep_space_arrays"
       ],
-      "effects": {},
-      "description": "Unlocks the Targeting Computer."
-    },
-    {
-      "id": "fleet_command",
-      "name": "Fleet Command",
-      "field": "sensors",
-      "cost": 300,
-      "requires": [
-        "battle_computers",
-        "capital_ships"
-      ],
-      "effects": {},
-      "description": "Unlocks the Fleet Command Network for battleships and dreadnoughts."
-    },
-    {
-      "id": "electronic_warfare",
-      "name": "Electronic Warfare",
-      "field": "sensors",
-      "cost": 160,
-      "requires": [
-        "battle_computers"
-      ],
-      "effects": {},
-      "description": "Unlocks the ECM Jammer against missiles and fighters."
-    },
-    {
-      "id": "cyber_warfare",
-      "name": "Cyber Warfare",
-      "field": "sensors",
-      "cost": 320,
-      "requires": [
-        "electronic_warfare"
-      ],
-      "effects": {},
-      "description": "Unlocks the Cyber Warfare Suite and the Hardened Firewall."
+      "effects": {
+        "sensorRange": 60
+      },
+      "description": "+60 sensor range for ships and colonies."
     },
     {
       "id": "cloaking",
@@ -729,7 +1323,124 @@
         "electronic_warfare"
       ],
       "effects": {},
-      "description": "Unlocks the Cloaking Device for small ships."
+      "description": "Unlocks the Cloaking Device for small ships.",
+      "school": "stealth"
+    },
+    {
+      "id": "stealth_hulls",
+      "name": "Stealth Hulls",
+      "field": "sensors",
+      "cost": 450,
+      "requires": [
+        "cloaking"
+      ],
+      "effects": {},
+      "description": "Cloaking Devices fit hulls of any size.",
+      "school": "stealth",
+      "flags": [
+        "stealthHulls"
+      ]
+    },
+    {
+      "id": "holographic_decoys",
+      "name": "Holographic Decoys",
+      "field": "sensors",
+      "cost": 600,
+      "requires": [
+        "stealth_hulls"
+      ],
+      "effects": {
+        "shipEvasion": 5
+      },
+      "description": "+5% evasion for every ship.",
+      "school": "stealth"
+    },
+    {
+      "id": "tachyon_scanners",
+      "name": "Tachyon Scanners",
+      "field": "sensors",
+      "cost": 300,
+      "requires": [
+        "deep_space_arrays"
+      ],
+      "effects": {},
+      "description": "See cloaked fleets at full sensor range.",
+      "school": "surveillance",
+      "flags": [
+        "tachyonScanners"
+      ]
+    },
+    {
+      "id": "spy_networks",
+      "name": "Spy Networks",
+      "field": "sensors",
+      "cost": 420,
+      "requires": [
+        "tachyon_scanners"
+      ],
+      "effects": {
+        "sabotagePercent": 20
+      },
+      "description": "+20% sabotage odds.",
+      "school": "surveillance"
+    },
+    {
+      "id": "galactic_survey",
+      "name": "Galactic Survey",
+      "field": "sensors",
+      "cost": 560,
+      "requires": [
+        "spy_networks"
+      ],
+      "effects": {},
+      "description": "Charts every system in the galaxy.",
+      "school": "surveillance",
+      "flags": [
+        "galacticSurvey"
+      ]
+    },
+    {
+      "id": "sensor_jamming",
+      "name": "Sensor Jamming",
+      "field": "sensors",
+      "cost": 260,
+      "requires": [
+        "electronic_warfare"
+      ],
+      "effects": {
+        "shipEvasion": 5
+      },
+      "description": "+5% evasion for every ship.",
+      "school": "countermeasures"
+    },
+    {
+      "id": "sensor_spoofing",
+      "name": "Sensor Spoofing",
+      "field": "sensors",
+      "cost": 420,
+      "requires": [
+        "sensor_jamming"
+      ],
+      "effects": {},
+      "description": "Rivals see your fleets at half their real strength.",
+      "school": "countermeasures",
+      "flags": [
+        "sensorSpoofing"
+      ]
+    },
+    {
+      "id": "signal_masking",
+      "name": "Signal Masking",
+      "field": "sensors",
+      "cost": 600,
+      "requires": [
+        "sensor_spoofing"
+      ],
+      "effects": {
+        "shipEvasion": 5
+      },
+      "description": "+5% evasion for every ship.",
+      "school": "countermeasures"
     },
     {
       "id": "colonial_administration",
@@ -743,202 +1454,6 @@
       "description": "+1 credit from every colony."
     },
     {
-      "id": "trade_networks",
-      "name": "Trade Networks",
-      "field": "logistics",
-      "cost": 160,
-      "requires": [
-        "colonial_administration"
-      ],
-      "effects": {
-        "creditsPercent": 20
-      },
-      "description": "+20% credits. Unlocks Trade Hubs."
-    },
-    {
-      "id": "heavy_lasers",
-      "name": "Fusion Beams",
-      "field": "weapons",
-      "cost": 80,
-      "requires": [],
-      "effects": {},
-      "description": "Unlocks the Fusion Beam."
-    },
-    {
-      "id": "guided_torpedoes",
-      "name": "Nuclear Missiles",
-      "field": "weapons",
-      "cost": 200,
-      "requires": [
-        "heavy_lasers"
-      ],
-      "effects": {},
-      "description": "Unlocks the Nuclear Missile."
-    },
-    {
-      "id": "weapon_calibration",
-      "name": "Weapon Calibration",
-      "field": "weapons",
-      "cost": 320,
-      "requires": [
-        "guided_torpedoes"
-      ],
-      "effects": {
-        "damagePercent": 15
-      },
-      "description": "+15% weapon damage."
-    },
-    {
-      "id": "gauss_cannons",
-      "name": "Gauss Cannons",
-      "field": "weapons",
-      "cost": 220,
-      "requires": [
-        "heavy_lasers"
-      ],
-      "effects": {},
-      "description": "Unlocks the Gauss Cannon: short-range, shield-piercing."
-    },
-    {
-      "id": "hellfire_missiles",
-      "name": "Hellfire Missiles",
-      "field": "weapons",
-      "cost": 340,
-      "requires": [
-        "guided_torpedoes"
-      ],
-      "effects": {},
-      "description": "Unlocks the Hellfire Missile."
-    },
-    {
-      "id": "plasma_lances",
-      "name": "Plasma Lances",
-      "field": "weapons",
-      "cost": 420,
-      "requires": [
-        "weapon_calibration"
-      ],
-      "effects": {},
-      "description": "Unlocks the Plasma Lance."
-    },
-    {
-      "id": "starburst_torpedoes",
-      "name": "Starburst Torpedoes",
-      "field": "weapons",
-      "cost": 620,
-      "requires": [
-        "hellfire_missiles"
-      ],
-      "effects": {},
-      "description": "Unlocks the Starburst Torpedo."
-    },
-    {
-      "id": "disruptors",
-      "name": "Disruptor Cannons",
-      "field": "weapons",
-      "cost": 680,
-      "requires": [
-        "plasma_lances",
-        "gauss_cannons"
-      ],
-      "effects": {
-        "damagePercent": 10
-      },
-      "description": "Unlocks the Disruptor Cannon. +10% weapon damage."
-    },
-    {
-      "id": "orbital_bombardment",
-      "name": "Orbital Bombardment",
-      "field": "weapons",
-      "cost": 240,
-      "requires": [
-        "guided_torpedoes",
-        "cruiser_hulls"
-      ],
-      "effects": {},
-      "description": "Unlocks the Orbital Bomb Bay for cruisers and larger."
-    },
-    {
-      "id": "composite_armor",
-      "name": "Neutronium Armor",
-      "field": "defense",
-      "cost": 70,
-      "requires": [],
-      "effects": {},
-      "description": "Unlocks Neutronium Armor."
-    },
-    {
-      "id": "deflector_shields",
-      "name": "Deflector Shields",
-      "field": "defense",
-      "cost": 90,
-      "requires": [],
-      "effects": {},
-      "description": "Unlocks the Deflector I and Shield Generators."
-    },
-    {
-      "id": "hardened_shields",
-      "name": "Advanced Deflectors",
-      "field": "defense",
-      "cost": 240,
-      "requires": [
-        "deflector_shields"
-      ],
-      "effects": {},
-      "description": "Unlocks the Deflector III."
-    },
-    {
-      "id": "point_defense",
-      "name": "Point Defense",
-      "field": "defense",
-      "cost": 120,
-      "requires": [],
-      "effects": {},
-      "description": "Unlocks Point Defense against missiles and fighters."
-    },
-    {
-      "id": "crystalline_armor",
-      "name": "Crystalline Armor",
-      "field": "defense",
-      "cost": 380,
-      "requires": [
-        "composite_armor"
-      ],
-      "effects": {},
-      "description": "Unlocks Crystalline Armor."
-    },
-    {
-      "id": "deflector_v",
-      "name": "Deflector Grids",
-      "field": "defense",
-      "cost": 480,
-      "requires": [
-        "hardened_shields"
-      ],
-      "effects": {},
-      "description": "Unlocks the Deflector V."
-    },
-    {
-      "id": "cruiser_hulls",
-      "name": "Cruiser Hulls",
-      "field": "engineering",
-      "cost": 90,
-      "requires": [],
-      "effects": {},
-      "description": "Unlocks the Cruiser hull."
-    },
-    {
-      "id": "capital_ships",
-      "name": "Battleship Hulls",
-      "field": "engineering",
-      "cost": 280,
-      "requires": [
-        "cruiser_hulls"
-      ],
-      "effects": {},
-      "description": "Unlocks the Battleship hull."
-    },
-    {
       "id": "extended_tanks",
       "name": "Extended Tanks",
       "field": "logistics",
@@ -948,6 +1463,15 @@
         "endurance": 3
       },
       "description": "+3 turns of supply for every ship. Unlocks the Supply Hold for supply ships."
+    },
+    {
+      "id": "mine_warfare",
+      "name": "Mine Warfare",
+      "field": "logistics",
+      "cost": 90,
+      "requires": [],
+      "effects": {},
+      "description": "Unlocks Minefields and the Mine Layer."
     },
     {
       "id": "supply_lines",
@@ -963,16 +1487,333 @@
       "description": "+2 turns of supply for every ship."
     },
     {
+      "id": "trade_networks",
+      "name": "Trade Networks",
+      "field": "logistics",
+      "cost": 160,
+      "requires": [
+        "colonial_administration"
+      ],
+      "effects": {
+        "creditsPercent": 20
+      },
+      "description": "+20% credits. Unlocks Trade Hubs."
+    },
+    {
+      "id": "fleet_replenishment",
+      "name": "Fleet Replenishment",
+      "field": "logistics",
+      "cost": 200,
+      "requires": [
+        "extended_tanks"
+      ],
+      "effects": {
+        "storesPercent": 50
+      },
+      "description": "Supply Holds carry 50% more stores.",
+      "school": "supply_chain"
+    },
+    {
       "id": "forward_depots",
       "name": "Forward Depots",
       "field": "logistics",
-      "cost": 150,
+      "cost": 300,
       "requires": [
         "supply_lines",
         "outpost_construction"
       ],
       "effects": {},
-      "description": "Upgrade combat outposts to supply depots that supply and repair your fleets."
+      "description": "Upgrade combat outposts to supply depots that resupply and repair your fleets.",
+      "school": "supply_chain"
+    },
+    {
+      "id": "mobile_shipyards",
+      "name": "Mobile Shipyards",
+      "field": "logistics",
+      "cost": 520,
+      "requires": [
+        "forward_depots"
+      ],
+      "effects": {
+        "shipCostPercent": -10,
+        "fieldRepairPercent": 5
+      },
+      "description": "Ships cost 10% less; every ship repairs 5% a turn anywhere.",
+      "school": "supply_chain"
+    },
+    {
+      "id": "asteroid_mining",
+      "name": "Asteroid Mining",
+      "field": "logistics",
+      "cost": 130,
+      "requires": [
+        "outpost_construction"
+      ],
+      "effects": {},
+      "description": "Mining outposts on asteroid fields: income, but no defenses.",
+      "school": "mining"
+    },
+    {
+      "id": "gas_giant_harvesting",
+      "name": "Gas Giant Harvesting",
+      "field": "logistics",
+      "cost": 300,
+      "requires": [
+        "asteroid_mining"
+      ],
+      "effects": {},
+      "description": "Mining outposts can also be built on gas giants.",
+      "school": "mining",
+      "flags": [
+        "gasMining"
+      ]
+    },
+    {
+      "id": "deep_space_habitats",
+      "name": "Deep Space Habitats",
+      "field": "logistics",
+      "cost": 500,
+      "requires": [
+        "gas_giant_harvesting"
+      ],
+      "effects": {
+        "miningPercent": 100
+      },
+      "description": "Mining outposts earn twice as much.",
+      "school": "mining"
+    },
+    {
+      "id": "interstellar_banking",
+      "name": "Interstellar Banking",
+      "field": "logistics",
+      "cost": 220,
+      "requires": [
+        "trade_networks"
+      ],
+      "effects": {
+        "creditsPercent": 15
+      },
+      "description": "+15% credits.",
+      "school": "mercantile"
+    },
+    {
+      "id": "free_trade_zones",
+      "name": "Free Trade Zones",
+      "field": "logistics",
+      "cost": 380,
+      "requires": [
+        "interstellar_banking"
+      ],
+      "effects": {
+        "credits": 2
+      },
+      "description": "+2 credits from every colony.",
+      "school": "mercantile"
+    },
+    {
+      "id": "corporate_charters",
+      "name": "Corporate Charters",
+      "field": "logistics",
+      "cost": 560,
+      "requires": [
+        "free_trade_zones"
+      ],
+      "effects": {
+        "buyCostPercent": -30
+      },
+      "description": "Buying builds costs 30% less.",
+      "school": "mercantile"
+    },
+    {
+      "id": "heavy_lasers",
+      "name": "Fusion Beams",
+      "field": "weapons",
+      "cost": 80,
+      "requires": [],
+      "effects": {},
+      "description": "Unlocks the Fusion Beam."
+    },
+    {
+      "id": "ground_forces",
+      "name": "Ground Forces",
+      "field": "weapons",
+      "cost": 80,
+      "requires": [],
+      "effects": {
+        "groundPercent": 25
+      },
+      "description": "+25% troop strength, attacking and defending."
+    },
+    {
+      "id": "special_operations",
+      "name": "Special Operations",
+      "field": "weapons",
+      "cost": 160,
+      "requires": [
+        "ground_forces"
+      ],
+      "effects": {},
+      "description": "Unlocks Commando Teams for sabotage missions."
+    },
+    {
+      "id": "guided_torpedoes",
+      "name": "Nuclear Missiles",
+      "field": "weapons",
+      "cost": 200,
+      "requires": [
+        "heavy_lasers"
+      ],
+      "effects": {},
+      "description": "Unlocks the Nuclear Missile."
+    },
+    {
+      "id": "orbital_bombardment",
+      "name": "Orbital Bombardment",
+      "field": "weapons",
+      "cost": 240,
+      "requires": [
+        "guided_torpedoes",
+        "cruiser_hulls"
+      ],
+      "effects": {},
+      "description": "Unlocks the Orbital Bomb Bay for cruisers and larger."
+    },
+    {
+      "id": "weapon_calibration",
+      "name": "Weapon Calibration",
+      "field": "weapons",
+      "cost": 320,
+      "requires": [
+        "guided_torpedoes"
+      ],
+      "effects": {
+        "damagePercent": 15
+      },
+      "description": "+15% weapon damage."
+    },
+    {
+      "id": "plasma_lances",
+      "name": "Plasma Lances",
+      "field": "weapons",
+      "cost": 420,
+      "requires": [
+        "weapon_calibration"
+      ],
+      "effects": {},
+      "description": "Unlocks the Plasma Lance.",
+      "school": "beams"
+    },
+    {
+      "id": "particle_beams",
+      "name": "Particle Beams",
+      "field": "weapons",
+      "cost": 560,
+      "requires": [
+        "plasma_lances"
+      ],
+      "effects": {},
+      "description": "Unlocks the Particle Beam.",
+      "school": "beams"
+    },
+    {
+      "id": "phase_cannons",
+      "name": "Phase Cannons",
+      "field": "weapons",
+      "cost": 720,
+      "requires": [
+        "particle_beams"
+      ],
+      "effects": {
+        "damagePercent": 10
+      },
+      "description": "Unlocks the Phase Cannon. +10% weapon damage.",
+      "school": "beams"
+    },
+    {
+      "id": "hellfire_missiles",
+      "name": "Hellfire Missiles",
+      "field": "weapons",
+      "cost": 340,
+      "requires": [
+        "guided_torpedoes"
+      ],
+      "effects": {},
+      "description": "Unlocks the Hellfire Missile.",
+      "school": "missiles"
+    },
+    {
+      "id": "swarm_missiles",
+      "name": "Swarm Missiles",
+      "field": "weapons",
+      "cost": 480,
+      "requires": [
+        "hellfire_missiles"
+      ],
+      "effects": {},
+      "description": "Unlocks Swarm Missile racks: three small missiles a salvo.",
+      "school": "missiles"
+    },
+    {
+      "id": "starburst_torpedoes",
+      "name": "Starburst Torpedoes",
+      "field": "weapons",
+      "cost": 620,
+      "requires": [
+        "swarm_missiles"
+      ],
+      "effects": {
+        "damagePercent": 10
+      },
+      "description": "Unlocks the Starburst Torpedo. +10% weapon damage.",
+      "school": "missiles"
+    },
+    {
+      "id": "gauss_cannons",
+      "name": "Gauss Cannons",
+      "field": "weapons",
+      "cost": 220,
+      "requires": [
+        "heavy_lasers"
+      ],
+      "effects": {},
+      "description": "Unlocks the Gauss Cannon: short-range, shield-piercing.",
+      "school": "kinetics"
+    },
+    {
+      "id": "spinal_mass_driver",
+      "name": "Spinal Mass Driver",
+      "field": "weapons",
+      "cost": 450,
+      "requires": [
+        "gauss_cannons",
+        "capital_ships"
+      ],
+      "effects": {},
+      "description": "Unlocks the Spinal Mass Driver for battleships and larger.",
+      "school": "kinetics"
+    },
+    {
+      "id": "disruptors",
+      "name": "Disruptor Cannons",
+      "field": "weapons",
+      "cost": 680,
+      "requires": [
+        "spinal_mass_driver"
+      ],
+      "effects": {
+        "damagePercent": 10
+      },
+      "description": "Unlocks the Disruptor Cannon. +10% weapon damage.",
+      "school": "kinetics"
+    },
+    {
+      "id": "composite_armor",
+      "name": "Neutronium Armor",
+      "field": "defense",
+      "cost": 70,
+      "requires": [],
+      "effects": {},
+      "description": "Unlocks Neutronium Armor."
     },
     {
       "id": "planetary_defense",
@@ -984,6 +1825,39 @@
         "defensePercent": 15
       },
       "description": "+15% colony defenses. Unlocks Ground Batteries."
+    },
+    {
+      "id": "deflector_shields",
+      "name": "Deflector Shields",
+      "field": "defense",
+      "cost": 90,
+      "requires": [],
+      "effects": {},
+      "description": "Unlocks the Deflector I and Shield Generators."
+    },
+    {
+      "id": "powered_armor",
+      "name": "Powered Armor",
+      "field": "defense",
+      "cost": 220,
+      "requires": [
+        "ground_forces"
+      ],
+      "effects": {
+        "groundPercent": 35
+      },
+      "description": "+35% troop strength."
+    },
+    {
+      "id": "hardened_shields",
+      "name": "Advanced Deflectors",
+      "field": "defense",
+      "cost": 240,
+      "requires": [
+        "deflector_shields"
+      ],
+      "effects": {},
+      "description": "Unlocks the Deflector III."
     },
     {
       "id": "orbital_fortresses",
@@ -999,113 +1873,120 @@
       "description": "+15% colony defenses. Unlocks the Orbital Fortress."
     },
     {
-      "id": "ground_forces",
-      "name": "Ground Forces",
-      "field": "weapons",
-      "cost": 80,
-      "requires": [],
+      "id": "planetary_shields",
+      "name": "Planetary Shields",
+      "field": "defense",
+      "cost": 360,
+      "requires": [
+        "orbital_fortresses"
+      ],
+      "effects": {},
+      "description": "Unlocks the Planetary Shield.",
+      "school": "fortress"
+    },
+    {
+      "id": "star_fortresses",
+      "name": "Star Fortresses",
+      "field": "defense",
+      "cost": 560,
+      "requires": [
+        "planetary_shields"
+      ],
+      "effects": {},
+      "description": "Unlocks the Star Fortress.",
+      "school": "fortress"
+    },
+    {
+      "id": "citadel_worlds",
+      "name": "Citadel Worlds",
+      "field": "defense",
+      "cost": 720,
+      "requires": [
+        "star_fortresses"
+      ],
+      "effects": {
+        "defensePercent": 30
+      },
+      "description": "+30% colony defenses.",
+      "school": "fortress"
+    },
+    {
+      "id": "crystalline_armor",
+      "name": "Crystalline Armor",
+      "field": "defense",
+      "cost": 380,
+      "requires": [
+        "composite_armor"
+      ],
+      "effects": {},
+      "description": "Unlocks Crystalline Armor.",
+      "school": "armor"
+    },
+    {
+      "id": "reactive_armor",
+      "name": "Reactive Armor",
+      "field": "defense",
+      "cost": 520,
+      "requires": [
+        "crystalline_armor"
+      ],
+      "effects": {},
+      "description": "Unlocks Reactive Armor.",
+      "school": "armor"
+    },
+    {
+      "id": "self_repairing_hulls",
+      "name": "Self-Repairing Hulls",
+      "field": "defense",
+      "cost": 700,
+      "requires": [
+        "reactive_armor"
+      ],
+      "effects": {
+        "fieldRepairPercent": 10
+      },
+      "description": "Every ship repairs 10% of its hull each turn, anywhere.",
+      "school": "armor"
+    },
+    {
+      "id": "assault_doctrine",
+      "name": "Assault Doctrine",
+      "field": "defense",
+      "cost": 300,
+      "requires": [
+        "powered_armor"
+      ],
       "effects": {
         "groundPercent": 25
       },
-      "description": "+25% troop strength, attacking and defending."
+      "description": "+25% troop strength.",
+      "school": "shields_assault"
     },
     {
-      "id": "powered_armor",
-      "name": "Powered Armor",
-      "field": "weapons",
-      "cost": 220,
+      "id": "deflector_v",
+      "name": "Deflector Grids",
+      "field": "defense",
+      "cost": 480,
       "requires": [
-        "ground_forces"
+        "hardened_shields"
+      ],
+      "effects": {},
+      "description": "Unlocks the Deflector V.",
+      "school": "shields_assault"
+    },
+    {
+      "id": "elite_commandos",
+      "name": "Elite Commandos",
+      "field": "defense",
+      "cost": 560,
+      "requires": [
+        "assault_doctrine"
       ],
       "effects": {
-        "groundPercent": 35
+        "sabotagePercent": 25
       },
-      "description": "+35% troop strength."
-    },
-    {
-      "id": "special_operations",
-      "name": "Special Operations",
-      "field": "weapons",
-      "cost": 160,
-      "requires": [
-        "ground_forces"
-      ],
-      "effects": {},
-      "description": "Unlocks Commando Teams for sabotage missions."
-    },
-    {
-      "id": "mine_warfare",
-      "name": "Mine Warfare",
-      "field": "logistics",
-      "cost": 90,
-      "requires": [],
-      "effects": {},
-      "description": "Unlocks Minefields and the Mine Layer."
-    },
-    {
-      "id": "field_repair",
-      "name": "Field Repair",
-      "field": "engineering",
-      "cost": 110,
-      "requires": [
-        "automation"
-      ],
-      "effects": {},
-      "description": "Unlocks the Repair Bay for repair tenders."
-    },
-    {
-      "id": "outpost_construction",
-      "name": "Outpost Construction",
-      "field": "engineering",
-      "cost": 80,
-      "requires": [],
-      "effects": {},
-      "description": "Unlocks the Outpost Kit: combat outposts on asteroid fields and gas giants."
-    },
-    {
-      "id": "asteroid_mining",
-      "name": "Asteroid Mining",
-      "field": "engineering",
-      "cost": 130,
-      "requires": [
-        "outpost_construction"
-      ],
-      "effects": {},
-      "description": "Mining outposts on asteroid fields: income, but no defenses."
-    },
-    {
-      "id": "dreadnought_hulls",
-      "name": "Dreadnought Hulls",
-      "field": "engineering",
-      "cost": 450,
-      "requires": [
-        "capital_ships"
-      ],
-      "effects": {},
-      "description": "Unlocks the Dreadnought hull."
-    },
-    {
-      "id": "fighter_squadrons",
-      "name": "Fighter Squadrons",
-      "field": "engineering",
-      "cost": 260,
-      "requires": [
-        "cruiser_hulls"
-      ],
-      "effects": {},
-      "description": "Unlocks the Fighter Bay for cruisers and larger."
-    },
-    {
-      "id": "strike_drones",
-      "name": "Strike Drones",
-      "field": "engineering",
-      "cost": 520,
-      "requires": [
-        "fighter_squadrons",
-        "capital_ships"
-      ],
-      "effects": {},
-      "description": "Unlocks the Strike Drone Bay for battleships and larger."
+      "description": "+25% sabotage odds.",
+      "school": "shields_assault"
     }
   ],
   "buildings": [
@@ -1335,6 +2216,51 @@
       "trainingXp": 3,
       "description": "Ships built here start as Regulars.",
       "buildable": true
+    },
+    {
+      "id": "megafactory",
+      "name": "Megafactory",
+      "cost": 200,
+      "upkeep": 3,
+      "effects": {
+        "industry": 10
+      },
+      "description": "+10 industry.",
+      "requires": "megafactories",
+      "buildable": true
+    },
+    {
+      "id": "planetary_shield",
+      "name": "Planetary Shield",
+      "cost": 120,
+      "upkeep": 2,
+      "effects": {},
+      "defense": {
+        "shield": 5
+      },
+      "description": "Blocks 5 damage per hit on this colony's defenses.",
+      "requires": "planetary_shields",
+      "buildable": true
+    },
+    {
+      "id": "star_fortress",
+      "name": "Star Fortress",
+      "cost": 260,
+      "upkeep": 5,
+      "effects": {},
+      "defense": {
+        "hp": 300,
+        "weapons": [
+          {
+            "damage": 12,
+            "accuracy": 75,
+            "count": 4
+          }
+        ]
+      },
+      "description": "300 hp, four 12-damage guns.",
+      "requires": "star_fortresses",
+      "buildable": true
     }
   ],
   "outposts": {
@@ -1443,7 +2369,8 @@
     ],
     "xpPerBattle": 2,
     "xpPerKill": 1,
-    "xpOutnumbered": 2
+    "xpOutnumbered": 2,
+    "techCapturePercent": 25
   },
   "hulls": [
     {
@@ -1806,7 +2733,7 @@
       "description": "Cuts the enemy's cyber attack chance against this fleet by 15%.",
       "cost": 5,
       "cyberDefense": 15,
-      "requires": "cyber_warfare"
+      "requires": "hardened_firewalls"
     },
     {
       "id": "combat_thrusters",
@@ -1890,6 +2817,63 @@
       "command": 10,
       "minSlots": 8,
       "requires": "fleet_command"
+    },
+    {
+      "id": "particle_beam",
+      "name": "Particle Beam",
+      "kind": "weapon",
+      "description": "14 damage, 80% accuracy, medium range.",
+      "cost": 18,
+      "damage": 14,
+      "accuracy": 80,
+      "range": 2,
+      "requires": "particle_beams"
+    },
+    {
+      "id": "phase_cannon",
+      "name": "Phase Cannon",
+      "kind": "weapon",
+      "description": "20 damage, 80% accuracy, medium range.",
+      "cost": 24,
+      "damage": 20,
+      "accuracy": 80,
+      "range": 2,
+      "requires": "phase_cannons"
+    },
+    {
+      "id": "swarm_missile",
+      "name": "Swarm Missile Rack",
+      "kind": "weapon",
+      "description": "Three 7-damage missiles a round, 70% accuracy, long range. Missiles.",
+      "cost": 16,
+      "damage": 7,
+      "accuracy": 70,
+      "shots": 3,
+      "range": 3,
+      "special": "missile",
+      "requires": "swarm_missiles"
+    },
+    {
+      "id": "spinal_mass_driver",
+      "name": "Spinal Mass Driver",
+      "kind": "weapon",
+      "description": "One 45-damage shot, 70% accuracy, medium range, pierces shields. Battleship or larger.",
+      "cost": 30,
+      "damage": 45,
+      "accuracy": 70,
+      "range": 2,
+      "special": "pierce",
+      "minSlots": 8,
+      "requires": "spinal_mass_driver"
+    },
+    {
+      "id": "reactive_armor",
+      "name": "Reactive Armor",
+      "kind": "armor",
+      "description": "+50 hit points.",
+      "cost": 14,
+      "hp": 50,
+      "requires": "reactive_armor"
     }
   ],
   "startingDesigns": [
@@ -2325,6 +3309,9 @@
       "effects": {
         "creditsPercent": 25,
         "researchPercent": 10
+      },
+      "research": {
+        "access": "full"
       }
     },
     {
@@ -2336,6 +3323,11 @@
       ],
       "effects": {
         "growthPercent": 50
+      },
+      "research": {
+        "access": "limited",
+        "affinity": "growth",
+        "affinityPercent": 30
       }
     },
     {
@@ -2347,6 +3339,11 @@
       ],
       "effects": {
         "damagePercent": 15
+      },
+      "research": {
+        "access": "limited",
+        "affinity": "weapons",
+        "affinityPercent": 30
       }
     },
     {
@@ -2358,6 +3355,11 @@
       ],
       "effects": {
         "industryPercent": 30
+      },
+      "research": {
+        "access": "limited",
+        "affinity": "engineering",
+        "affinityPercent": 30
       }
     },
     {
@@ -2369,6 +3371,11 @@
       ],
       "effects": {
         "groundPercent": 60
+      },
+      "research": {
+        "access": "limited",
+        "affinity": "defense",
+        "affinityPercent": 30
       }
     },
     {
@@ -2380,6 +3387,11 @@
       ],
       "effects": {
         "speed": 30
+      },
+      "research": {
+        "access": "limited",
+        "affinity": "propulsion",
+        "affinityPercent": 30
       }
     },
     {
@@ -2393,6 +3405,9 @@
       "effects": {
         "industryPercent": 15,
         "defensePercent": 25
+      },
+      "research": {
+        "access": "full"
       }
     },
     {
@@ -2406,6 +3421,9 @@
       "effects": {
         "researchPercent": 40,
         "growthPercent": -15
+      },
+      "research": {
+        "access": "full"
       }
     },
     {
@@ -2419,7 +3437,158 @@
       "effects": {
         "minHabitability": -30,
         "growthPercent": -30
+      },
+      "research": {
+        "access": "limited",
+        "affinity": "logistics",
+        "affinityPercent": 30
       }
+    }
+  ],
+  "researchSchools": [
+    {
+      "id": "genetic_engineering",
+      "name": "Genetic Engineering",
+      "field": "growth",
+      "description": "Bigger, hardier, smarter populations."
+    },
+    {
+      "id": "gaia_ecology",
+      "name": "Gaia Ecology",
+      "field": "growth",
+      "description": "Food and living worlds."
+    },
+    {
+      "id": "cybernetics",
+      "name": "Cybernetics",
+      "field": "growth",
+      "description": "Implants for scientists, soldiers and crews."
+    },
+    {
+      "id": "heavy_industry",
+      "name": "Heavy Industry",
+      "field": "engineering",
+      "description": "Industry and cheaper ships."
+    },
+    {
+      "id": "ship_architecture",
+      "name": "Ship Architecture",
+      "field": "engineering",
+      "description": "Tougher hulls, miniaturized parts and damage control."
+    },
+    {
+      "id": "carrier_doctrine",
+      "name": "Carrier Doctrine",
+      "field": "engineering",
+      "description": "Fighters and strike drones."
+    },
+    {
+      "id": "artificial_intelligence",
+      "name": "Artificial Intelligence",
+      "field": "science",
+      "description": "Thinking machines for research and industry."
+    },
+    {
+      "id": "command_control",
+      "name": "Command & Control",
+      "field": "science",
+      "description": "Fleet command networks."
+    },
+    {
+      "id": "cyber_school",
+      "name": "Cyber Warfare",
+      "field": "science",
+      "description": "Hacking enemy ships, defending your own, stealing secrets."
+    },
+    {
+      "id": "fast_attack",
+      "name": "Fast Attack",
+      "field": "propulsion",
+      "description": "Agility, hit-and-run and raw speed."
+    },
+    {
+      "id": "deep_space",
+      "name": "Deep Space",
+      "field": "propulsion",
+      "description": "Range: more supply and travel without spending it."
+    },
+    {
+      "id": "gravitics",
+      "name": "Gravitics",
+      "field": "propulsion",
+      "description": "Tractor beams, gravity wells and inertialess drives."
+    },
+    {
+      "id": "stealth",
+      "name": "Stealth",
+      "field": "sensors",
+      "description": "Cloaking for any ship, and decoys."
+    },
+    {
+      "id": "surveillance",
+      "name": "Surveillance",
+      "field": "sensors",
+      "description": "See cloaked ships, spy, chart the galaxy."
+    },
+    {
+      "id": "countermeasures",
+      "name": "Countermeasures",
+      "field": "sensors",
+      "description": "Jamming and spoofing to make your fleets hard to hit and hard to read."
+    },
+    {
+      "id": "supply_chain",
+      "name": "Supply Chain",
+      "field": "logistics",
+      "description": "Supply ships, depots and mobile shipyards."
+    },
+    {
+      "id": "mining",
+      "name": "Mining & Outposts",
+      "field": "logistics",
+      "description": "Mining outposts and their income."
+    },
+    {
+      "id": "mercantile",
+      "name": "Mercantile",
+      "field": "logistics",
+      "description": "Credits, trade and cheaper buying."
+    },
+    {
+      "id": "beams",
+      "name": "Beam Weapons",
+      "field": "weapons",
+      "description": "Accurate medium-range beams."
+    },
+    {
+      "id": "missiles",
+      "name": "Missiles",
+      "field": "weapons",
+      "description": "Long-range missiles and torpedoes."
+    },
+    {
+      "id": "kinetics",
+      "name": "Kinetics",
+      "field": "weapons",
+      "description": "Short-range, shield-piercing guns and the spinal mass driver."
+    },
+    {
+      "id": "fortress",
+      "name": "Fortress",
+      "field": "defense",
+      "description": "Planetary shields, star fortresses, citadel worlds."
+    },
+    {
+      "id": "armor",
+      "name": "Armor",
+      "field": "defense",
+      "description": "Heavier armor and self-repairing hulls."
+    },
+    {
+      "id": "shields_assault",
+      "name": "Shields & Assault",
+      "field": "defense",
+      "description": "Strong shields, invasion doctrine and elite commandos."
     }
   ]
 }

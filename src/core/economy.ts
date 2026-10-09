@@ -1,4 +1,4 @@
-import type { ContentPack, Effects } from "../content/schema";
+import type { ContentPack, Effects, TechFlag } from "../content/schema";
 import type { Colony, Empire, EmpireId, Focus, GameEvent, GameState, QueueItem, StarSystem } from "./state";
 import { colonyOnBody, getSystem } from "./state";
 import { designBuildable, designStats, getDesign, newFleet, refreshFleetStats } from "./ships";
@@ -35,6 +35,20 @@ const EFFECT_KEYS = [
   "groundPercent",
   "defensePercent",
   "maneuver",
+  "slots",
+  "shipCostPercent",
+  "shipUpkeepPercent",
+  "structurePercent",
+  "shipEvasion",
+  "fieldRepairPercent",
+  "hangarShots",
+  "commandBonus",
+  "xpPercent",
+  "storesPercent",
+  "buyCostPercent",
+  "miningPercent",
+  "sabotagePercent",
+  "techCapturePercent",
 ] as const;
 export type Totals = Record<(typeof EFFECT_KEYS)[number], number>;
 
@@ -267,7 +281,48 @@ export function empireEconomy(state: GameState, pack: ContentPack, empireId: Emp
 
 export function techAvailable(pack: ContentPack, empire: Empire, techId: string): boolean {
   const tech = pack.techs.find((t) => t.id === techId);
-  return !!tech && !empire.techs.includes(techId) && tech.requires.every((r) => empire.techs.includes(r));
+  return !!tech && !empire.techs.includes(techId) && tech.requires.every((r) => empire.techs.includes(r)) && schoolBlocker(pack, empire, tech) === null;
+}
+
+/** The empire's species research rules. */
+export function researchAccess(pack: ContentPack, empire: Empire): ContentPack["species"][number]["research"] {
+  return pack.species.find((s) => s.id === empire.species)?.research ?? { access: "full", affinityPercent: 0 };
+}
+
+/** How many schools of `field` the empire may follow: all for full access, else one (two in its affinity field). */
+export function schoolsAllowed(pack: ContentPack, empire: Empire, field: string): number {
+  const access = researchAccess(pack, empire);
+  if (access.access === "full") return Infinity;
+  return access.affinity === field ? 2 : 1;
+}
+
+/** Why a school tech is closed to the empire (it chose rival schools), or null. */
+export function schoolBlocker(pack: ContentPack, empire: Empire, tech: Tech): string | null {
+  if (!tech.school || empire.schools.includes(tech.school)) return null;
+  const chosen = empire.schools.filter((id) => pack.researchSchools.find((s) => s.id === id)?.field === tech.field);
+  if (chosen.length < schoolsAllowed(pack, empire, tech.field)) return null;
+  const names = chosen.map((id) => pack.researchSchools.find((s) => s.id === id)?.name ?? id);
+  return `closed: you follow ${names.join(" and ")}`;
+}
+
+/** Research points a tech costs this empire: less in its species' affinity field. */
+export function techCost(pack: ContentPack, empire: Empire, tech: Tech): number {
+  const access = researchAccess(pack, empire);
+  return access.affinity === tech.field ? Math.ceil((tech.cost * 100) / (100 + access.affinityPercent)) : tech.cost;
+}
+
+/** Whether any researched tech switches on a special rule. */
+export function hasFlag(pack: ContentPack, empire: Empire, flag: TechFlag): boolean {
+  return empire.techs.some((id) => pack.techs.find((t) => t.id === id)?.flags.includes(flag));
+}
+
+/** Record a newly researched tech, committing the empire to its school. */
+export function learnTech(pack: ContentPack, empire: Empire, techId: string, viaResearch: boolean): void {
+  if (empire.techs.includes(techId)) return;
+  empire.techs.push(techId);
+  const school = pack.techs.find((t) => t.id === techId)?.school;
+  // Techs taken by conquest don't commit the empire to their school.
+  if (viaResearch && school && !empire.schools.includes(school)) empire.schools = [...empire.schools, school].sort();
 }
 
 export function availableTechs(pack: ContentPack, empire: Empire): Tech[] {
@@ -326,7 +381,7 @@ export function buyCost(pack: ContentPack, empire: Empire, colony: Colony): numb
   const item = colony.queue[0];
   if (!item) return null;
   const remaining = itemCost(pack, empire, item) - colony.progress;
-  return remaining > 0 ? remaining * pack.economy.buyCreditsPerIndustry : null;
+  return remaining > 0 ? Math.max(1, Math.floor((remaining * pack.economy.buyCreditsPerIndustry * (100 + empireEffects(pack, empire).buyCostPercent)) / 100)) : null;
 }
 
 /** Turns until each queue item completes at the colony's current industry (Infinity if no industry). */
@@ -440,10 +495,10 @@ export function resolveEconomy(state: GameState, pack: ContentPack, events: Game
     empire.research.progress += summary.research;
     const current = empire.research.current;
     if (current !== null) {
-      const cost = getTech(pack, current).cost;
+      const cost = techCost(pack, empire, getTech(pack, current));
       if (empire.research.progress >= cost) {
         empire.research.progress -= cost;
-        empire.techs.push(current);
+        learnTech(pack, empire, current, true);
         empire.research.current = null;
         refreshEmpireStats(state, pack, empire);
         events.push({ type: "techResearched", turn, empireId: empire.id, techId: current });

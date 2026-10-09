@@ -7,6 +7,8 @@ import {
   colonyOutput,
   defendingTroops,
   coloniesMissing,
+  schoolsAllowed,
+  techCost,
   taxLevel,
   empireEconomy,
   techUnlocks,
@@ -333,18 +335,27 @@ export function researchPanel(ctx: PanelContext): HTMLElement {
         "div",
         { className: "current-research" },
         h("div", { textContent: `${current.name} (${fieldName(current.field)})` }),
-        bar(empire.research.progress / current.cost),
-        h("div", { className: "muted small", textContent: `${empire.research.progress}/${current.cost} · ${eco.research} per turn · ${turnsText(turnsFor(current.cost))}` }),
+        bar(empire.research.progress / techCost(pack, empire, current)),
+        h("div", { className: "muted small", textContent: `${empire.research.progress}/${techCost(pack, empire, current)} · ${eco.research} per turn · ${turnsText(turnsFor(techCost(pack, empire, current)))}` }),
       )
     : h("div", { className: "current-research warn-text", textContent: `Choose a tech. ${empire.research.progress} points banked, ${eco.research} per turn.` });
 
   const list = h("ul");
-  for (const tech of availableTechs(pack, empire).sort((a, b) => a.cost - b.cost || a.id.localeCompare(b.id))) {
+  for (const tech of availableTechs(pack, empire).sort((a, b) => techCost(pack, empire, a) - techCost(pack, empire, b) || a.id.localeCompare(b.id))) {
+    const cost = techCost(pack, empire, tech);
+    const school = tech.school ? pack.researchSchools.find((s) => s.id === tech.school) : undefined;
+    const commits = school && !empire.schools.includes(school.id) && Number.isFinite(schoolsAllowed(pack, empire, tech.field));
     const li = h(
       "li",
       { className: `tappable${tech.id === current?.id ? " on" : ""}` },
-      h("span", { className: "grow" }, h("div", { textContent: tech.name }), h("div", { className: "muted small", textContent: `${fieldName(tech.field)} · ${tech.description}` })),
-      h("span", { textContent: `${tech.cost} · ${turnsText(turnsFor(tech.cost))}` }),
+      h(
+        "span",
+        { className: "grow" },
+        h("div", { textContent: tech.name }),
+        h("div", { className: "muted small", textContent: `${fieldName(tech.field)}${school ? ` · ${school.name}` : ""} · ${tech.description}` }),
+        commits ? h("div", { className: "small warn-text", textContent: `Commits you to ${school!.name}, closing its rival schools` }) : null,
+      ),
+      h("span", { textContent: `${cost} · ${turnsText(turnsFor(cost))}` }),
     );
     li.onclick = () => ctx.issue({ type: "setResearch", empireId: game.playerId, techId: tech.id });
     list.append(li);

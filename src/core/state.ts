@@ -5,7 +5,7 @@ import type { BodyKind, Formation } from "../content/schema";
  * so it can be cloned, saved, hashed, and sent over a network unchanged.
  */
 
-export const STATE_VERSION = 12;
+export const STATE_VERSION = 13;
 
 export type SystemId = number;
 export type EmpireId = number;
@@ -96,6 +96,8 @@ export interface Empire {
   taxLevel: string;
   /** Researched tech ids, in the order completed. */
   techs: string[];
+  /** Research schools the empire has committed to (see the content pack's researchSchools). */
+  schools: string[];
   /** Tech being researched, or null. Points bank up while nothing is chosen. */
   research: { current: string | null; progress: number };
   /** Counts fleets created per design, for naming. */
@@ -270,6 +272,8 @@ export type GameEvent =
   | { type: "buildingCompleted"; turn: number; empireId: EmpireId; colonyId: ColonyId; systemId: SystemId; buildingId: string }
   | { type: "shipCompleted"; turn: number; empireId: EmpireId; colonyId: ColonyId; systemId: SystemId; fleetId: FleetId }
   | { type: "techResearched"; turn: number; empireId: EmpireId; techId: string }
+  /** A tech learned by capturing a colony of `fromEmpireId`. */
+  | { type: "techCaptured"; turn: number; empireId: EmpireId; techId: string; fromEmpireId: EmpireId; colonyId: ColonyId; systemId: SystemId }
   | { type: "populationGrew"; turn: number; empireId: EmpireId; colonyId: ColonyId; systemId: SystemId; population: number }
   | { type: "starvation"; turn: number; empireId: EmpireId }
   | { type: "inDebt"; turn: number; empireId: EmpireId; credits: number }

@@ -1,5 +1,5 @@
 import type { Command } from "../commands";
-import { componentAvailable, designBuildable, designStats, hullAvailable } from "../ships";
+import { componentAvailable, componentFits, designBuildable, designStats, hullAvailable, hullSlots } from "../ships";
 import type { ShipDesign } from "../state";
 import type { AiContext } from "./context";
 
@@ -24,7 +24,8 @@ export function planWarship(ctx: AiContext): WarshipPlan {
   const hulls = pack.hulls.filter((h) => hullAvailable(pack, empire, h.id) && h.slots >= 2);
   const parts = pack.components.filter((c) => componentAvailable(pack, empire, c.id));
   const punch = (c: (typeof parts)[number]) => c.damage * c.accuracy * c.shots;
-  const weapon = parts.filter((c) => c.kind === "weapon").sort((a, b) => punch(b) - punch(a) || a.id.localeCompare(b.id))[0];
+  const weapons = parts.filter((c) => c.kind === "weapon" && c.minSlots <= 2).sort((a, b) => punch(b) - punch(a) || a.id.localeCompare(b.id));
+  const weapon = weapons[0];
   const armor = parts.filter((c) => c.kind === "armor").sort((a, b) => b.hp - a.hp || a.id.localeCompare(b.id))[0];
   const shield = parts.filter((c) => c.kind === "shield").sort((a, b) => b.shield - a.shield || a.id.localeCompare(b.id))[0];
   const engine = parts.filter((c) => c.kind === "engine").sort((a, b) => b.speed - a.speed || a.id.localeCompare(b.id))[0];
@@ -36,7 +37,8 @@ export function planWarship(ctx: AiContext): WarshipPlan {
       ? [...hulls].sort((a, b) => b.evasion * b.slots - a.evasion * a.slots || b.speed - a.speed || a.id.localeCompare(b.id))[0]!
       : [...hulls].sort((a, b) => b.slots - a.slots || b.structure - a.structure || a.id.localeCompare(b.id))[0]!;
 
-  const fits = (c: (typeof parts)[number]) => hull.slots >= c.minSlots;
+  const slots = hullSlots(pack, empire, hull.id);
+  const fits = (c: (typeof parts)[number]) => componentFits(pack, empire, hull.id, c.id);
   const thrusters = parts.find((c) => c.maneuver > 0);
   const hangar = parts.filter((c) => c.kind === "hangar" && fits(c)).sort((a, b) => punch(b) - punch(a) || a.id.localeCompare(b.id))[0];
   const computer = parts.find((c) => c.accuracyBonus > 0);
@@ -45,18 +47,18 @@ export function planWarship(ctx: AiContext): WarshipPlan {
   const components: string[] = [];
   if (style === "raider") {
     const mobility = thrusters ?? engine;
-    if (mobility && hull.slots >= 3) components.push(mobility.id);
-    while (components.length < hull.slots) components.push(weapon.id);
+    if (mobility && slots >= 3) components.push(mobility.id);
+    while (components.length < slots) components.push(weapon.id);
   } else {
-    const weapons = Math.max(1, Math.round((hull.slots * (style === "line" ? 60 : 40)) / 100));
+    const weapons = Math.max(1, Math.round((slots * (style === "line" ? 60 : 40)) / 100));
     for (let i = 0; i < weapons; i++) components.push(i === 0 && style === "line" && hangar ? hangar.id : weapon.id);
-    if (hull.slots >= 5) {
+    if (slots >= 5) {
       const gadget = style === "line" ? computer : pointDefense;
-      if (gadget && components.length < hull.slots) components.push(gadget.id);
+      if (gadget && components.length < slots) components.push(gadget.id);
     }
-    if (commandNet && components.length < hull.slots) components.push(commandNet.id);
+    if (commandNet && components.length < slots) components.push(commandNet.id);
     let i = 0;
-    while (components.length < hull.slots) {
+    while (components.length < slots) {
       const preferShield = style === "fortress" ? i % 3 !== 2 : i % 2 === 1;
       components.push(preferShield && shield ? shield.id : (armor?.id ?? weapon.id));
       i++;

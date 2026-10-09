@@ -274,9 +274,11 @@ function fight(
   for (const fleet of shipFleets) {
     const enemyHp = [...sideHp].filter(([e]) => e !== fleet.empireId).reduce((n, [, hp]) => n + hp, 0);
     const outnumbered = enemyHp > (sideHp.get(fleet.empireId) ?? 0);
+    const learning = 100 + empireEffects(pack, state.empires[fleet.empireId]!).xpPercent;
     for (const ship of fleet.ships) {
       if (ship.hp <= 0) continue;
-      ship.xp += cfg.xpPerBattle + (kills.get(ship.id) ?? 0) * cfg.xpPerKill + (outnumbered ? cfg.xpOutnumbered : 0);
+      const earned = cfg.xpPerBattle + (kills.get(ship.id) ?? 0) * cfg.xpPerKill + (outnumbered ? cfg.xpOutnumbered : 0);
+      ship.xp += Math.floor((earned * learning) / 100);
     }
   }
 

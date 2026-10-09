@@ -192,6 +192,14 @@ export function migrateState(state: GameState, pack: ContentPack): GameState {
     old.version = 12;
   }
 
+  if (old.version === 12) {
+    // v13: research schools. Commit to the schools of techs already researched.
+    for (const empire of migrated.empires) {
+      empire.schools = [...new Set(empire.techs.map((id) => pack.techs.find((t) => t.id === id)?.school).filter((s): s is string => !!s))].sort();
+    }
+    old.version = 13;
+  }
+
   if (startVersion !== migrated.version) {
     for (const empire of migrated.empires) refreshEmpireStats(migrated, pack, empire);
     updateSightings(migrated, pack, null, migrated.turn);

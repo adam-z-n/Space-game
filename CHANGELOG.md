@@ -16,6 +16,25 @@ Logistics, experience and command:
 - The map shows resupply points instead of a supply range; the fleet sheet shows supply, stores and each ship's rank.
 - The AI plans its trips home to resupply, sends supply ships with its strike forces and uses command networks.
 
+Research tree:
+
+- The tree grows from 56 to 118 techs. Each of the eight fields (now Biology, Construction, Computers, Propulsion,
+  Electronics, Logistics & Trade, Weapons, Defense) has core techs everyone can research and three rival schools
+  of three techs each.
+- Terrans, Psyrrh and Mekkan can research every school. The other six races follow one school per field: their
+  first tech in a school commits them to it and closes its rivals. Each has an affinity field where research is
+  30% faster and they may follow two schools (Saurak: Biology, Kraal: Construction, Aviari: Propulsion, Lithari:
+  Logistics, Felari: Weapons, Ursoni: Defense). Every race can reach at least 60% of the tree.
+- Capturing a colony has a 25% chance to capture the cheapest tech its owner knew that you don't, even one from a
+  school you are locked out of (Data Theft raises the odds).
+- New techs and parts include Miniaturization (+1 slot on every hull), Reinforced Frames, Damage Control, Flight
+  Operations, Expert Systems and Sentient Computers, Tactical Datalinks and Battle Coordination AI, Hit-and-Run,
+  Solar Sails, Tractor Beams, Stealth Hulls, Tachyon Scanners, Galactic Survey, Sensor Spoofing, Gas Giant
+  Harvesting, Corporate Charters, Particle Beams and Phase Cannons, Swarm Missiles, the Spinal Mass Driver,
+  Reactive Armor, Planetary Shields, Star Fortresses and the Megafactory.
+- The research tree screen groups each field into core techs and schools, shows which schools you follow and which
+  are closed, and the empire picker shows each race's research access.
+
 ## 1.1.0
 
 Map and planning:
