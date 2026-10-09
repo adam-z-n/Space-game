@@ -41,6 +41,7 @@ export function planWarship(ctx: AiContext): WarshipPlan {
   const hangar = parts.filter((c) => c.kind === "hangar" && fits(c)).sort((a, b) => punch(b) - punch(a) || a.id.localeCompare(b.id))[0];
   const computer = parts.find((c) => c.accuracyBonus > 0);
   const pointDefense = parts.find((c) => c.pointDefense > 0);
+  const commandNet = parts.find((c) => c.command > 0 && fits(c));
   const components: string[] = [];
   if (style === "raider") {
     const mobility = thrusters ?? engine;
@@ -53,6 +54,7 @@ export function planWarship(ctx: AiContext): WarshipPlan {
       const gadget = style === "line" ? computer : pointDefense;
       if (gadget && components.length < hull.slots) components.push(gadget.id);
     }
+    if (commandNet && components.length < hull.slots) components.push(commandNet.id);
     let i = 0;
     while (components.length < hull.slots) {
       const preferShield = style === "fortress" ? i % 3 !== 2 : i % 2 === 1;

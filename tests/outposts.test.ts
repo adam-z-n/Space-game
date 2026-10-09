@@ -115,16 +115,17 @@ describe("outposts", () => {
     expect(s.lastTurnEvents).toContainEqual(expect.objectContaining({ type: "outpostLost", empireId: 1, kind: "mining" }));
   });
 
-  it("supply depots extend supply for credits", () => {
+  it("supply depots resupply fleets, for credits", () => {
     let s = line();
     s.empires[0]!.techs.push("outpost_construction", "supply_lines", "forward_depots");
     s.galaxy.systems[3]!.bodies = [{ id: 9003, kind: "gasGiant" }];
     s.outposts.push({ id: 7002, empireId: 0, systemId: 3, bodyId: 9003, kind: "combat", depot: false, defenseHp: 60 });
-    expect(suppliedSystems(s, pack, 0).has(4)).toBe(false);
+    expect(suppliedSystems(s, pack, 0).has(3)).toBe(false);
     s.empires[0]!.credits = 100;
     s = run(s, { type: "upgradeOutpost", empireId: 0, outpostId: 7002 });
     expect(s.empires[0]!.credits).toBe(100 - pack.outposts.depot.cost);
-    expect(suppliedSystems(s, pack, 0).has(4)).toBe(true);
+    expect(suppliedSystems(s, pack, 0).has(3)).toBe(true);
+    expect(suppliedSystems(s, pack, 0).has(4)).toBe(false);
   });
 });
 

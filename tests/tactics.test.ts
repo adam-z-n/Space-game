@@ -193,3 +193,54 @@ describe("ground war", () => {
     expect(applyCommand(s, { type: "bombard", empireId: 0, fleetId: s.fleets.find((f) => f.empireId === 0 && f.ships.length > 0)!.id, colonyId: null }, pack).ok).toBe(true);
   });
 });
+
+describe("experience and command", () => {
+  it("ranks are worth more on big hulls", async () => {
+    const { veteranBonus } = await import("../src/core");
+    expect(veteranBonus(pack, "corvette", 0)).toBe(0);
+    expect(veteranBonus(pack, "corvette", 25)).toBe(4); // Ace: rank 4 x 1
+    expect(veteranBonus(pack, "dreadnought", 25)).toBe(20); // Ace: rank 4 x 5
+    expect(veteranBonus(pack, "cruiser", 8)).toBe(6); // Veteran: rank 2 x 3
+  });
+
+  it("ships that survive a battle gain experience, more for kills and long odds", () => {
+    let s = line();
+    const strong = newFleet(s, pack, s.empires[0]!, ["frigate", "frigate", "frigate", "frigate"], 3);
+    const weak = newFleet(s, pack, s.empires[1]!, ["frigate"], 3);
+    for (const f of [strong, weak]) f.orders = { ...f.orders, mission: "engage", retreatPercent: 100 };
+    s.fleets.push(strong, weak);
+    s = run(s, end);
+    const ships = s.fleets.find((f) => f.id === strong.id)!.ships;
+    expect(ships.every((x) => x.xp >= pack.combat.xpPerBattle)).toBe(true);
+    expect(ships.some((x) => x.xp >= pack.combat.xpPerBattle + pack.combat.xpPerKill)).toBe(true);
+  });
+
+  it("a military academy trains new crews", () => {
+    let s = line();
+    const cap = s.colonies.find((c) => c.empireId === 0)!;
+    cap.buildings.push("military_academy");
+    cap.queue = [{ kind: "ship", id: "frigate" }];
+    cap.progress = 1000;
+    s = run(s, end);
+    const built = s.fleets.find((f) => f.empireId === 0)!;
+    expect(built.ships[0]!.xp).toBe(3);
+  });
+
+  it("a command network makes its whole fleet hit more often", () => {
+    const hitRate = (withCommand: boolean) => {
+      let s = line();
+      design(s, "flag", "battleship", [withCommand ? "command_network" : "composite_armor", ...Array.from({ length: 7 }, () => "composite_armor")]);
+      design(s, "gunboat", "frigate", ["laser", "laser", "laser"]);
+      design(s, "target", "dreadnought", ["laser", ...Array.from({ length: 11 }, () => "crystalline_armor")]);
+      const fleet = newFleet(s, pack, s.empires[0]!, ["flag", ...Array.from({ length: 6 }, () => "gunboat")], 3);
+      const target = newFleet(s, pack, s.empires[1]!, ["target", "target"], 3);
+      for (const f of [fleet, target]) f.orders = { ...f.orders, mission: "engage", retreatPercent: 100 };
+      s.fleets.push(fleet, target);
+      s = run(s, end);
+      const mine = new Set(fleet.ships.map((x) => x.id));
+      const shots = battle(s).rounds.flatMap((r) => r.shots).filter((x) => mine.has(x.attacker));
+      return shots.filter((x) => x.damage > 0).length / shots.length;
+    };
+    expect(hitRate(true)).toBeGreaterThan(hitRate(false));
+  });
+});

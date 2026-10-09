@@ -42,6 +42,10 @@ export function planProduction(ctx: AiContext, strategy: Strategy, warshipId: st
   const scoutDesign = designWhere(ctx, (s) => s.role === "recon");
   const troopDesign = designWhere(ctx, (s) => s.troops > 0 && !s.colonize);
   const outpostDesign = designWhere(ctx, (s) => s.outpost);
+  // A supply ship for the strike force when going to war.
+  const supplyDesign = designWhere(ctx, (s) => s.stores > 0 && !s.armed);
+  let suppliers = ctx.fleets.filter((f) => f.supplier).length + queuedOf((q) => isShip(q, (s) => s.stores > 0 && !s.armed));
+  const wantSuppliers = strategy.posture === "attack" && strategy.warTarget !== null && supplyDesign ? 1 : 0;
   // One outpost ship at a time, while there are free asteroid fields or gas giants in supply range.
   let outposters = ctx.fleets.filter((f) => f.outpost).length + queuedOf((q) => isShip(q, (s) => s.outpost));
   const wantOutposters = outpostDesign && ctx.state.outposts.filter((o) => o.empireId === ctx.id).length < ctx.colonies.length && outpostTargets(ctx).length > 0 ? 1 : 0;
@@ -90,6 +94,9 @@ export function planProduction(ctx: AiContext, strategy: Strategy, warshipId: st
     } else if (troopShortfall > 0 && big && troopDesign && can({ kind: "ship", id: troopDesign.id })) {
       pick = { kind: "ship", id: troopDesign.id };
       troopShortfall -= designStats(pack, troopDesign, fx).troops;
+    } else if (suppliers < wantSuppliers && big && supplyDesign && can({ kind: "ship", id: supplyDesign.id })) {
+      pick = { kind: "ship", id: supplyDesign.id };
+      suppliers++;
     } else if (outposters < wantOutposters && big && !urgent && outpostDesign && can({ kind: "ship", id: outpostDesign.id })) {
       pick = { kind: "ship", id: outpostDesign.id };
       outposters++;

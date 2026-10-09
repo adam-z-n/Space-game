@@ -19,6 +19,8 @@ export interface FleetInfo {
   colonize: boolean;
   /** Carries an outpost kit. */
   outpost: boolean;
+  /** An unarmed supply ship (stores for the field). */
+  supplier: boolean;
   recon: boolean;
   /** Ground troops aboard (0 for most fleets). */
   troops: number;
@@ -89,6 +91,7 @@ export function buildContext(state: GameState, pack: ContentPack, empireId: Empi
         armed: fleetArmed(pack, state, fleet),
         colonize: fleetCanColonize(pack, state, fleet),
         outpost: stats.some((s) => s.outpost),
+        supplier: stats.some((s) => s.stores > 0) && !stats.some((s) => s.armed),
         recon: stats.every((s) => s.role === "recon"),
         troops: stats.reduce((n, s) => n + s.troops, 0),
         maxSupply: fleetMaxSupply(pack, state, fleet),

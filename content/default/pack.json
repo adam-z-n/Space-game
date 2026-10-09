@@ -687,6 +687,18 @@
       "description": "Unlocks the Targeting Computer."
     },
     {
+      "id": "fleet_command",
+      "name": "Fleet Command",
+      "field": "sensors",
+      "cost": 300,
+      "requires": [
+        "battle_computers",
+        "capital_ships"
+      ],
+      "effects": {},
+      "description": "Unlocks the Fleet Command Network for battleships and dreadnoughts."
+    },
+    {
       "id": "electronic_warfare",
       "name": "Electronic Warfare",
       "field": "sensors",
@@ -935,7 +947,7 @@
       "effects": {
         "endurance": 3
       },
-      "description": "+3 turns of supply for every ship."
+      "description": "+3 turns of supply for every ship. Unlocks the Supply Hold for supply ships."
     },
     {
       "id": "supply_lines",
@@ -946,9 +958,9 @@
         "colonial_administration"
       ],
       "effects": {
-        "supplyRange": 150
+        "endurance": 2
       },
-      "description": "+150 supply range for every colony."
+      "description": "+2 turns of supply for every ship."
     },
     {
       "id": "forward_depots",
@@ -1313,6 +1325,16 @@
       },
       "requires": "orbital_fortresses",
       "buildable": true
+    },
+    {
+      "id": "military_academy",
+      "name": "Military Academy",
+      "cost": 80,
+      "upkeep": 2,
+      "effects": {},
+      "trainingXp": 3,
+      "description": "Ships built here start as Regulars.",
+      "buildable": true
     }
   ],
   "outposts": {
@@ -1348,7 +1370,7 @@
     },
     "depot": {
       "name": "Supply Depot",
-      "description": "A combat outpost upgraded to supply your fleets nearby and repair them as at a colony.",
+      "description": "A combat outpost upgraded to resupply and repair your fleets there, like a colony.",
       "cost": 60,
       "upkeep": 1,
       "supplyRange": 200,
@@ -1396,7 +1418,32 @@
     "colonyPopPerGun": 3,
     "colonyGunDamage": 3,
     "colonyGunAccuracy": 60,
-    "militiaRegenPerTurn": 1
+    "militiaRegenPerTurn": 1,
+    "ranks": [
+      {
+        "name": "Green",
+        "xp": 0
+      },
+      {
+        "name": "Regular",
+        "xp": 3
+      },
+      {
+        "name": "Veteran",
+        "xp": 8
+      },
+      {
+        "name": "Elite",
+        "xp": 15
+      },
+      {
+        "name": "Ace",
+        "xp": 25
+      }
+    ],
+    "xpPerBattle": 2,
+    "xpPerKill": 1,
+    "xpOutnumbered": 2
   },
   "hulls": [
     {
@@ -1411,7 +1458,8 @@
       "sensorRange": 160,
       "evasion": 25,
       "maneuver": 5,
-      "endurance": 6
+      "veteranBonus": 1,
+      "endurance": 10
     },
     {
       "id": "frigate",
@@ -1425,7 +1473,8 @@
       "sensorRange": 150,
       "evasion": 15,
       "maneuver": 4,
-      "endurance": 6
+      "veteranBonus": 2,
+      "endurance": 10
     },
     {
       "id": "transport",
@@ -1439,7 +1488,8 @@
       "sensorRange": 100,
       "evasion": 0,
       "maneuver": 1,
-      "endurance": 8
+      "veteranBonus": 1,
+      "endurance": 12
     },
     {
       "id": "cruiser",
@@ -1453,7 +1503,8 @@
       "sensorRange": 180,
       "evasion": 8,
       "maneuver": 3,
-      "endurance": 8,
+      "veteranBonus": 3,
+      "endurance": 12,
       "requires": "cruiser_hulls"
     },
     {
@@ -1468,7 +1519,8 @@
       "sensorRange": 200,
       "evasion": 0,
       "maneuver": 2,
-      "endurance": 10,
+      "veteranBonus": 4,
+      "endurance": 14,
       "requires": "capital_ships"
     },
     {
@@ -1483,7 +1535,8 @@
       "sensorRange": 220,
       "evasion": 0,
       "maneuver": 1,
-      "endurance": 12,
+      "veteranBonus": 5,
+      "endurance": 16,
       "requires": "dreadnought_hulls"
     }
   ],
@@ -1818,6 +1871,25 @@
       "stealth": 1,
       "maxSlots": 3,
       "requires": "cloaking"
+    },
+    {
+      "id": "supply_hold",
+      "name": "Supply Hold",
+      "kind": "supply",
+      "description": "Carries 20 ship-turns of stores: each turn in the field the fleet draws a turn of supply from them (one ship-turn per ship). Refilled at colonies and depots.",
+      "cost": 6,
+      "stores": 20,
+      "requires": "extended_tanks"
+    },
+    {
+      "id": "command_network",
+      "name": "Fleet Command Network",
+      "kind": "electronics",
+      "description": "While this ship survives, every ship in its fleet gets +10% accuracy and +5% evasion, and the fleet maneuvers as one (+1 maneuver). Battleship or larger.",
+      "cost": 20,
+      "command": 10,
+      "minSlots": 8,
+      "requires": "fleet_command"
     }
   ],
   "startingDesigns": [
@@ -1910,6 +1982,16 @@
       "components": [
         "cloaking_device",
         "commando_team"
+      ],
+      "formation": "support"
+    },
+    {
+      "id": "supply_ship",
+      "name": "Supply Ship",
+      "hull": "transport",
+      "components": [
+        "supply_hold",
+        "supply_hold"
       ],
       "formation": "support"
     }

@@ -1,6 +1,7 @@
 # Roadmap
 
-Ideas for future versions, roughly grouped. Nothing here is scheduled yet; version 1.1 is in playtesting first.
+Ideas for future versions, roughly grouped. Version 1.2 (in progress) covers logistics, ship experience, fleet
+command, a larger research tree with race-specific schools, and four combat additions; the rest waits here.
 
 ## Future versions (requested)
 
@@ -13,6 +14,14 @@ Ideas for future versions, roughly grouped. Nothing here is scheduled yet; versi
 - **Pass-and-play multiplayer:** several people take turns on one device, with a handover screen between
   turns so nobody sees another player's view. The simulation is already deterministic and command-based,
   which also prepares for online multiplayer later.
+
+## Combat ideas for later
+
+- **Battlefield terrain:** nebulae weaken sensors and shields, asteroid fields add evasion and hurt missiles,
+  blue giants drain shields, so where you fight matters.
+- **Ambush:** a fleet holding position on evade orders (or cloaked) gets a free first round on arrivals.
+- **Admirals:** commanders earned from victories, with traits, assigned to fleets; they can be killed.
+- **Boarding:** troop pods capture crippled enemy ships, with a chance to reverse-engineer a component.
 
 ## Other candidates noted along the way
 

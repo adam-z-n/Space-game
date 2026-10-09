@@ -552,7 +552,7 @@ function startGame(game: Game): void {
       button("Ship designs", () => openPanel("designs")),
       button("Research tree", () => openPanel("techtree")),
       button("Colonization planner", () => openPanel("planner")),
-      button(ui.showSupply ? "Hide supply range" : "Show supply range", () => {
+      button(ui.showSupply ? "Hide resupply points" : "Show resupply points", () => {
         ui.showSupply = !ui.showSupply;
         openPanel("none");
       }),

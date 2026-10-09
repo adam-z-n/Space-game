@@ -415,7 +415,8 @@ export function resolveEconomy(state: GameState, pack: ContentPack, events: Game
           colony.buildings.push(item.id);
           events.push({ type: "buildingCompleted", turn, empireId: empire.id, colonyId: colony.id, systemId: colony.systemId, buildingId: item.id });
         } else {
-          const fleet = newFleet(state, pack, empire, [item.id], colony.systemId);
+          const training = Math.max(0, ...colony.buildings.map((id) => getBuilding(pack, id).trainingXp));
+          const fleet = newFleet(state, pack, empire, [item.id], colony.systemId, training);
           state.fleets.push(fleet);
           events.push({ type: "shipCompleted", turn, empireId: empire.id, colonyId: colony.id, systemId: colony.systemId, fleetId: fleet.id });
         }

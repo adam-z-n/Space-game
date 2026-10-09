@@ -5,7 +5,7 @@ import type { BodyKind, Formation } from "../content/schema";
  * so it can be cloned, saved, hashed, and sent over a network unchanged.
  */
 
-export const STATE_VERSION = 11;
+export const STATE_VERSION = 12;
 
 export type SystemId = number;
 export type EmpireId = number;
@@ -210,6 +210,8 @@ export interface Ship {
   id: ShipId;
   designId: string;
   hp: number;
+  /** Combat experience; see the content pack's ranks. */
+  xp: number;
 }
 
 export const STANCES = ["aggressive", "balanced", "cautious"] as const;
@@ -234,8 +236,10 @@ export interface Fleet {
   name: string;
   ships: Ship[];
   orders: FleetOrders;
-  /** Turns of onboard supply left; refilled inside supply range. */
+  /** Turns of onboard supply left; refilled at a colony or depot. */
   supply: number;
+  /** Supply ships' stores, in ship-turns; refilled at a colony or depot. */
+  stores: number;
   /** Cached from ships and techs (see refreshFleetStats); slowest ship, out-of-supply penalty included. */
   speed: number;
   /** System the fleet is at, or the one it departed from when in transit. */

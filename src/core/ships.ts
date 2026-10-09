@@ -73,6 +73,10 @@ export interface DesignStats {
   outpost: boolean;
   commandos: number;
   stealth: boolean;
+  /** Supply stores carried, in ship-turns. */
+  stores: number;
+  /** Fleet-wide accuracy bonus from a command network. */
+  command: number;
 }
 
 /** Stats for a design, including the empire's tech bonuses. */
@@ -98,7 +102,9 @@ export function designStats(pack: ContentPack, design: Pick<ShipDesign, "hull" |
       | "maneuver"
       | "bombard"
       | "commandos"
-      | "stealth",
+      | "stealth"
+      | "stores"
+      | "command",
   ) => parts.reduce((n, c) => n + c[key], 0);
   const aim = sum("accuracyBonus");
   const weapons: Weapon[] = parts
@@ -143,6 +149,8 @@ export function designStats(pack: ContentPack, design: Pick<ShipDesign, "hull" |
     outpost,
     commandos: sum("commandos"),
     stealth: sum("stealth") > 0,
+    stores: sum("stores"),
+    command: sum("command"),
   };
 }
 
@@ -252,7 +260,8 @@ export function refreshFleetStats(pack: ContentPack, state: GameState, fleet: Fl
 }
 
 /** Create a fleet of new, fully repaired ships. Callers push it into state.fleets. */
-export function newFleet(state: GameState, pack: ContentPack, empire: Empire, designIds: string[], systemId: number): Fleet {
+/** A new fleet of freshly built ships; `xp` is the crews' starting experience (a military academy trains them). */
+export function newFleet(state: GameState, pack: ContentPack, empire: Empire, designIds: string[], systemId: number, xp = 0): Fleet {
   const first = getDesign(empire, designIds[0]!);
   const count = (empire.shipsBuilt[first.id] ?? 0) + 1;
   empire.shipsBuilt[first.id] = count;
@@ -261,6 +270,7 @@ export function newFleet(state: GameState, pack: ContentPack, empire: Empire, de
     id: state.nextId++,
     designId,
     hp: designStats(pack, getDesign(empire, designId), fx).maxHp,
+    xp,
   }));
   const fleet: Fleet = {
     id: state.nextId++,
@@ -278,9 +288,11 @@ export function newFleet(state: GameState, pack: ContentPack, empire: Empire, de
     invadeColonyId: null,
     bombardColonyId: null,
     sabotage: null,
+    stores: 0,
   };
   fleet.orders = defaultOrders(fleetArmed(pack, state, fleet));
   fleet.supply = fleetMaxSupply(pack, state, fleet);
+  fleet.stores = fleetShipStats(pack, state, fleet).reduce((n, s) => n + s.stores, 0);
   refreshFleetStats(pack, state, fleet);
   return fleet;
 }

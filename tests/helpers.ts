@@ -9,8 +9,8 @@ export const testPack = loadContentPack({
   ...raw,
   hulls: [
     ...raw.hulls,
-    { id: "test60", name: "Test 60", description: "", slots: 2, structure: 10, cost: 1, upkeep: 0, speed: 60, sensorRange: 0, evasion: 0, maneuver: 2, endurance: 99 },
-    { id: "test100", name: "Test 100", description: "", slots: 2, structure: 10, cost: 1, upkeep: 0, speed: 100, sensorRange: 120, evasion: 0, maneuver: 2, endurance: 99 },
+    { id: "test60", name: "Test 60", description: "", slots: 2, structure: 10, cost: 1, upkeep: 0, speed: 60, sensorRange: 0, evasion: 0, maneuver: 2, veteranBonus: 1, endurance: 99 },
+    { id: "test100", name: "Test 100", description: "", slots: 2, structure: 10, cost: 1, upkeep: 0, speed: 100, sensorRange: 120, evasion: 0, maneuver: 2, veteranBonus: 1, endurance: 99 },
   ],
   // No planetary batteries: they would shoot at the unarmed test fleets.
   combat: { ...raw.combat, colonyDefenseHpPerPop: 0, colonyPopPerGun: 1000 },
@@ -32,9 +32,10 @@ export function testFleet(state: GameState, opts: { id: number; empireId: number
     id: opts.id,
     empireId: opts.empireId,
     name: opts.name ?? `Test ${opts.id}`,
-    ships: [{ id: opts.id * 10, designId: opts.hull, hp: 10 }],
+    ships: [{ id: opts.id * 10, designId: opts.hull, hp: 10, xp: 0 }],
     orders: { mission: "evade", stance: "cautious", targetPriority: "any", retreatPercent: 25 },
     supply: 99,
+    stores: 0,
     speed,
     sensorRange: opts.hull === "test60" ? 0 : 120,
     systemId: opts.systemId,

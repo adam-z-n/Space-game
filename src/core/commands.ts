@@ -31,7 +31,7 @@ import {
 } from "./state";
 import { buildBlocker, buyCost, colonizeBlocker, empireEffects, itemCost, newColony, techAvailable } from "./economy";
 import { designBlocker, designStats, fleetCanColonize, fleetMaxSupply, fleetShipStats, getDesign, refreshFleetStats } from "./ships";
-import { suppliedSystems } from "./supply";
+import { fleetMaxStores, suppliedSystems } from "./supply";
 import { outpostBlocker, outpostDefense, outpostTechOk } from "./outposts";
 import { colonyDefense, fleetTroops } from "./defense";
 import { resolveTurn } from "./turn";
@@ -390,6 +390,7 @@ export function applyCommand(state: GameState, command: Command, pack: ContentPa
       // Merged fleets carry the lower supply of the two, capped at the new maximum.
       into.ships.push(...from.ships);
       into.supply = Math.min(into.supply, from.supply, fleetMaxSupply(pack, next, into));
+      into.stores = Math.min(into.stores + from.stores, fleetMaxStores(pack, next, into));
       into.holding = into.holding && from.holding;
       next.fleets = next.fleets.filter((f) => f.id !== from.id);
       refreshFleetStats(pack, next, into);
@@ -414,6 +415,9 @@ export function applyCommand(state: GameState, command: Command, pack: ContentPa
       };
       created.supply = Math.min(fleet.supply, fleetMaxSupply(pack, next, created));
       fleet.supply = Math.min(fleet.supply, fleetMaxSupply(pack, next, fleet));
+      // Stores go with the supply ships that hold them.
+      created.stores = Math.min(fleet.stores, fleetMaxStores(pack, next, created));
+      fleet.stores = Math.min(fleet.stores - created.stores, fleetMaxStores(pack, next, fleet));
       refreshFleetStats(pack, next, fleet);
       refreshFleetStats(pack, next, created);
       next.fleets.push(created);

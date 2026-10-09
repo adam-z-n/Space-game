@@ -124,20 +124,20 @@ describe("fleets", () => {
 });
 
 describe("supply", () => {
-  it("covers systems within range of colonies along lanes", () => {
+  it("is only found at the empire's own colonies (and depots)", () => {
     const s = line();
-    expect([...suppliedSystems(s, pack, 0)].sort()).toEqual([0, 1, 2]);
+    expect([...suppliedSystems(s, pack, 0)]).toEqual([0]);
   });
 
-  it("burns onboard supply outside range, then slows and wears ships down", () => {
+  it("burns onboard supply away from a colony, then slows and wears ships down", () => {
     let s = line();
     const fleet = addFleet(s, 0, ["frigate"], 0);
     const max = fleetMaxSupply(pack, s, fleet);
-    expect(max).toBe(6);
-    fleet.systemId = 3; // just outside supply
+    expect(max).toBe(10);
+    fleet.systemId = 1; // one lane from home is already the field
     s = run(s, end);
-    expect(s.fleets[0]!.supply).toBe(5);
-    for (let i = 0; i < 5; i++) s = run(s, end);
+    expect(s.fleets[0]!.supply).toBe(9);
+    for (let i = 0; i < 9; i++) s = run(s, end);
     expect(s.fleets[0]!.supply).toBe(0);
     expect(s.lastTurnEvents).toContainEqual(expect.objectContaining({ type: "outOfSupply", fleetId: fleet.id }));
     expect(s.fleets[0]!.speed).toBe(67); // 100 - 33%
@@ -147,14 +147,31 @@ describe("supply", () => {
     // Back in supply: refilled and repaired at the colony.
     s.fleets[0]!.systemId = 0;
     s = run(s, end);
-    expect(s.fleets[0]!.supply).toBe(6);
+    expect(s.fleets[0]!.supply).toBe(10);
     expect(s.fleets[0]!.ships[0]!.hp).toBeGreaterThan(hp - 3);
   });
 
   it("tankers extend a fleet's endurance", () => {
     const s = line();
     const fleet = addFleet(s, 0, ["frigate", "tanker"], 0);
-    expect(fleetMaxSupply(pack, s, fleet)).toBe(6 + 8);
+    expect(fleetMaxSupply(pack, s, fleet)).toBe(10 + 8);
+  });
+
+  it("supply ships keep a fleet supplied in the field until their stores run out", () => {
+    let s = line();
+    const fleet = addFleet(s, 0, ["frigate", "frigate", "supply_ship"], 3);
+    expect(fleet.stores).toBe(40); // two holds of 20 ship-turns
+    s = run(s, end);
+    expect(s.fleets[0]!.supply).toBe(10); // spent a turn, then topped up
+    expect(s.fleets[0]!.stores).toBe(37); // three ships drew a turn each
+    for (let i = 0; i < 12; i++) s = run(s, end);
+    expect(s.fleets[0]!.stores).toBe(1);
+    expect(s.fleets[0]!.supply).toBe(10);
+    s = run(s, end); // too little left for the whole fleet: the clock starts
+    expect(s.fleets[0]!.supply).toBe(9);
+    s.fleets[0]!.systemId = 0;
+    s = run(s, end); // home: supply and stores refilled
+    expect(s.fleets[0]).toMatchObject({ supply: 10, stores: 40 });
   });
 
   it("an enemy warship in orbit blockades an undefended colony: no supply, no trade", () => {

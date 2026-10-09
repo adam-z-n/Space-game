@@ -126,12 +126,14 @@ const Hull = z.object({
   evasion: z.number().int().min(0).max(90),
   /** Combat agility: the faster side sets the battle range; each point also adds evasion. */
   maneuver: z.number().int().min(0).max(10),
+  /** Accuracy and evasion gained per experience rank: big ships make more of veteran crews. */
+  veteranBonus: z.number().int().min(0).max(20),
   /** Turns a ship can operate outside supply. */
   endurance: z.number().int().nonnegative(),
   requires: id.optional(),
 });
 
-export const COMPONENT_KINDS = ["weapon", "hangar", "armor", "shield", "engine", "sensor", "electronics", "colony", "outpost", "fuel", "troops", "commandos", "repair", "mines", "bomb"] as const;
+export const COMPONENT_KINDS = ["weapon", "hangar", "armor", "shield", "engine", "sensor", "electronics", "colony", "outpost", "fuel", "supply", "troops", "commandos", "repair", "mines", "bomb"] as const;
 /** Weapon ranges: battles start at long range (3) and close (or open) each round. */
 export const RANGE_NAMES = { 1: "short", 2: "medium", 3: "long" } as const;
 /** missile: point defense and ECM work against it. fighters: also hunt support ships past screens. pierce: ignores shields. */
@@ -157,6 +159,10 @@ const Component = z.object({
   maxSlots: z.number().int().min(1).default(12),
   /** Special forces for sabotage. */
   commandos: z.number().int().nonnegative().default(0),
+  /** Supply holds: stores, in ship-turns, that keep a fleet supplied in the field. */
+  stores: z.number().int().nonnegative().default(0),
+  /** Fleet command: accuracy added to every ship in the fleet (evasion gets half) while this ship lives. */
+  command: z.number().int().nonnegative().default(0),
   /** Cloaking: a fleet whose ships all have it is hard to see. */
   stealth: z.number().int().nonnegative().default(0),
   /** Electronics. */
@@ -223,6 +229,8 @@ const Building = z.object({
   requires: id.optional(),
   /** Only granted to capitals at game start, never built. */
   buildable: z.boolean().default(true),
+  /** Experience new ships built at this colony start with. */
+  trainingXp: z.number().int().nonnegative().default(0),
 });
 
 const Tech = z.object({
@@ -287,6 +295,12 @@ const Combat = z.object({
   colonyGunAccuracy: z.number().int().min(0).max(100),
   /** Militia lost to a failed invasion that returns each turn (when not under siege). */
   militiaRegenPerTurn: z.number().int().nonnegative(),
+  /** Experience ranks, lowest first: the experience needed for each. */
+  ranks: z.array(z.object({ name: z.string().min(1), xp: z.number().int().nonnegative() })).min(1),
+  /** Experience a ship earns for a battle it survives, per enemy ship it destroys, and for fighting outnumbered. */
+  xpPerBattle: z.number().int().nonnegative(),
+  xpPerKill: z.number().int().nonnegative(),
+  xpOutnumbered: z.number().int().nonnegative(),
 });
 
 const scale = z.number().int().min(0).max(10);

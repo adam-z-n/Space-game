@@ -100,7 +100,7 @@ export function migrateState(state: GameState, pack: ContentPack): GameState {
       const designId = empire.designs.some((d) => d.id === fleet.templateId) ? fleet.templateId! : "frigate";
       delete fleet.templateId;
       const maxHp = designStats(pack, empire.designs.find((d) => d.id === designId)!, empireEffects(pack, empire)).maxHp;
-      fleet.ships = [{ id: migrated.nextId++, designId, hp: maxHp }];
+      fleet.ships = [{ id: migrated.nextId++, designId, hp: maxHp, xp: 0 }];
       fleet.orders = defaultOrders(fleetArmed(pack, migrated, fleet));
       fleet.supply = fleetMaxSupply(pack, migrated, fleet);
     }
@@ -178,6 +178,18 @@ export function migrateState(state: GameState, pack: ContentPack): GameState {
       for (const design of startingDesigns(pack)) if (!empire.designs.some((d) => d.id === design.id)) empire.designs.push(design);
     }
     old.version = 11;
+  }
+
+  if (old.version === 11) {
+    // v12: resupply only at colonies and depots, supply ships' stores, ship experience.
+    for (const fleet of migrated.fleets) {
+      fleet.stores = 0;
+      for (const ship of fleet.ships) ship.xp = 0;
+    }
+    for (const empire of migrated.empires) {
+      for (const design of startingDesigns(pack)) if (!empire.designs.some((d) => d.id === design.id)) empire.designs.push(design);
+    }
+    old.version = 12;
   }
 
   if (startVersion !== migrated.version) {

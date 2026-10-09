@@ -27,6 +27,27 @@ interface Combatant {
   designName: string;
   formation: Formation;
   depleted: boolean;
+  /** Accuracy and evasion from the crew's experience rank. */
+  veteran: number;
+}
+
+/** Index into the content pack's ranks for an amount of experience. */
+export function rankOf(pack: ContentPack, xp: number): number {
+  let rank = 0;
+  pack.combat.ranks.forEach((r, i) => {
+    if (xp >= r.xp) rank = i;
+  });
+  return rank;
+}
+
+/** Accuracy and evasion a ship's experience is worth: rank times its hull's veteran bonus. */
+export function veteranBonus(pack: ContentPack, hullId: string, xp: number): number {
+  return rankOf(pack, xp) * (pack.hulls.find((h) => h.id === hullId)?.veteranBonus ?? 0);
+}
+
+/** The best command network alive in a fleet (0 without one). */
+function commandBonus(fleet: Fleet, combatants: Map<number, Combatant>): number {
+  return fleet.ships.reduce((n, s) => Math.max(n, s.hp > 0 ? combatants.get(s.id)!.stats.command : 0), 0);
 }
 
 export function resolveCombat(state: GameState, pack: ContentPack, events: GameEvent[]): void {
@@ -111,9 +132,10 @@ function fight(
       id: -key,
       empireId: station.empireId,
       name: station.name,
-      ships: [{ id: key, designId: "", hp: station.hp }],
+      ships: [{ id: key, designId: "", hp: station.hp, xp: 0 }],
       orders: { mission: "engage", stance: "balanced", targetPriority: "warships", retreatPercent: 100 },
       supply: 1,
+      stores: 0,
       speed: 0,
       sensorRange: 0,
       systemId,
@@ -132,6 +154,7 @@ function fight(
       designName: station.name,
       formation: "front",
       depleted: false,
+      veteran: 0,
     });
     return fleet;
   });
@@ -149,6 +172,7 @@ function fight(
         designName: design.name,
         formation: design.formation,
         depleted: fleet.supply <= 0,
+        veteran: veteranBonus(pack, design.hull, ship.xp),
       });
     }
   }
@@ -197,6 +221,8 @@ function fight(
 
     // Point defense mounts per fleet, counted at the start of the round.
     const pointDefense = new Map(fighting.map((f) => [f.id, f.ships.reduce((n, s) => n + combatants.get(s.id)!.stats.pointDefense, 0)]));
+    // Command networks coordinate their whole fleet while the command ship lives.
+    const command = new Map(fighting.map((f) => [f.id, commandBonus(f, combatants)]));
     const shots: BattleShot[] = [];
     for (const fleet of fighting) {
       const enemyFleets = fighting.filter((f) => f.empireId !== fleet.empireId);
@@ -207,7 +233,7 @@ function fight(
         const attacker = combatants.get(ship.id)!;
         for (const weapon of attacker.stats.weapons) {
           if (weapon.range < range) continue; // out of reach at this range
-          shots.push(fire(pack, rng, fleet, attacker, weapon, enemies, pointDefense));
+          shots.push(fire(pack, rng, fleet, attacker, weapon, enemies, pointDefense, command));
         }
       }
     }
@@ -238,6 +264,20 @@ function fight(
     }
     report.rounds.push({ range, disrupted: [...disrupted].sort((a, b) => a - b), shots, retreated: withdrew });
     range = nextRange(pack, range, active(), combatants, stations);
+  }
+
+  // Experience for every ship that came through: a battle survived, kills, and odds overcome.
+  const kills = new Map<number, number>();
+  for (const r of report.rounds) for (const shot of r.shots) if (shot.destroyed) kills.set(shot.attacker, (kills.get(shot.attacker) ?? 0) + 1);
+  const sideHp = new Map<EmpireId, number>();
+  for (const f of fleets) sideHp.set(f.empireId, (sideHp.get(f.empireId) ?? 0) + startHp.get(f.id)!);
+  for (const fleet of shipFleets) {
+    const enemyHp = [...sideHp].filter(([e]) => e !== fleet.empireId).reduce((n, [, hp]) => n + hp, 0);
+    const outnumbered = enemyHp > (sideHp.get(fleet.empireId) ?? 0);
+    for (const ship of fleet.ships) {
+      if (ship.hp <= 0) continue;
+      ship.xp += cfg.xpPerBattle + (kills.get(ship.id) ?? 0) * cfg.xpPerKill + (outnumbered ? cfg.xpOutnumbered : 0);
+    }
   }
 
   // Outcome per empire.
@@ -280,7 +320,16 @@ function fight(
 }
 
 /** One weapon's shot: pick a target, let screens and point defense have their say, roll to hit. */
-function fire(pack: ContentPack, rng: Rng, fleet: Fleet, attacker: Combatant, weapon: Weapon, enemies: Combatant[], pointDefense: Map<FleetId, number>): BattleShot {
+function fire(
+  pack: ContentPack,
+  rng: Rng,
+  fleet: Fleet,
+  attacker: Combatant,
+  weapon: Weapon,
+  enemies: Combatant[],
+  pointDefense: Map<FleetId, number>,
+  command: Map<FleetId, number>,
+): BattleShot {
   const cfg = pack.combat;
   const fighters = weapon.special === "fighters";
   let target = rng.weighted(enemies, (e) => targetWeight(pack, fleet, e, fighters));
@@ -296,8 +345,15 @@ function fire(pack: ContentPack, rng: Rng, fleet: Fleet, attacker: Combatant, we
     const stop = Math.min(cfg.pointDefenseMax, pd * cfg.pointDefensePercent);
     if (stop > 0 && rng.int(1, 100) <= stop) return { attacker: attacker.ship.id, target: target.ship.id, damage: 0, destroyed: false, intercepted: true };
   }
-  const evasion = target.stats.evasion + target.stats.maneuver * cfg.maneuverEvasion + (target.formation === "support" ? cfg.supportEvasion : 0) + (guided ? target.stats.jamming : 0);
-  const chance = Math.max(5, weapon.accuracy - evasion);
+  const evasion =
+    target.stats.evasion +
+    target.stats.maneuver * cfg.maneuverEvasion +
+    (target.formation === "support" ? cfg.supportEvasion : 0) +
+    (guided ? target.stats.jamming : 0) +
+    target.veteran +
+    Math.floor((command.get(target.fleet.id) ?? 0) / 2);
+  const accuracy = weapon.accuracy + attacker.veteran + (command.get(fleet.id) ?? 0);
+  const chance = Math.max(5, accuracy - evasion);
   let damage = 0;
   if (rng.int(1, 100) <= chance) {
     const shield = weapon.special === "pierce" ? 0 : target.stats.shield;
@@ -340,7 +396,9 @@ function nextRange(pack: ContentPack, range: number, fighting: Fleet[], combatan
       .filter((f) => f.empireId === side && !stations.has(f.id))
       .flatMap((f) => f.ships.map((s) => combatants.get(s.id)!))
       .filter((c) => c.stats.armed && c.formation !== "support");
-    const agility = line.length > 0 ? Math.min(...line.map((c) => c.stats.maneuver)) : -1;
+    // A command network lets the fleet maneuver as one: +1.
+    const coordinated = fighting.some((f) => f.empireId === side && commandBonus(f, combatants) > 0);
+    const agility = line.length > 0 ? Math.min(...line.map((c) => c.stats.maneuver)) + (coordinated ? 1 : 0) : -1;
     return { want: best, agility };
   });
   const top = Math.max(...plans.map((p) => p.agility));
@@ -380,6 +438,8 @@ function stationStats(defense: ColonyDefense): DesignStats {
     outpost: false,
     commandos: 0,
     stealth: false,
+    stores: 0,
+    command: 0,
   };
 }
 

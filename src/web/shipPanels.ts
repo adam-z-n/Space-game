@@ -7,6 +7,9 @@ import {
   empireEffects,
   findFleet,
   fleetMaxSupply,
+  fleetMaxStores,
+  rankOf,
+  veteranBonus,
   fleetShipStats,
   fleetStrength,
   getComponent,
@@ -70,6 +73,8 @@ export function designSummary(pack: ContentPack, empire: Empire, design: Pick<Sh
     stats.mines ? `lays ${stats.mines} mines/turn` : "",
     stats.bombard ? `bombs ${stats.bombard}/turn` : "",
     stats.pointDefense ? `point defense ${stats.pointDefense}` : "",
+    stats.stores ? `${stats.stores} stores` : "",
+    stats.command ? `fleet command +${stats.command}%` : "",
   ].filter(Boolean);
   return `${getHull(pack, design.hull).name}: ${parts} · ${stats.maxHp} hp${stats.shield ? ` · shield ${stats.shield}` : ""}${attack}${reach} · speed ${stats.speed} · maneuver ${stats.maneuver}${extras.length ? ` · ${extras.join(" · ")}` : ""}`;
 }
@@ -263,12 +268,14 @@ export function fleetDetail(ctx: ShipContext, fleetId: FleetId): HTMLElement | n
   const maxSupply = fleetMaxSupply(pack, game.state, fleet);
   for (const id of [...selectedShips]) if (!fleet.ships.some((s) => s.id === id)) selectedShips.delete(id);
 
+  const maxStores = fleetMaxStores(pack, game.state, fleet);
+  const storesText = maxStores > 0 ? ` · supply ships: ${fleet.stores}/${maxStores} stores (${Math.floor(fleet.stores / fleet.ships.length)} more turns)` : "";
   const supply =
     fleet.supply >= maxSupply
-      ? h("div", { className: "muted small", textContent: `Supplied · ${maxSupply} turns of endurance` })
+      ? h("div", { className: "muted small", textContent: `Fully supplied · ${maxSupply} turns away from a colony or depot${storesText}` })
       : fleet.supply > 0
-        ? h("div", { className: "warn-text small", textContent: `Outside supply · ${fleet.supply}/${maxSupply} turns left` })
-        : h("div", { className: "danger-text small", textContent: "Out of supply: slower, half damage, losing hull each turn" });
+        ? h("div", { className: "warn-text small", textContent: `In the field · ${fleet.supply}/${maxSupply} turns of supply left${storesText}` })
+        : h("div", { className: "danger-text small", textContent: "Out of supply: slower, half damage, losing hull each turn. Return to a colony or depot." });
 
   // Ships: one line per design when there are many, individual rows (selectable) when few or when detaching.
   const ships = h("ul");
@@ -279,7 +286,12 @@ export function fleetDetail(ctx: ShipContext, fleetId: FleetId): HTMLElement | n
       "li",
       { className: `tappable${on ? " on" : ""}` },
       spriteIcon(pack, getDesign(empire, ship.designId).hull, empire.color, 2),
-      h("span", { className: "grow" }, h("div", { textContent: `${on ? "☑ " : ""}${getDesign(empire, ship.designId).name}` }), bar(ship.hp / s.maxHp)),
+      h(
+        "span",
+        { className: "grow" },
+        h("div", {}, `${on ? "☑ " : ""}${getDesign(empire, ship.designId).name}`, h("span", { className: "muted small", textContent: ` · ${rankLabel(pack, getDesign(empire, ship.designId).hull, ship.xp)}` })),
+        bar(ship.hp / s.maxHp),
+      ),
       h("span", { className: "small", textContent: `${ship.hp}/${s.maxHp}` }),
     );
     li.onclick = () => {
@@ -421,4 +433,11 @@ export function battlePanel(ctx: ShipContext, report: BattleReport, round: numbe
     rounds,
     log,
   );
+}
+
+/** "Veteran (+8%)": the crew's rank and what it is worth on this hull. */
+export function rankLabel(pack: ContentPack, hullId: string, xp: number): string {
+  const rank = pack.combat.ranks[rankOf(pack, xp)]!;
+  const bonus = veteranBonus(pack, hullId, xp);
+  return bonus > 0 ? `${rank.name} (+${bonus}%)` : rank.name;
 }

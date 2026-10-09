@@ -1,5 +1,21 @@
 # Changelog
 
+## 1.2.0 (in progress)
+
+Logistics, experience and command:
+
+- Fleets resupply only at your colonies (unless blockaded) and supply depots. Every turn away costs a turn of
+  supply; endurance rises to 10-16 turns by hull. Repairs also happen only there, or with a repair tender.
+- Supply ships (Supply Hold, from Extended Tanks) carry stores that keep their fleet supplied in the field:
+  one ship-turn per ship each turn until the stores run out. They refill at colonies and depots.
+- Ships gain experience from battles they survive, more for kills and for fighting outnumbered, and rank up from
+  Green to Regular, Veteran, Elite and Ace. Each rank adds accuracy and evasion: +1% on escorts and freighters up
+  to +5% on dreadnoughts. A Military Academy trains new ships as Regulars.
+- Fleet Command Network (Fleet Command tech, battleships and larger): while the command ship lives, its whole
+  fleet gets +10% accuracy, +5% evasion and +1 maneuver.
+- The map shows resupply points instead of a supply range; the fleet sheet shows supply, stores and each ship's rank.
+- The AI plans its trips home to resupply, sends supply ships with its strike forces and uses command networks.
+
 ## 1.1.0
 
 Map and planning:
