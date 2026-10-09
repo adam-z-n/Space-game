@@ -23,6 +23,10 @@ export function planOperations(ctx: AiContext, strategy: Strategy): void {
 
 const free = (ctx: AiContext, f: FleetInfo) => !ctx.busy.has(f.fleet.id);
 
+/** Warships a fleet can hold before it fights less well together (more with a command network aboard). */
+const sizeLimit = (ctx: AiContext, info: FleetInfo) =>
+  ctx.pack.combat.fleetSizeLimit + (fleetShipStats(ctx.pack, ctx.state, info.fleet).some((s) => s.command > 0) ? ctx.pack.combat.commandSizeBonus : 0);
+
 /** Systems unarmed ships should stay out of: recent enemy warships and defended rival colonies. */
 function dangerZones(ctx: AiContext): Set<SystemId> {
   return new Set([...ctx.recentEnemies.map((s) => s.systemId), ...ctx.rivalColonies.filter((c) => c.defenseHp > 0).map((c) => c.systemId)]);
@@ -203,8 +207,11 @@ function attack(ctx: AiContext, strategy: Strategy): void {
   if (!target) return;
   // Strike forces already under way to the target (or fighting there) carry on; otherwise the
   // regrouping below would call them back to staging every turn and they would never arrive.
+  let underway = 0;
   for (const info of pool) {
-    if ((info.fleet.route.at(-1) ?? info.fleet.systemId) === target.colony.systemId) ctx.busy.add(info.fleet.id);
+    if ((info.fleet.route.at(-1) ?? info.fleet.systemId) !== target.colony.systemId) continue;
+    ctx.busy.add(info.fleet.id);
+    underway += info.strength;
   }
 
   // Staging: the supplied system closest to the target.
@@ -229,8 +236,30 @@ function attack(ctx: AiContext, strategy: Strategy): void {
     }
   }
 
-  if (raider || ready >= needed) {
-    for (const info of raider ? pool : atStaging) moveTo(ctx, info, target.colony.systemId);
+  // A strike force strong enough is already on its way: new arrivals wait at staging and form up.
+  if (raider || (ready >= needed && underway < needed)) {
+    // Form the warships waiting at staging into full fleets (the anchor first, which carries the
+    // troops), so a strike goes out as a few fleets rather than a stream of single ships.
+    const launching: FleetInfo[] = [];
+    if (raider) launching.push(...pool);
+    else {
+      const waiting = [...atStaging].sort((a, b) => Number(b === anchor) - Number(a === anchor) || b.strength - a.strength || a.fleet.id - b.fleet.id);
+      let lead: FleetInfo | null = null;
+      let room = 0;
+      for (const info of waiting) {
+        const ships = combatShipCount(ctx.pack, ctx.state, info.fleet);
+        if (lead && ships <= room) {
+          ctx.busy.add(info.fleet.id);
+          ctx.commands.push({ type: "mergeFleets", empireId: ctx.id, fleetId: info.fleet.id, intoFleetId: lead.fleet.id });
+          room -= ships;
+          continue;
+        }
+        lead = info;
+        room = sizeLimit(ctx, info) - ships;
+        launching.push(info);
+      }
+    }
+    for (const info of launching) moveTo(ctx, info, target.colony.systemId);
     if (anchor && carried > 0 && !raider) {
       ctx.commands.push({ type: "invade", empireId: ctx.id, fleetId: anchor.fleet.id, colonyId: target.colony.colonyId });
     }
@@ -275,8 +304,7 @@ function gather(ctx: AiContext, strategy: Strategy): void {
   if (!ctx.capital) return;
   const home = ctx.capital.systemId;
   // Stay within the fleet size limit (larger with a command network aboard); only warships count.
-  const limit = (info: FleetInfo) =>
-    ctx.pack.combat.fleetSizeLimit + (fleetShipStats(ctx.pack, ctx.state, info.fleet).some((s) => s.command > 0) ? ctx.pack.combat.commandSizeBonus : 0);
+  const limit = (info: FleetInfo) => sizeLimit(ctx, info);
   const style = ctx.personality.designStyle === "raider" && !strategy.endgame ? 4 : Infinity;
   const idle = warships(ctx).filter((f) => f.idle);
   const bySystem = new Map<SystemId, FleetInfo[]>();

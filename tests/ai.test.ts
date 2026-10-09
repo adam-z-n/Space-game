@@ -146,6 +146,25 @@ describe("AI behaviour", () => {
       expect(merge).toBeDefined();
     });
 
+    it("forms warships waiting at staging into full fleets when it launches", () => {
+      const s = armed("turns200", "warlord", 0); // one full fleet of 8 frigates at home
+      const ai = s.empires[1]!;
+      const dist = buildContext(s, pack, 1).dist(ai.homeSystemId);
+      const next = s.galaxy.systems.map((x) => x.id).filter((id) => id !== ai.homeSystemId).sort((a, b) => dist[a]! - dist[b]!)[0]!;
+      ai.colonySightings[0]!.systemId = next;
+      const singles = [0, 1, 2].map(() => newFleet(s, pack, ai, ["frigate"], ai.homeSystemId));
+      s.fleets.push(...singles);
+      const cmds = planAiTurn(s, pack, 1);
+      // The full fleet can't take more, so the singles join the starting pair of frigates as a second fleet.
+      const merged = cmds.filter((c) => c.type === "mergeFleets" && singles.some((f) => f.id === c.fleetId));
+      expect(merged).toHaveLength(3);
+      // Two fleets head out; none of the singles goes on its own.
+      const launched = cmds.filter((c) => c.type === "moveFleet" && c.destinationId === next).map((c) => (c.type === "moveFleet" ? c.fleetId : -1));
+      const into = new Set(merged.map((c) => (c.type === "mergeFleets" ? c.intoFleetId : -1)));
+      expect(launched).toEqual(expect.arrayContaining([...into]));
+      expect(launched.filter((id) => singles.some((f) => f.id === id))).toEqual([]);
+    });
+
     it("never drives for the endgame in games with a turn limit", () => {
       const s = armed("turns400", "turtle", 0);
       s.turn = 390;
