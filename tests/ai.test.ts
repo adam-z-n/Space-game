@@ -118,6 +118,21 @@ describe("AI behaviour", () => {
       expect(plan(armed("turns200", "warlord", own * 2)).posture).not.toBe("attack");
     });
 
+    it("lets a strike force already on its way to the target carry on", () => {
+      const s = armed("turns200", "warlord", 0);
+      const ai = s.empires[1]!;
+      // Move the rival colony we know of next door, well within the strike force's supply.
+      const dist = buildContext(s, pack, 1).dist(ai.homeSystemId);
+      const target = s.galaxy.systems.map((x) => x.id).filter((id) => id !== ai.homeSystemId).sort((a, b) => dist[a]! - dist[b]!)[0]!;
+      ai.colonySightings[0]!.systemId = target;
+      const strike = s.fleets.at(-1)!;
+      strike.route = [target];
+      strike.progress = 10;
+      expect(plan(s).posture).toBe("attack");
+      const orders = planAiTurn(s, pack, 1).filter((c) => c.type === "moveFleet" && c.fleetId === strike.id);
+      expect(orders).toEqual([]);
+    });
+
     it("never drives for the endgame in games with a turn limit", () => {
       const s = armed("turns400", "turtle", 0);
       s.turn = 390;

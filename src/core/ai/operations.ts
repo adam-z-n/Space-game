@@ -201,6 +201,11 @@ function attack(ctx: AiContext, strategy: Strategy): void {
     .sort((a, b) => (raider ? a.guard - b.guard : 0) || a.d - b.d || a.colony.colonyId - b.colony.colonyId);
   const target = candidates[0];
   if (!target) return;
+  // Strike forces already under way to the target (or fighting there) carry on; otherwise the
+  // regrouping below would call them back to staging every turn and they would never arrive.
+  for (const info of pool) {
+    if ((info.fleet.route.at(-1) ?? info.fleet.systemId) === target.colony.systemId) ctx.busy.add(info.fleet.id);
+  }
 
   // Staging: the supplied system closest to the target.
   const staging = nearest(ctx, target.colony.systemId, [...ctx.supplied]) ?? ctx.capital.systemId;
