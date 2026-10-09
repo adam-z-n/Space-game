@@ -5,6 +5,7 @@ import {
   applyCommand,
   attentionItems,
   createInitialState,
+  migrateState,
   deserializeSave,
   empireView,
   planMove,
@@ -135,6 +136,24 @@ describe("save migration", () => {
     const save = JSON.parse(json);
     save.state.version = 999;
     expect(() => deserializeSave(JSON.stringify(save), defaultPack())).toThrow(/newer version of the game/);
+  });
+
+  it("turns repair tenders from older saves into supply ships, dropping unused tender designs", () => {
+    const pack = defaultPack();
+    const s = createInitialState({ seed: "tenders", galaxySize: "small", aiCount: 2 }, pack);
+    const empire = s.empires[0]!;
+    empire.designs.push(
+      { id: "repair_tender", name: "Repair Tender", hull: "transport", components: ["repair_bay", "armor_plating"], formation: "support", obsolete: false },
+      { id: "tender_mk2", name: "Tender Mk II", hull: "transport", components: ["repair_bay", "repair_bay"], formation: "support", obsolete: false },
+    );
+    const fleet = s.fleets.find((f) => f.empireId === 0)!;
+    fleet.ships[0]!.designId = "repair_tender";
+    s.version = 14;
+    const migrated = migrateState(s, pack);
+    const designs = migrated.empires[0]!.designs;
+    expect(designs.some((d) => d.id === "tender_mk2")).toBe(false);
+    expect(designs.find((d) => d.id === "repair_tender")).toMatchObject({ components: ["supply_hold", "armor_plating"], obsolete: true });
+    expect(designs.flatMap((d) => d.components)).not.toContain("repair_bay");
   });
 
   it("loads a real Milestone 2 save and keeps playing", () => {

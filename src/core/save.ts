@@ -212,6 +212,21 @@ export function migrateState(state: GameState, pack: ContentPack): GameState {
     old.version = 14;
   }
 
+  if (old.version === 14) {
+    // v15: repair tenders are gone; supply ships repair instead. Unused designs with a
+    // Repair Bay are dropped; ones still in service become (obsolete) supply ships.
+    for (const empire of migrated.empires) {
+      const inService = new Set(migrated.fleets.filter((f) => f.empireId === empire.id).flatMap((f) => f.ships.map((s) => s.designId)));
+      empire.designs = empire.designs.filter((d) => !d.components.includes("repair_bay") || inService.has(d.id));
+      for (const design of empire.designs) {
+        if (!design.components.includes("repair_bay")) continue;
+        design.components = design.components.map((c) => (c === "repair_bay" ? "supply_hold" : c));
+        design.obsolete = true;
+      }
+    }
+    old.version = 15;
+  }
+
   if (startVersion !== migrated.version) {
     for (const empire of migrated.empires) refreshEmpireStats(migrated, pack, empire);
     updateSightings(migrated, pack, null, migrated.turn);

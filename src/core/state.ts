@@ -5,7 +5,7 @@ import type { BodyKind, Formation } from "../content/schema";
  * so it can be cloned, saved, hashed, and sent over a network unchanged.
  */
 
-export const STATE_VERSION = 14;
+export const STATE_VERSION = 15;
 
 export type SystemId = number;
 export type EmpireId = number;

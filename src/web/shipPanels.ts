@@ -59,7 +59,7 @@ const FORMATION_LABELS: Record<Formation, string> = { front: "Front line", scree
 export const FORMATION_HELP: Record<Formation, string> = {
   front: "Front line: closes with the enemy and draws most of its fire. Its maneuver decides who sets the battle range.",
   screen: "Screen: moves in front of your support ships and takes half the shots aimed at them (fighters slip past).",
-  support: "Support: hangs back, is targeted least and is harder to hit (+10% evasion). Use for transports, tenders and carriers.",
+  support: "Support: hangs back, is targeted least and is harder to hit (+10% evasion). Use for transports, supply ships and carriers.",
 };
 
 const ROLE_LABELS = { combat: "warship", transport: "transport", recon: "scout", support: "support ship" } as const;

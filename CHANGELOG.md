@@ -11,9 +11,12 @@ Victory conditions:
 Logistics, experience and command:
 
 - Fleets resupply only at your colonies (unless blockaded) and supply depots. Every turn away costs a turn of
-  supply; endurance rises to 10-16 turns by hull. Repairs also happen only there, or with a repair tender.
+  supply; endurance rises to 10-16 turns by hull. Repairs also happen only there, or from supply ships.
 - Supply ships (Supply Hold, from Extended Tanks) carry stores that keep their fleet supplied in the field:
-  one ship-turn per ship each turn until the stores run out. They refill at colonies and depots.
+  one ship-turn per ship each turn until the stores run out. They also reload spent missile launchers (one ship-turn
+  per ship rearmed) and, with Field Repair, mend 15% of every ship's hull a turn and fix one knocked-out part per
+  ship. They refill at colonies and depots. Supply ships replace repair tenders: the Repair Bay and the Repair
+  Tender design are gone, and tenders in older saves become supply ships.
 - Ships gain experience from battles they survive, more for kills and for fighting outnumbered, and rank up from
   Green to Regular, Veteran, Elite and Ace. Each rank adds accuracy and evasion: +1% on escorts and freighters up
   to +5% on dreadnoughts. A Military Academy trains new ships as Regulars.
@@ -51,7 +54,7 @@ Combat:
   and rearm only at your colonies and depots. Beams never run dry.
 - Battle damage: a heavy hit can knock out one of a ship's weapons, shields, engines or electronics (chance is the
   damage as a share of its hull, up to 40%). Knocked-out parts stay out until repaired at a colony or depot;
-  repair tenders and Damage Control fix one per ship per turn in the field.
+  supply ships (with Field Repair) and Damage Control fix one per ship per turn in the field.
 - Pursuit: a fleet that withdraws takes a parting volley from enemy ships more maneuverable than its slowest ship.
   Hit-and-Run Doctrine avoids it; Tractor Beams let every one of your ships take the shot.
 - Fleet size: fleets of more than 8 warships (14 with a command network) lose 3% accuracy and evasion per extra
