@@ -109,7 +109,9 @@ describe("schools", () => {
     const terran = fresh("terran").empires[0]!;
     const lance = getTech(pack, "plasma_lances");
     expect(techCost(pack, terran, lance)).toBe(lance.cost);
-    expect(techCost(pack, felari, lance)).toBe(Math.ceil((lance.cost * 100) / 130));
+    const bonus = pack.species.find((s) => s.id === "felari")!.research.affinityPercent;
+    expect(bonus).toBeGreaterThan(0);
+    expect(techCost(pack, felari, lance)).toBe(Math.ceil((lance.cost * 100) / (100 + bonus)));
   });
 });
 

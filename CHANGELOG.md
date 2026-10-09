@@ -23,7 +23,7 @@ Research tree:
   of three techs each.
 - Terrans, Psyrrh and Mekkan can research every school. The other six races follow one school per field: their
   first tech in a school commits them to it and closes its rivals. Each has an affinity field where research is
-  30% faster and they may follow two schools (Saurak: Biology, Kraal: Construction, Aviari: Propulsion, Lithari:
+  faster (20–50% by race) and they may follow two schools (Saurak: Biology, Kraal: Construction, Aviari: Propulsion, Lithari:
   Logistics, Felari: Weapons, Ursoni: Defense). Every race can reach at least 60% of the tree.
 - Capturing a colony has a 25% chance to capture the cheapest tech its owner knew that you don't, even one from a
   school you are locked out of (Data Theft raises the odds).

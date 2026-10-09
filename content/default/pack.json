@@ -3336,7 +3336,7 @@
       "research": {
         "access": "limited",
         "affinity": "growth",
-        "affinityPercent": 30
+        "affinityPercent": 20
       }
     },
     {
@@ -3352,7 +3352,7 @@
       "research": {
         "access": "limited",
         "affinity": "weapons",
-        "affinityPercent": 30
+        "affinityPercent": 40
       }
     },
     {
@@ -3368,7 +3368,7 @@
       "research": {
         "access": "limited",
         "affinity": "engineering",
-        "affinityPercent": 30
+        "affinityPercent": 50
       }
     },
     {
@@ -3384,7 +3384,7 @@
       "research": {
         "access": "limited",
         "affinity": "defense",
-        "affinityPercent": 30
+        "affinityPercent": 40
       }
     },
     {
@@ -3400,7 +3400,7 @@
       "research": {
         "access": "limited",
         "affinity": "propulsion",
-        "affinityPercent": 30
+        "affinityPercent": 50
       }
     },
     {
@@ -3450,7 +3450,7 @@
       "research": {
         "access": "limited",
         "affinity": "logistics",
-        "affinityPercent": 30
+        "affinityPercent": 50
       }
     }
   ],
