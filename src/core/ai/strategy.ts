@@ -1,6 +1,7 @@
 import { availableTechs, colonizeBlocker, prospectiveMaxPop, researchAccess, techCost } from "../economy";
 import { colonyOnBody, type EmpireId, type SystemId } from "../state";
-import { lean, type AiContext } from "./context";
+import { populationShares, turnLimit } from "../victory";
+import { defenseStrength, lean, type AiContext } from "./context";
 
 /**
  * The strategic layer: what the empire is trying to do this turn.
@@ -26,6 +27,32 @@ export interface Strategy {
   /** Total warship strength we want. */
   wantedStrength: number;
   colonyTargets: ColonyTarget[];
+  /**
+   * Endgame drive (games with no turn limit only): go on the offensive whatever our
+   * temperament, raiders mass into full fleets, and banked credits go into warships.
+   */
+  endgame: boolean;
+}
+
+/** Turns after which the endgame drive can start, in games with no turn limit. */
+export const ENDGAME = { leaderTurn: 250, leaderShare: 50, humansTurn: 300, humansShare: 20, allTurn: 350 };
+
+/**
+ * Whether `ctx`'s empire is in its endgame drive: only in games with no turn limit, when
+ *   (a) after turn 250 it holds more than half the galaxy's population, or
+ *   (b) after turn 300 the human players together hold less than 20% (every AI), or
+ *   (c) after turn 350 (every AI).
+ */
+export function endgameDrive(ctx: AiContext): boolean {
+  const { state, pack } = ctx;
+  if (turnLimit(state, pack) !== null) return false;
+  if (state.turn > ENDGAME.allTurn) return true;
+  if (state.turn <= ENDGAME.leaderTurn) return false;
+  const shares = populationShares(state);
+  if ((shares.get(ctx.id) ?? 0) > ENDGAME.leaderShare) return true;
+  if (state.turn <= ENDGAME.humansTurn) return false;
+  const humans = state.empires.filter((e) => !e.isAI).reduce((n, e) => n + (shares.get(e.id) ?? 0), 0);
+  return humans < ENDGAME.humansShare;
 }
 
 export function decideStrategy(ctx: AiContext): Strategy {
@@ -45,20 +72,26 @@ export function decideStrategy(ctx: AiContext): Strategy {
   const threat = ctx.recentEnemies.filter((s) => ctx.supplied.has(s.systemId)).reduce((n, s) => n + s.strength, 0);
   const blockaded = ctx.colonies.some((c) => c.blockaded);
 
-  // War target: the rival whose nearest known colony is closest to our capital; ties go to the weaker one.
+  // War target: the rival whose nearest known colony is closest to our capital; ties go to the weaker one,
+  // counting both its fleets and that colony's orbital defenses.
   let warTarget: EmpireId | null = null;
+  let targetDefense = 0;
   let best = Infinity;
   if (ctx.capital) {
     const fromCapital = ctx.dist(ctx.capital.systemId);
     for (const colony of ctx.rivalColonies) {
-      const d = fromCapital[colony.systemId]! * 10 + (ctx.rivalStrength.get(colony.empireId) ?? 0);
+      const defense = defenseStrength(colony.defenseHp);
+      const d = fromCapital[colony.systemId]! * 10 + (ctx.rivalStrength.get(colony.empireId) ?? 0) + defense;
       if (d < best) {
         best = d;
         warTarget = colony.empireId;
+        targetDefense = defense;
       }
     }
   }
-  const targetStrength = warTarget === null ? 0 : (ctx.rivalStrength.get(warTarget) ?? 0);
+  // What we'd have to beat: the target's fleets plus the defenses of its colony we'd hit first.
+  const targetStrength = warTarget === null ? 0 : (ctx.rivalStrength.get(warTarget) ?? 0) + targetDefense;
+  const endgame = endgameDrive(ctx);
 
   // How much fleet we want: scales with empire size, game time, temperament, and danger.
   const base = (ctx.colonies.length * 12 + state.turn) * lean(p.military);
@@ -66,8 +99,13 @@ export function decideStrategy(ctx: AiContext): Strategy {
 
   let posture: Posture;
   const nerve = 100 + p.caution * 10; // percent of the target's strength we want before attacking
-  if (threat > 0 && (threat * 2 >= ctx.ownStrength || blockaded)) {
+  // Our colonies' defenses fight alongside our fleets at home.
+  if (threat > 0 && (threat * 2 >= ctx.ownStrength + ctx.ownDefense || blockaded)) {
     posture = "defend";
+  } else if (endgame && warTarget !== null) {
+    // Endgame drive: attack whatever our temperament, and keep building until we can win.
+    posture = "attack";
+    wantedStrength = Math.max(wantedStrength, targetStrength * 2, ctx.ownStrength + Math.floor(ctx.ownStrength / 4) + 1);
   } else if (
     warTarget !== null &&
     p.aggression >= 4 &&
@@ -87,7 +125,7 @@ export function decideStrategy(ctx: AiContext): Strategy {
     wantedStrength = Math.max(wantedStrength, Math.floor((targetStrength * nerve) / 100));
   }
 
-  return { posture, warTarget, threat, wantedStrength, colonyTargets };
+  return { posture, warTarget, threat, wantedStrength, colonyTargets, endgame };
 }
 
 /** Pick a tech: personality field weights, nudged by what the empire needs right now. */

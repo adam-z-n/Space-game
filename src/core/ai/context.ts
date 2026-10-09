@@ -53,6 +53,8 @@ export interface AiContext {
   /** Best known strength per rival: the sum of its fleets seen in the last 15 turns. */
   rivalStrength: Map<EmpireId, number>;
   ownStrength: number;
+  /** Our colonies' orbital defenses, on the fleet-strength scale. */
+  ownDefense: number;
   commands: Command[];
   /** Fleets already given an order this turn. */
   busy: Set<number>;
@@ -125,6 +127,7 @@ export function buildContext(state: GameState, pack: ContentPack, empireId: Empi
     rivalColonies: empire.colonySightings,
     rivalStrength,
     ownStrength: fleets.filter((f) => f.armed && !f.colonize).reduce((n, f) => n + f.strength, 0),
+    ownDefense: colonies.reduce((n, c) => n + defenseStrength(c.defenseHp), 0),
     commands: [],
     busy: new Set(),
   };
@@ -155,6 +158,11 @@ export function withinReach(ctx: AiContext, info: FleetInfo, systemId: SystemId)
   const out = Math.min(...[...ctx.supplied].map((s) => ctx.dist(s)[systemId]!), Infinity);
   const turns = Math.ceil((out + back) / Math.max(1, info.fleet.speed));
   return turns <= info.maxSupply;
+}
+
+/** A colony's orbital defenses (as last seen), on the same scale as fleet strength. */
+export function defenseStrength(defenseHp: number): number {
+  return Math.floor((Math.max(0, defenseHp) * 6) / 5);
 }
 
 /** 0-10 personality value as a percent multiplier around 100 (5 = 100%). */

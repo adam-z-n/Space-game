@@ -15,6 +15,7 @@ import {
   type GameState,
 } from "../src/core";
 import { defaultPack } from "../src/content/defaultPack";
+import { chartAll } from "./helpers";
 
 const pack = defaultPack();
 
@@ -91,6 +92,63 @@ describe("AI behaviour", () => {
     const strategy = decideStrategy(buildContext(s, pack, 1));
     expect(strategy.posture).toBe("defend");
     expect(strategy.threat).toBe(200);
+  });
+
+  describe("weighing strength and the endgame drive", () => {
+    /** Empire 1 (an AI) with a strong fleet at home that has spotted empire 2's capital. */
+    const armed = (victory: string, personality: string, defenseHp: number) => {
+      const s = createInitialState({ seed: "ai-endgame", galaxySize: "small", aiCount: 2, victory }, pack);
+      const ai = s.empires[1]!;
+      ai.personality = personality;
+      s.turn = 100;
+      chartAll(s);
+      s.fleets.push(newFleet(s, pack, ai, Array.from({ length: 8 }, () => "frigate"), ai.homeSystemId));
+      const target = s.colonies.find((c) => c.empireId === 2 && c.capital)!;
+      ai.colonySightings = [
+        { colonyId: target.id, empireId: 2, systemId: target.systemId, bodyId: target.bodyId, name: target.name, population: target.population, defenseHp, troops: 5, turn: s.turn },
+      ];
+      return s;
+    };
+    const plan = (s: GameState) => decideStrategy(buildContext(s, pack, 1));
+
+    it("counts a target colony's defenses as well as its fleets", () => {
+      const own = buildContext(armed("turns200", "warlord", 0), pack, 1).ownStrength;
+      expect(plan(armed("turns200", "warlord", 0)).posture).toBe("attack");
+      // Defenses worth more than our fleet can take on put the attack off.
+      expect(plan(armed("turns200", "warlord", own * 2)).posture).not.toBe("attack");
+    });
+
+    it("never drives for the endgame in games with a turn limit", () => {
+      const s = armed("turns400", "turtle", 0);
+      s.turn = 390;
+      expect(plan(s).endgame).toBe(false);
+    });
+
+    it("drives the leader after turn 250 when it holds over half the population", () => {
+      const s = armed("domination", "turtle", 0);
+      s.turn = 260;
+      for (const c of s.colonies) c.population = c.empireId === 1 ? 60 : 20;
+      expect(plan(s)).toMatchObject({ endgame: true, posture: "attack" });
+      expect(decideStrategy(buildContext(s, pack, 2)).endgame).toBe(false);
+      s.turn = 250;
+      expect(plan(s).endgame).toBe(false);
+    });
+
+    it("drives every AI after turn 300 once the human players hold under 20%", () => {
+      const s = armed("domination", "turtle", 0);
+      s.turn = 310;
+      for (const c of s.colonies) c.population = c.empireId === 0 ? 30 : 35;
+      expect(plan(s).endgame).toBe(false);
+      for (const c of s.colonies) c.population = c.empireId === 0 ? 10 : 45;
+      expect(plan(s).endgame).toBe(true);
+    });
+
+    it("drives every AI after turn 350", () => {
+      const s = armed("total", "turtle", 0);
+      s.turn = 351;
+      for (const c of s.colonies) c.population = 33;
+      expect(plan(s)).toMatchObject({ endgame: true, posture: "attack" });
+    });
   });
 
   it("creates warship designs in its personality's style", () => {

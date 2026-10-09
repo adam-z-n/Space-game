@@ -7,6 +7,12 @@ Victory conditions:
 - Choose how to win at setup: 200 turns (as before), 400 turns, Domination (no turn limit; hold 75% of the
   galaxy's population) or Total domination (no turn limit; hold all of it). Outlasting every rival always wins.
   Saves from earlier versions play as 200-turn games.
+- AI empires now count planetary defenses, not just fleets: a rival's colony defenses when sizing up an attack,
+  and their own when deciding whether an intruder is a real threat.
+- Endgame drive, in games with no turn limit: an AI holding over half the galaxy's population after turn 250 goes on
+  the offensive; after turn 300, if the human players hold under 20% between them, every AI does; after turn 350,
+  every AI does regardless. Driving AIs attack whatever their temperament, raiders mass into full fleets and
+  invade, and banked credits go into warships.
 
 Logistics, experience and command:
 

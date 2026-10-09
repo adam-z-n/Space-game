@@ -1,7 +1,7 @@
 import { combatShipCount, fleetShipStats } from "../ships";
 import { colonyOnBody, type FleetOrders, type OutpostKind, type SystemId } from "../state";
 import { outpostBlocker } from "../outposts";
-import { fleetAt, moveTo, withinReach, type AiContext, type FleetInfo } from "./context";
+import { defenseStrength, fleetAt, moveTo, withinReach, type AiContext, type FleetInfo } from "./context";
 import type { Strategy } from "./strategy";
 
 /**
@@ -18,7 +18,7 @@ export function planOperations(ctx: AiContext, strategy: Strategy): void {
   invade(ctx);
   attack(ctx, strategy);
   garrison(ctx, strategy);
-  gather(ctx);
+  gather(ctx, strategy);
 }
 
 const free = (ctx: AiContext, f: FleetInfo) => !ctx.busy.has(f.fleet.id);
@@ -180,15 +180,17 @@ function defend(ctx: AiContext, strategy: Strategy): void {
 /** Gather at a staging system on our side of the border, then strike a rival colony we can beat. */
 function attack(ctx: AiContext, strategy: Strategy): void {
   if (strategy.posture !== "attack") return;
-  const raider = ctx.personality.designStyle === "raider";
+  // In the endgame drive raiders fight as one massed fleet and invade like everyone else.
+  const raider = ctx.personality.designStyle === "raider" && !strategy.endgame;
   const pool = warships(ctx);
   if (pool.length === 0 || !ctx.capital) return;
   const total = pool.reduce((n, f) => n + f.strength, 0);
-  const nerve = 100 + ctx.personality.caution * 10;
+  // The endgame drive also steadies cautious temperaments: a 20% edge is enough.
+  const nerve = strategy.endgame ? Math.min(120, 100 + ctx.personality.caution * 10) : 100 + ctx.personality.caution * 10;
   // Known warships there plus the colony's orbital defenses as last seen.
   const guardAt = (systemId: SystemId) =>
     ctx.recentEnemies.filter((s) => s.systemId === systemId).reduce((n, s) => n + s.strength, 0) +
-    ctx.rivalColonies.filter((c) => c.systemId === systemId).reduce((n, c) => n + Math.floor((c.defenseHp * 6) / 5), 0);
+    ctx.rivalColonies.filter((c) => c.systemId === systemId).reduce((n, c) => n + defenseStrength(c.defenseHp), 0);
   const lead = [...pool].sort((a, b) => b.strength - a.strength || a.fleet.id - b.fleet.id)[0]!;
 
   const candidates = ctx.rivalColonies
@@ -261,14 +263,14 @@ function garrison(ctx: AiContext, strategy: Strategy): void {
   }
 }
 
-/** Everything left goes home and forms up; raiders keep small packs. */
-function gather(ctx: AiContext): void {
+/** Everything left goes home and forms up; raiders keep small packs (except in the endgame drive). */
+function gather(ctx: AiContext, strategy: Strategy): void {
   if (!ctx.capital) return;
   const home = ctx.capital.systemId;
   // Stay within the fleet size limit (larger with a command network aboard); only warships count.
   const limit = (info: FleetInfo) =>
     ctx.pack.combat.fleetSizeLimit + (fleetShipStats(ctx.pack, ctx.state, info.fleet).some((s) => s.command > 0) ? ctx.pack.combat.commandSizeBonus : 0);
-  const style = ctx.personality.designStyle === "raider" ? 4 : Infinity;
+  const style = ctx.personality.designStyle === "raider" && !strategy.endgame ? 4 : Infinity;
   const idle = warships(ctx).filter((f) => f.idle);
   const bySystem = new Map<SystemId, FleetInfo[]>();
   for (const info of idle) bySystem.set(info.fleet.systemId, [...(bySystem.get(info.fleet.systemId) ?? []), info]);
