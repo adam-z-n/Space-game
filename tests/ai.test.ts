@@ -158,6 +158,13 @@ describe("AI behaviour", () => {
       expect(plan(s).endgame).toBe(true);
     });
 
+    it("still drives in an open-ended game given a safety turn cap", () => {
+      const s = armed("domination", "turtle", 0);
+      s.settings.turnLimit = 1000;
+      s.turn = 351;
+      expect(plan(s).endgame).toBe(true);
+    });
+
     it("drives every AI after turn 350", () => {
       const s = armed("total", "turtle", 0);
       s.turn = 351;

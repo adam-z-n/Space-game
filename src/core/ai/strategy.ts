@@ -1,6 +1,6 @@
 import { availableTechs, colonizeBlocker, prospectiveMaxPop, researchAccess, techCost } from "../economy";
 import { colonyOnBody, type EmpireId, type SystemId } from "../state";
-import { populationShares, turnLimit } from "../victory";
+import { populationShares, victoryMode } from "../victory";
 import { defenseStrength, lean, type AiContext } from "./context";
 
 /**
@@ -45,7 +45,8 @@ export const ENDGAME = { leaderTurn: 250, leaderShare: 50, humansTurn: 300, huma
  */
 export function endgameDrive(ctx: AiContext): boolean {
   const { state, pack } = ctx;
-  if (turnLimit(state, pack) !== null) return false;
+  // The victory mode decides (a testing cap on an open-ended game doesn't switch the drive off).
+  if (victoryMode(state, pack).turnLimit !== null) return false;
   if (state.turn > ENDGAME.allTurn) return true;
   if (state.turn <= ENDGAME.leaderTurn) return false;
   const shares = populationShares(state);
