@@ -382,9 +382,11 @@ export class GalaxyMap {
       const a = systems[lane.a]!;
       const b = systems[lane.b]!;
       parts.push(`<line class="lane" x1="${a.x}" y1="${a.y}" x2="${b.x}" y2="${b.y}" stroke-width="${px(1.5)}"/>`);
-      if (supplied.has(lane.a) && supplied.has(lane.b)) {
-        parts.push(`<line class="supply-lane" x1="${a.x}" y1="${a.y}" x2="${b.x}" y2="${b.y}" stroke="${myColor}" stroke-width="${px(5)}"/>`);
-      }
+    }
+    // Resupply points (colonies and depots): a soft halo where fleets refill and repair.
+    for (const id of supplied) {
+      const sys = systems[id]!;
+      parts.push(`<circle class="supply-lane" cx="${sys.x}" cy="${sys.y}" r="${px(26)}" fill="${myColor}" stroke="none"/>`);
     }
 
     // Standing orders of the player's fleets.

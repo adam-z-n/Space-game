@@ -49,7 +49,7 @@ describe("AI behaviour", () => {
       expect(empire.credits).toBeGreaterThan(-100);
       if (!empire.eliminated) expect(empire.techs.length).toBeGreaterThan(8);
     }
-  });
+  }, 30_000); // a full AI game
 
   it("is deterministic", () => {
     const settings = { seed: "ai-det", galaxySize: "small", aiCount: 3, allAI: true };

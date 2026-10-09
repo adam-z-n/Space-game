@@ -1,43 +1,32 @@
+import { empireEffects, hasFlag } from "./economy";
 import type { ContentPack } from "../content/schema";
-import { empireEffects } from "./economy";
-import { buildAdjacency, shortestPaths } from "./graph";
 import { fleetArmed, fleetMaxSupply, fleetShipStats, refreshFleetStats, shipStats } from "./ships";
 import type { EmpireId, Fleet, GameEvent, GameState, SystemId } from "./state";
 
 /**
- * Logistics. Colonies project supply along lanes. Fleets inside supply are
- * refilled and repaired; outside it they burn a turn of onboard supply per
- * turn, and once empty they are slowed, hit less hard, and wear down.
+ * Logistics. Fleets carry a few turns of supply and spend one each turn they are
+ * away from a resupply point: one of their empire's colonies (unless blockaded) or
+ * a supply depot. There they refill and repair. Supply ships carry stores that keep
+ * a fleet going in the field; tankers' fuel tanks add turns. Once supply runs out a
+ * fleet is slowed, hits less hard, and wears down.
  */
 
-/** Systems where `empireId`'s fleets are supplied. Blockaded colonies project nothing. */
+/** Systems where `empireId`'s fleets resupply: its colonies (blockaded ones excepted) and supply depots. */
 export function suppliedSystems(state: GameState, pack: ContentPack, empireId: EmpireId): Set<SystemId> {
-  const empire = state.empires[empireId]!;
-  const bonus = empireEffects(pack, empire).supplyRange;
-  const adj = buildAdjacency(state.galaxy.systems.length, state.galaxy.lanes);
   const supplied = new Set<SystemId>();
-  for (const colony of state.colonies) {
-    if (colony.empireId !== empireId || colony.blockaded) continue;
-    const range = (colony.capital ? pack.economy.capitalSupplyRange : pack.economy.colonySupplyRange) + bonus;
-    const { dist } = shortestPaths(adj, colony.systemId);
-    dist.forEach((d, systemId) => {
-      if (d <= range) supplied.add(systemId);
-    });
-  }
-  // Supply depots project supply too.
-  for (const outpost of state.outposts) {
-    if (outpost.empireId !== empireId || !outpost.depot) continue;
-    const { dist } = shortestPaths(adj, outpost.systemId);
-    dist.forEach((d, systemId) => {
-      if (d <= pack.outposts.depot.supplyRange + bonus) supplied.add(systemId);
-    });
-  }
+  for (const colony of state.colonies) if (colony.empireId === empireId && !colony.blockaded) supplied.add(colony.systemId);
+  for (const outpost of state.outposts) if (outpost.empireId === empireId && outpost.depot) supplied.add(outpost.systemId);
   return supplied;
 }
 
+/** A fleet stopped at one of its empire's resupply points. */
 export function fleetInSupply(fleet: Fleet, supplied: Set<SystemId>): boolean {
-  if (supplied.has(fleet.systemId)) return true;
-  return fleet.progress > 0 && supplied.has(fleet.route[0]!);
+  return fleet.progress === 0 && supplied.has(fleet.systemId);
+}
+
+/** Supply stores a fleet's supply ships can hold, in ship-turns. */
+export function fleetMaxStores(pack: ContentPack, state: GameState, fleet: Fleet): number {
+  return fleetShipStats(pack, state, fleet).reduce((n, s) => n + s.stores, 0);
 }
 
 /** Armed fleets of other empires sitting in each system, with no armed defender of the colony's owner. */
@@ -61,7 +50,12 @@ export function updateBlockades(state: GameState, pack: ContentPack, events: Gam
   }
 }
 
-/** Refill, repair, or wear down every fleet. Runs after movement, before combat. */
+/**
+ * Refill, repair, or wear down every fleet. Runs after movement, before combat.
+ * At a resupply point a fleet refills its supply and its supply ships' stores and
+ * repairs. In the field it spends a turn of supply; supply ships then hand out a
+ * turn from their stores (one ship-turn per ship in the fleet) while they last.
+ */
 export function resolveSupply(state: GameState, pack: ContentPack, events: GameEvent[]): void {
   updateBlockades(state, pack, events);
   const networks = new Map<EmpireId, Set<SystemId>>();
@@ -70,28 +64,40 @@ export function resolveSupply(state: GameState, pack: ContentPack, events: GameE
   for (const fleet of state.fleets.slice().sort((a, b) => a.id - b.id)) {
     const empire = state.empires[fleet.empireId]!;
     const supplied = fleetInSupply(fleet, networks.get(fleet.empireId)!);
-    // Repair tenders mend the whole fleet wherever it is.
-    const tender = fleetShipStats(pack, state, fleet).reduce((n, s) => Math.max(n, s.repair), 0);
-    if (tender > 0 && !supplied) {
+    const max = fleetMaxSupply(pack, state, fleet);
+    // Repair tenders (and Damage Control) mend the whole fleet wherever it is.
+    const fx = empireEffects(pack, empire);
+    const tender = Math.max(fx.fieldRepairPercent, fleetShipStats(pack, state, fleet).reduce((n, s) => Math.max(n, s.repair), 0));
+    const repair = (percent: number) => {
       for (const ship of fleet.ships) {
-        const max = shipStats(pack, empire, ship).maxHp;
-        ship.hp = Math.min(max, ship.hp + Math.ceil((max * tender) / 100));
+        const hp = shipStats(pack, empire, ship).maxHp;
+        ship.hp = Math.min(hp, ship.hp + Math.ceil((hp * percent) / 100));
       }
-    }
+    };
     if (supplied) {
-      fleet.supply = fleetMaxSupply(pack, state, fleet);
-      const docked =
-        fleet.progress === 0 &&
-        (state.colonies.some((c) => c.empireId === fleet.empireId && c.systemId === fleet.systemId) ||
-          state.outposts.some((o) => o.empireId === fleet.empireId && o.systemId === fleet.systemId && o.depot));
-      const percent = Math.max(tender, docked ? pack.combat.dockRepairPercent : pack.combat.repairPercent);
+      fleet.supply = max;
+      fleet.stores = fleetMaxStores(pack, state, fleet);
+      // Rearm missiles and fix every knocked-out component.
       for (const ship of fleet.ships) {
-        const max = shipStats(pack, empire, ship).maxHp;
-        ship.hp = Math.min(max, ship.hp + Math.ceil((max * percent) / 100));
+        ship.salvos = 0;
+        ship.damaged = [];
       }
+      repair(Math.max(tender, pack.combat.dockRepairPercent));
+      refreshFleetStats(pack, state, fleet);
+      continue;
+    }
+    if (tender > 0) {
+      repair(tender);
+      // Repair crews also get one knocked-out component per ship working again.
+      for (const ship of fleet.ships) if (ship.damaged.length > 0) ship.damaged = ship.damaged.slice(1);
+    }
+    const had = fleet.supply;
+    // Solar Sails: no supply spent while between systems.
+    const sailing = fleet.progress > 0 && hasFlag(pack, empire, "solarSails");
+    if (sailing) {
+      // nothing spent
     } else if (fleet.supply > 0) {
       fleet.supply -= 1;
-      if (fleet.supply === 0) events.push({ type: "outOfSupply", turn: state.turn, empireId: fleet.empireId, fleetId: fleet.id, systemId: fleet.systemId });
     } else {
       const before = fleet.ships.length;
       for (const ship of fleet.ships) ship.hp -= Math.ceil((shipStats(pack, empire, ship).maxHp * pack.combat.attritionPercent) / 100);
@@ -99,6 +105,13 @@ export function resolveSupply(state: GameState, pack: ContentPack, events: GameE
       const lost = before - fleet.ships.length;
       if (lost > 0) events.push({ type: "attrition", turn: state.turn, empireId: fleet.empireId, fleetId: fleet.id, systemId: fleet.systemId, shipsLost: lost });
     }
+    // Supply ships top the fleet up from their stores.
+    const need = fleet.ships.length;
+    if (fleet.supply < max && need > 0 && fleet.stores >= need) {
+      fleet.supply += 1;
+      fleet.stores -= need;
+    }
+    if (had > 0 && fleet.supply === 0 && fleet.ships.length > 0) events.push({ type: "outOfSupply", turn: state.turn, empireId: fleet.empireId, fleetId: fleet.id, systemId: fleet.systemId });
     refreshFleetStats(pack, state, fleet);
   }
   state.fleets = state.fleets.filter((f) => f.ships.length > 0);

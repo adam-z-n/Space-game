@@ -1,5 +1,58 @@
 # Changelog
 
+## 1.2.0 (in progress)
+
+Logistics, experience and command:
+
+- Fleets resupply only at your colonies (unless blockaded) and supply depots. Every turn away costs a turn of
+  supply; endurance rises to 10-16 turns by hull. Repairs also happen only there, or with a repair tender.
+- Supply ships (Supply Hold, from Extended Tanks) carry stores that keep their fleet supplied in the field:
+  one ship-turn per ship each turn until the stores run out. They refill at colonies and depots.
+- Ships gain experience from battles they survive, more for kills and for fighting outnumbered, and rank up from
+  Green to Regular, Veteran, Elite and Ace. Each rank adds accuracy and evasion: +1% on escorts and freighters up
+  to +5% on dreadnoughts. A Military Academy trains new ships as Regulars.
+- Fleet Command Network (Fleet Command tech, battleships and larger): while the command ship lives, its whole
+  fleet gets +10% accuracy, +5% evasion and +1 maneuver.
+- The map shows resupply points instead of a supply range; the fleet sheet shows supply, stores and each ship's rank.
+- The AI plans its trips home to resupply, sends supply ships with its strike forces and uses command networks.
+
+Research tree:
+
+- The tree grows from 56 to 118 techs. Each of the eight fields (now Biology, Construction, Computers, Propulsion,
+  Electronics, Logistics & Trade, Weapons, Defense) has core techs everyone can research and three rival schools
+  of three techs each.
+- Terrans, Psyrrh and Mekkan can research every school. The other six races follow one school per field: their
+  first tech in a school commits them to it and closes its rivals. Each has an affinity field where research is
+  faster (20–50% by race) and they may follow two schools (Saurak: Logistics & Trade, Kraal: Construction, Aviari: Propulsion, Lithari:
+  Logistics, Felari: Weapons, Ursoni: Defense). All but the Saurak may also follow two schools in a second field
+  (Kraal: Logistics & Trade, Aviari: Electronics, Lithari: Construction, Felari: Propulsion, Ursoni: Weapons).
+  Every race can reach at least 60% of the tree.
+- Kraal also build ships 10% cheaper; Aviari gain +5% ship evasion and +15% credits; the Lithari growth penalty eases
+  from -30% to -15%.
+- Capturing a colony has a 25% chance to capture the cheapest tech its owner knew that you don't, even one from a
+  school you are locked out of (Data Theft raises the odds).
+- New techs and parts include Miniaturization (+1 slot on every hull), Reinforced Frames, Damage Control, Flight
+  Operations, Expert Systems and Sentient Computers, Tactical Datalinks and Battle Coordination AI, Hit-and-Run,
+  Solar Sails, Tractor Beams, Stealth Hulls, Tachyon Scanners, Galactic Survey, Sensor Spoofing, Gas Giant
+  Harvesting, Corporate Charters, Particle Beams and Phase Cannons, Swarm Missiles, the Spinal Mass Driver,
+  Reactive Armor, Planetary Shields, Star Fortresses and the Megafactory.
+- The research tree screen groups each field into core techs and schools, shows which schools you follow and which
+  are closed, and the empire picker shows each race's research access.
+
+Combat:
+
+- Missile ammunition: missile launchers carry a few salvos (Nuclear Missiles, Hellfire and Swarm 3, Starburst 2)
+  and rearm only at your colonies and depots. Beams never run dry.
+- Battle damage: a heavy hit can knock out one of a ship's weapons, shields, engines or electronics (chance is the
+  damage as a share of its hull, up to 40%). Knocked-out parts stay out until repaired at a colony or depot;
+  repair tenders and Damage Control fix one per ship per turn in the field.
+- Pursuit: a fleet that withdraws takes a parting volley from enemy ships more maneuverable than its slowest ship.
+  Hit-and-Run Doctrine avoids it; Tractor Beams let every one of your ships take the shot.
+- Fleet size: fleets of more than 8 ships (14 with a command network) lose 3% accuracy and evasion per extra ship,
+  up to 24%. The AI keeps its fleets within the limit.
+- Battle replays show parting shots and knocked-out parts; the fleet sheet shows the size limit, damaged parts and
+  missile salvos left.
+
 ## 1.1.0
 
 Map and planning:

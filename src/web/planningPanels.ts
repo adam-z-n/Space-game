@@ -9,7 +9,11 @@ import {
   planetStats,
   prospectiveMaxPop,
   shortestPaths,
+  researchAccess,
+  schoolBlocker,
+  schoolsAllowed,
   techAvailable,
+  techCost,
   techUnlocks,
   type Body,
   type ContentPack,
@@ -59,45 +63,69 @@ export function techTreePanel(ctx: PanelContext): HTMLElement {
   const eco = empireEconomy(game.state, pack, game.playerId);
   const memo = new Map<string, number>();
   const done = new Set(empire.techs);
+  const access = researchAccess(pack, empire);
+
+  const techRow = (tech: ContentPack["techs"][number]) => {
+    const current = empire.research.current === tech.id;
+    const available = techAvailable(pack, empire, tech.id);
+    const closed = !done.has(tech.id) ? schoolBlocker(pack, empire, tech) : null;
+    const state = done.has(tech.id) ? "done" : current ? "current" : available ? "available" : "locked";
+    const label = { done: "✓ Researched", current: "Researching", available: "Available", locked: closed ? "Closed" : "Locked" }[state];
+    const missing = tech.requires.filter((r) => !done.has(r)).map((r) => getTech(pack, r).name);
+    const unlocks = unlockText(pack, tech.id);
+    const cost = techCost(pack, empire, tech);
+    const turns = eco.research > 0 ? Math.ceil(cost / eco.research) : Infinity;
+    const li = h(
+      "li",
+      { className: `tech ${state}${available ? " tappable" : ""}`, style: `margin-left:${Math.min(techDepth(pack, tech.id, memo), 4) * 12}px` },
+      h(
+        "span",
+        { className: "grow" },
+        h("div", { textContent: tech.name }),
+        h("div", { className: "muted small", textContent: tech.description }),
+        unlocks ? h("div", { className: "small accent-text", textContent: `Unlocks: ${unlocks}` }) : null,
+        closed ? h("div", { className: "small warn-text", textContent: closed[0]!.toUpperCase() + closed.slice(1) }) : missing.length ? h("div", { className: "small warn-text", textContent: `Needs ${missing.join(" and ")}` }) : null,
+      ),
+      h("span", { className: "tech-status" }, h("div", { textContent: label }), h("div", { className: "muted small", textContent: done.has(tech.id) ? "" : `${cost} · ${turnsText(turns)}` })),
+    );
+    if (available) li.onclick = () => ctx.issue({ type: "setResearch", empireId: game.playerId, techId: tech.id });
+    return li;
+  };
+  const ordered = (list: ContentPack["techs"]) =>
+    [...list].sort((a, b) => techDepth(pack, a.id, memo) - techDepth(pack, b.id, memo) || a.cost - b.cost || a.id.localeCompare(b.id));
 
   const sections: HTMLElement[] = [];
   for (const field of pack.researchFields) {
-    const techs = pack.techs.filter((t) => t.field === field.id).sort((a, b) => techDepth(pack, a.id, memo) - techDepth(pack, b.id, memo) || a.cost - b.cost || a.id.localeCompare(b.id));
+    const techs = pack.techs.filter((t) => t.field === field.id);
     if (techs.length === 0) continue;
     const researched = techs.filter((t) => done.has(t.id)).length;
+    const affinity = access.affinity === field.id ? ` · affinity: ${access.affinityPercent}% faster` : "";
+    const allowed = schoolsAllowed(pack, empire, field.id);
     const list = h("ul", { className: "tech-tree" });
-    for (const tech of techs) {
-      const current = empire.research.current === tech.id;
-      const available = techAvailable(pack, empire, tech.id);
-      const state = done.has(tech.id) ? "done" : current ? "current" : available ? "available" : "locked";
-      const label = { done: "✓ Researched", current: "Researching", available: "Available", locked: "Locked" }[state];
-      const missing = tech.requires.filter((r) => !done.has(r)).map((r) => getTech(pack, r).name);
-      const unlocks = unlockText(pack, tech.id);
-      const turns = eco.research > 0 ? Math.ceil(tech.cost / eco.research) : Infinity;
-      const li = h(
-        "li",
-        { className: `tech ${state}${available ? " tappable" : ""}`, style: `margin-left:${Math.min(techDepth(pack, tech.id, memo), 4) * 12}px` },
-        h(
-          "span",
-          { className: "grow" },
-          h("div", { textContent: tech.name }),
-          h("div", { className: "muted small", textContent: tech.description }),
-          unlocks ? h("div", { className: "small accent-text", textContent: `Unlocks: ${unlocks}` }) : null,
-          missing.length ? h("div", { className: "small warn-text", textContent: `Needs ${missing.join(" and ")}` }) : null,
-        ),
-        h("span", { className: "tech-status" }, h("div", { textContent: label }), h("div", { className: "muted small", textContent: done.has(tech.id) ? "" : `${tech.cost} · ${turnsText(turns)}` })),
-      );
-      if (available) li.onclick = () => ctx.issue({ type: "setResearch", empireId: game.playerId, techId: tech.id });
-      list.append(li);
+    for (const tech of ordered(techs.filter((t) => !t.school))) list.append(techRow(tech));
+    const schools = pack.researchSchools.filter((s) => s.field === field.id);
+    if (schools.length > 0) {
+      const choice = Number.isFinite(allowed) ? `choose ${allowed === 1 ? "one" : "two"} of ${schools.length}` : "all open to you";
+      list.append(h("li", { className: "section" }, h("span", { textContent: `Schools (${choice})` })));
+      for (const school of schools) {
+        const chosen = empire.schools.includes(school.id);
+        list.append(h("li", { className: "school-head" }, h("span", { className: "grow" }, h("div", { textContent: `${school.name}${chosen ? " ✓" : ""}` }), h("div", { className: "muted small", textContent: school.description }))));
+        for (const tech of ordered(techs.filter((t) => t.school === school.id))) list.append(techRow(tech));
+      }
     }
-    sections.push(h("h3", { textContent: `${field.name} (${researched}/${techs.length})` }), list);
+    sections.push(h("h3", { textContent: `${field.name} (${researched}/${techs.length})${affinity}` }), list);
   }
 
+  const species = pack.species.find((s) => s.id === empire.species);
+  const rules =
+    access.access === "full"
+      ? `${species?.name ?? "Your species"} can research every school.`
+      : `${species?.name ?? "Your species"} follow one school per field (two in ${[access.affinity, ...access.twoSchools].map((f) => pack.researchFields.find((x) => x.id === f)?.name ?? f).join(" and ")}). Your first tech in a school commits you to it and closes the others. Conquest can still capture closed techs.`;
   return h(
     "div",
     { className: "sheet panel tall" },
     h("h2", {}, "Research tree", closeButton(ctx)),
-    h("div", { className: "muted small", textContent: `${empire.techs.length} of ${pack.techs.length} techs researched. Tap an available tech to research it next.` }),
+    h("div", { className: "muted small", textContent: `${empire.techs.length} of ${pack.techs.length} techs researched. ${rules} Tap an available tech to research it next.` }),
     ...sections,
   );
 }

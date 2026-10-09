@@ -1,3 +1,4 @@
+import { fleetShipStats } from "../ships";
 import { colonyOnBody, type FleetOrders, type OutpostKind, type SystemId } from "../state";
 import { outpostBlocker } from "../outposts";
 import { fleetAt, moveTo, withinReach, type AiContext, type FleetInfo } from "./context";
@@ -53,13 +54,17 @@ function setStandingOrders(ctx: AiContext): void {
   }
 }
 
-/** Damaged fleets and fleets about to run dry head for the nearest own colony. */
+/** Damaged fleets, and fleets that need to start home to resupply, head for the nearest colony or depot. */
 function resupply(ctx: AiContext): void {
-  const docks = ctx.colonies.map((c) => c.systemId);
+  const docks = [...ctx.supplied].sort((a, b) => a - b);
   const hurt = 30 + ctx.personality.caution * 4;
   for (const info of warships(ctx)) {
     const at = fleetAt(info);
-    const dry = !ctx.supplied.has(at) && info.fleet.supply <= 1;
+    const home = nearest(ctx, at, docks);
+    const turnsHome = home === null ? 0 : Math.ceil(ctx.dist(at)[home]! / Math.max(1, info.fleet.speed));
+    // Supply on hand plus what supply ships can still hand out.
+    const left = info.fleet.supply + Math.floor(info.fleet.stores / Math.max(1, info.fleet.ships.length));
+    const dry = !ctx.supplied.has(at) && left <= turnsHome + 1;
     const damaged = info.hpPercent < hurt && !docks.includes(at);
     if (!dry && !damaged) continue;
     const dock = nearest(ctx, at, docks);
@@ -201,8 +206,8 @@ function attack(ctx: AiContext, strategy: Strategy): void {
   const atStaging = pool.filter((f) => f.idle && f.fleet.systemId === staging);
   const ready = atStaging.reduce((n, f) => n + f.strength, 0);
 
-  // Troop transports gather at the staging system and ride along with the strongest fleet there.
-  const transports = ctx.fleets.filter((f) => f.troops > 0 && !f.armed && free(ctx, f));
+  // Troop transports and supply ships gather at the staging system and ride along with the strongest fleet there.
+  const transports = ctx.fleets.filter((f) => (f.troops > 0 || f.supplier) && !f.armed && free(ctx, f));
   const anchor = [...atStaging].sort((a, b) => b.strength - a.strength || a.fleet.id - b.fleet.id)[0];
   let carried = anchor?.troops ?? 0;
   for (const info of transports) {
@@ -260,7 +265,10 @@ function garrison(ctx: AiContext, strategy: Strategy): void {
 function gather(ctx: AiContext): void {
   if (!ctx.capital) return;
   const home = ctx.capital.systemId;
-  const maxShips = ctx.personality.designStyle === "raider" ? 4 : 99;
+  // Stay within the fleet size limit (larger with a command network aboard).
+  const limit = (info: FleetInfo) =>
+    ctx.pack.combat.fleetSizeLimit + (fleetShipStats(ctx.pack, ctx.state, info.fleet).some((s) => s.command > 0) ? ctx.pack.combat.commandSizeBonus : 0);
+  const style = ctx.personality.designStyle === "raider" ? 4 : Infinity;
   const idle = warships(ctx).filter((f) => f.idle);
   const bySystem = new Map<SystemId, FleetInfo[]>();
   for (const info of idle) bySystem.set(info.fleet.systemId, [...(bySystem.get(info.fleet.systemId) ?? []), info]);
@@ -268,6 +276,7 @@ function gather(ctx: AiContext): void {
     group.sort((a, b) => b.strength - a.strength || a.fleet.id - b.fleet.id);
     const anchor = group[0]!;
     let ships = anchor.fleet.ships.length;
+    const maxShips = Math.min(style, limit(anchor));
     ctx.busy.add(anchor.fleet.id);
     for (const other of group.slice(1)) {
       ctx.busy.add(other.fleet.id);
@@ -289,7 +298,10 @@ export function outpostTargets(ctx: AiContext): { systemId: SystemId; bodyId: nu
   const danger = dangerZones(ctx);
   const rivals = new Set(ctx.rivalColonies.map((c) => c.systemId));
   const targets: { systemId: SystemId; bodyId: number; kind: OutpostKind }[] = [];
-  for (const systemId of [...ctx.supplied].sort((a, b) => a - b)) {
+  // Within easy reach of a colony.
+  const near = new Set<SystemId>();
+  for (const colony of ctx.colonies) ctx.dist(colony.systemId).forEach((d, id) => d <= 400 && near.add(id));
+  for (const systemId of [...near].sort((a, b) => a - b)) {
     if (danger.has(systemId) || rivals.has(systemId) || !ctx.empire.explored.includes(systemId)) continue;
     for (const body of ctx.state.galaxy.systems[systemId]!.bodies) {
       const kind = (["mining", "combat"] as const).find((k) => outpostBlocker(ctx.state, ctx.pack, ctx.empire, body, k) === null);

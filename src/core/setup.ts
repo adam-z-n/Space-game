@@ -74,6 +74,7 @@ export function createInitialState(settings: GameSettings, pack: ContentPack): G
       foodReserve: pack.economy.foodStockCap,
       taxLevel: "normal",
       techs: [],
+      schools: [],
       research: { current: null, progress: 0 },
       shipsBuilt: {},
       designs: startingDesigns(pack),

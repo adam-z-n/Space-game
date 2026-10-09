@@ -99,6 +99,32 @@ export const EffectsSchema = z
     defensePercent: z.number().int(),
     /** Added to every ship's maneuver (combat agility). */
     maneuver: z.number().int(),
+    /** Extra component slots on every hull. */
+    slots: z.number().int(),
+    /** Ship build cost and upkeep, in percent (negative is cheaper). */
+    shipCostPercent: z.number().int(),
+    shipUpkeepPercent: z.number().int(),
+    /** Ship hull structure, in percent. */
+    structurePercent: z.number().int(),
+    /** Evasion added to every ship. */
+    shipEvasion: z.number().int(),
+    /** Percent of hull every ship repairs each turn, anywhere. */
+    fieldRepairPercent: z.number().int(),
+    /** Extra craft launched by every hangar. */
+    hangarShots: z.number().int(),
+    /** Accuracy added by command networks. */
+    commandBonus: z.number().int(),
+    /** Experience gained in battle, in percent. */
+    xpPercent: z.number().int(),
+    /** Supply hold stores, in percent. */
+    storesPercent: z.number().int(),
+    /** Credits to buy a build, in percent. */
+    buyCostPercent: z.number().int(),
+    /** Mining outpost income, in percent. */
+    miningPercent: z.number().int(),
+    /** Added to sabotage odds and to the chance of capturing a tech with a colony. */
+    sabotagePercent: z.number().int(),
+    techCapturePercent: z.number().int(),
   })
   .partial()
   .strict();
@@ -126,12 +152,14 @@ const Hull = z.object({
   evasion: z.number().int().min(0).max(90),
   /** Combat agility: the faster side sets the battle range; each point also adds evasion. */
   maneuver: z.number().int().min(0).max(10),
+  /** Accuracy and evasion gained per experience rank: big ships make more of veteran crews. */
+  veteranBonus: z.number().int().min(0).max(20),
   /** Turns a ship can operate outside supply. */
   endurance: z.number().int().nonnegative(),
   requires: id.optional(),
 });
 
-export const COMPONENT_KINDS = ["weapon", "hangar", "armor", "shield", "engine", "sensor", "electronics", "colony", "outpost", "fuel", "troops", "commandos", "repair", "mines", "bomb"] as const;
+export const COMPONENT_KINDS = ["weapon", "hangar", "armor", "shield", "engine", "sensor", "electronics", "colony", "outpost", "fuel", "supply", "troops", "commandos", "repair", "mines", "bomb"] as const;
 /** Weapon ranges: battles start at long range (3) and close (or open) each round. */
 export const RANGE_NAMES = { 1: "short", 2: "medium", 3: "long" } as const;
 /** missile: point defense and ECM work against it. fighters: also hunt support ships past screens. pierce: ignores shields. */
@@ -149,6 +177,8 @@ const Component = z.object({
   accuracy: z.number().int().min(0).max(100).default(0),
   /** Shots per round (hangars launch several craft). */
   shots: z.number().int().positive().default(1),
+  /** Missiles: salvos carried before the launcher must resupply at a colony or depot (0: unlimited). */
+  ammo: z.number().int().nonnegative().default(0),
   /** Longest range the weapon fires at: 1 short, 2 medium, 3 long. */
   range: z.number().int().min(1).max(3).default(2),
   special: z.enum(WEAPON_SPECIALS).optional(),
@@ -157,6 +187,10 @@ const Component = z.object({
   maxSlots: z.number().int().min(1).default(12),
   /** Special forces for sabotage. */
   commandos: z.number().int().nonnegative().default(0),
+  /** Supply holds: stores, in ship-turns, that keep a fleet supplied in the field. */
+  stores: z.number().int().nonnegative().default(0),
+  /** Fleet command: accuracy added to every ship in the fleet (evasion gets half) while this ship lives. */
+  command: z.number().int().nonnegative().default(0),
   /** Cloaking: a fleet whose ships all have it is hard to see. */
   stealth: z.number().int().nonnegative().default(0),
   /** Electronics. */
@@ -223,7 +257,13 @@ const Building = z.object({
   requires: id.optional(),
   /** Only granted to capitals at game start, never built. */
   buildable: z.boolean().default(true),
+  /** Experience new ships built at this colony start with. */
+  trainingXp: z.number().int().nonnegative().default(0),
 });
+
+/** Special rules a tech switches on, handled in code (see hasFlag). */
+export const TECH_FLAGS = ["hitAndRun", "tractorBeams", "solarSails", "stealthHulls", "tachyonScanners", "galacticSurvey", "sensorSpoofing", "gasMining"] as const;
+export type TechFlag = (typeof TECH_FLAGS)[number];
 
 const Tech = z.object({
   id,
@@ -233,6 +273,17 @@ const Tech = z.object({
   cost: z.number().int().positive(),
   requires: z.array(id).default([]),
   effects: EffectsSchema.default({}),
+  /** A school within the field: races with limited research may follow only one school per field. Core techs have none. */
+  school: id.optional(),
+  flags: z.array(z.enum(TECH_FLAGS)).default([]),
+});
+
+/** One of the mutually exclusive branches of a research field. */
+const ResearchSchool = z.object({
+  id,
+  name: z.string().min(1),
+  field: id,
+  description: z.string(),
 });
 
 const ResearchField = z.object({ id, name: z.string().min(1) });
@@ -287,6 +338,22 @@ const Combat = z.object({
   colonyGunAccuracy: z.number().int().min(0).max(100),
   /** Militia lost to a failed invasion that returns each turn (when not under siege). */
   militiaRegenPerTurn: z.number().int().nonnegative(),
+  /** A hit can knock out one of the target's components: chance is the damage as a share of the ship's hull, capped here. */
+  criticalMaxPercent: z.number().int().min(0).max(100),
+  /** Fleets larger than this fight less well together; a command network raises the limit. */
+  fleetSizeLimit: z.number().int().positive(),
+  commandSizeBonus: z.number().int().nonnegative(),
+  /** Accuracy and evasion lost per ship over the limit, and the most it can cost. */
+  oversizePenalty: z.number().int().nonnegative(),
+  oversizePenaltyMax: z.number().int().nonnegative(),
+  /** Chance, in percent, that capturing a colony yields one of its old owner's techs. */
+  techCapturePercent: z.number().int().min(0).max(100),
+  /** Experience ranks, lowest first: the experience needed for each. */
+  ranks: z.array(z.object({ name: z.string().min(1), xp: z.number().int().nonnegative() })).min(1),
+  /** Experience a ship earns for a battle it survives, per enemy ship it destroys, and for fighting outnumbered. */
+  xpPerBattle: z.number().int().nonnegative(),
+  xpPerKill: z.number().int().nonnegative(),
+  xpOutnumbered: z.number().int().nonnegative(),
 });
 
 const scale = z.number().int().min(0).max(10);
@@ -346,6 +413,19 @@ const Species = z.object({
   /** Short trait summary shown when choosing, e.g. "+25% research". */
   traits: z.array(z.string()),
   effects: EffectsSchema.default({}),
+  /**
+   * full: may research every school. limited: one school per field, two in the affinity
+   * field (where research also goes affinityPercent faster) and in each of twoSchools.
+   */
+  research: z
+    .object({
+      access: z.enum(["full", "limited"]),
+      affinity: id.optional(),
+      affinityPercent: z.number().int().min(0).max(200).default(0),
+      /** Further fields where a limited race may follow two schools. */
+      twoSchools: z.array(id).default([]),
+    })
+    .default({ access: "full", affinityPercent: 0, twoSchools: [] }),
 });
 
 const EmpireTemplate = z.object({
@@ -501,6 +581,7 @@ export const ContentPackSchema = z
     presentation: Presentation,
     economy: Economy,
     researchFields: z.array(ResearchField).min(1),
+    researchSchools: z.array(ResearchSchool).default([]),
     techs: z.array(Tech),
     buildings: z.array(Building),
     combat: Combat,
@@ -591,6 +672,25 @@ export const ContentPackSchema = z
     });
     pack.components.forEach((t, i) => {
       if (t.requires && !techIds.has(t.requires)) issue(["components", i, "requires"], `unknown tech "${t.requires}"`);
+    });
+    // Schools: they belong to a field, and their techs build only on core techs or their own school.
+    unique("researchSchools", pack.researchSchools.map((s) => s.id));
+    const schoolById = new Map(pack.researchSchools.map((s) => [s.id, s]));
+    const techById = new Map(pack.techs.map((t) => [t.id, t]));
+    for (const s of pack.researchSchools) if (!fieldIds.has(s.field)) issue(["researchSchools"], `${s.id}: unknown research field "${s.field}"`);
+    pack.techs.forEach((tech, i) => {
+      if (!tech.school) return;
+      const school = schoolById.get(tech.school);
+      if (!school) return issue(["techs", i, "school"], `unknown school "${tech.school}"`);
+      if (school.field !== tech.field) issue(["techs", i, "school"], `school "${tech.school}" belongs to another field`);
+      for (const req of tech.requires) {
+        const other = techById.get(req)?.school;
+        if (other && other !== tech.school && schoolById.get(other)?.field === tech.field) issue(["techs", i, "requires"], `${tech.id} needs ${req} from a rival school`);
+      }
+    });
+    pack.species.forEach((s, i) => {
+      if (s.research.affinity && !fieldIds.has(s.research.affinity)) issue(["species", i, "research"], `unknown affinity field "${s.research.affinity}"`);
+      for (const f of s.research.twoSchools) if (!fieldIds.has(f)) issue(["species", i, "research"], `unknown field "${f}" in twoSchools`);
     });
     for (const kind of ["combat", "mining", "depot"] as const) {
       const req = pack.outposts[kind].requires;

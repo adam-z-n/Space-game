@@ -1,5 +1,5 @@
 import type { ContentPack } from "../content/schema";
-import { empireEffects, findBody, getBuilding, planetStats } from "./economy";
+import { empireEffects, findBody, getBuilding, learnTech, planetStats, refreshEmpireStats } from "./economy";
 import { Rng } from "./rng";
 import { fleetShipStats, refreshFleetStats, shipStats, type Weapon } from "./ships";
 import type { Colony, Empire, EmpireId, Fleet, GameEvent, GameState } from "./state";
@@ -28,7 +28,7 @@ export function colonyDefense(pack: ContentPack, empire: Empire, colony: Colony)
   const cfg = pack.combat;
   // Every colony has planetary batteries that grow with its population; buildings add the rest.
   const result: ColonyDefense = { maxHp: colony.population * cfg.colonyDefenseHpPerPop, shield: 0, weapons: [], maxTroops: 0, mines: 0 };
-  for (let i = 0; i < Math.floor(colony.population / cfg.colonyPopPerGun); i++) result.weapons.push({ damage: cfg.colonyGunDamage, accuracy: cfg.colonyGunAccuracy, range: 3 });
+  for (let i = 0; i < Math.floor(colony.population / cfg.colonyPopPerGun); i++) result.weapons.push({ damage: cfg.colonyGunDamage, accuracy: cfg.colonyGunAccuracy, range: 3, ammo: 0 });
   for (const id of colony.buildings) {
     const d = getBuilding(pack, id).defense;
     result.maxHp += d.hp ?? 0;
@@ -36,7 +36,7 @@ export function colonyDefense(pack: ContentPack, empire: Empire, colony: Colony)
     result.maxTroops += d.troops ?? 0;
     result.mines += d.mines ?? 0;
     for (const w of d.weapons ?? []) {
-      for (let i = 0; i < w.count; i++) result.weapons.push({ damage: w.damage, accuracy: w.accuracy, range: 3 });
+      for (let i = 0; i < w.count; i++) result.weapons.push({ damage: w.damage, accuracy: w.accuracy, range: 3, ammo: 0 });
     }
   }
   result.maxHp = Math.floor((result.maxHp * pct) / 100);
@@ -181,6 +181,7 @@ export function resolveInvasions(state: GameState, pack: ContentPack, events: Ga
     const captured = defense <= 0 && attack > 0;
     if (captured) {
       captureColony(state, pack, colony, attackerId, attack, events);
+      captureTech(state, pack, rng, attackerId, defenderId, colony, events);
     } else {
       // The defenders hold, but lose garrison and militia in proportion; both take turns to recover.
       const lostShare = startDefense > 0 ? (startDefense - Math.max(0, defense)) / startDefense : 0;
@@ -285,13 +286,13 @@ export function resolveBombardment(state: GameState, pack: ContentPack, events: 
 }
 
 /** Chance, in percent, that a commando raid succeeds against a colony. */
-export function sabotageChance(state: GameState, pack: ContentPack, commandos: number, colony: Colony): number {
-  return sabotageOdds(commandos, defendingTroops(state, pack, colony));
+export function sabotageChance(state: GameState, pack: ContentPack, commandos: number, colony: Colony, attacker: Empire): number {
+  return sabotageOdds(commandos, defendingTroops(state, pack, colony), empireEffects(pack, attacker).sabotagePercent);
 }
 
-/** Raid odds from commando teams and defending troops (so the UI can estimate from sightings). */
-export function sabotageOdds(commandos: number, defenders: number): number {
-  return Math.max(10, Math.min(85, 30 + commandos * 15 - Math.floor(defenders / 2)));
+/** Raid odds from commando teams, defending troops and the attacker's bonuses (so the UI can estimate from sightings). */
+export function sabotageOdds(commandos: number, defenders: number, bonus = 0): number {
+  return Math.max(10, Math.min(90, 30 + commandos * 15 + bonus - Math.floor(defenders / 2)));
 }
 
 /**
@@ -314,7 +315,7 @@ export function resolveSabotage(state: GameState, pack: ContentPack, events: Gam
     const stats = fleetShipStats(pack, state, fleet);
     const commandos = stats.reduce((n, s) => n + s.commandos, 0);
     if (commandos === 0) continue;
-    const success = rng.int(1, 100) <= sabotageChance(state, pack, commandos, colony);
+    const success = rng.int(1, 100) <= sabotageChance(state, pack, commandos, colony, state.empires[fleet.empireId]!);
     if (success) {
       if (order.mission === "defenses") {
         const max = colonyDefense(pack, state.empires[colony.empireId]!, colony).maxHp;
@@ -341,4 +342,25 @@ export function resolveSabotage(state: GameState, pack: ContentPack, events: Gam
   }
   state.rngState = rng.state;
   state.fleets = state.fleets.filter((f) => f.ships.length > 0);
+}
+
+/**
+ * Conquest can teach: a captured colony has a chance (25% plus Data Theft) to yield
+ * one tech its old owner knew and the conqueror doesn't, the cheapest first. It may
+ * come from a school the conqueror is locked out of; taking it doesn't commit them.
+ */
+export function captureTech(state: GameState, pack: ContentPack, rng: Rng, attackerId: EmpireId, defenderId: EmpireId, colony: Colony, events: GameEvent[]): void {
+  const attacker = state.empires[attackerId]!;
+  const defender = state.empires[defenderId]!;
+  const chance = pack.combat.techCapturePercent + empireEffects(pack, attacker).techCapturePercent;
+  if (rng.int(1, 100) > chance) return;
+  const candidates = defender.techs
+    .filter((id) => !attacker.techs.includes(id))
+    .map((id) => pack.techs.find((t) => t.id === id)!)
+    .sort((a, b) => a.cost - b.cost || a.id.localeCompare(b.id));
+  const tech = candidates[0];
+  if (!tech) return;
+  learnTech(pack, attacker, tech.id, false);
+  refreshEmpireStats(state, pack, attacker);
+  events.push({ type: "techCaptured", turn: state.turn, empireId: attackerId, techId: tech.id, fromEmpireId: defenderId, colonyId: colony.id, systemId: colony.systemId });
 }

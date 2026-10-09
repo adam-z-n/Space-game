@@ -1,4 +1,4 @@
-import { availableTechs, colonizeBlocker, prospectiveMaxPop } from "../economy";
+import { availableTechs, colonizeBlocker, prospectiveMaxPop, researchAccess, techCost } from "../economy";
 import { colonyOnBody, type EmpireId, type SystemId } from "../state";
 import { lean, type AiContext } from "./context";
 
@@ -103,7 +103,9 @@ export function chooseResearch(ctx: AiContext, strategy: Strategy): string | nul
     if ((fx.industryPercent ?? 0) > 0 || (fx.industry ?? 0) > 0) weight += p.economy;
     if ((fx.researchPercent ?? 0) > 0 || (fx.research ?? 0) > 0) weight += p.research;
     if (ctx.economy.netCredits < 2 && ((fx.creditsPercent ?? 0) > 0 || (fx.credits ?? 0) > 0)) weight += 15;
-    const score = Math.floor((weight * 10000) / tech.cost);
+    // Specialists lean into their affinity field (it also costs less there).
+    if (researchAccess(pack, empire).affinity === tech.field) weight += 10;
+    const score = Math.floor((weight * 10000) / techCost(pack, empire, tech));
     if (score > bestScore) {
       bestScore = score;
       bestId = tech.id;

@@ -1,5 +1,5 @@
 import type { ContentPack } from "../content/schema";
-import { empireEffects } from "./economy";
+import { empireEffects, hasFlag } from "./economy";
 import { fleetArmed } from "./ships";
 import type { ColonyDefense } from "./defense";
 import type { Body, Empire, EmpireId, GameEvent, GameState, Outpost, OutpostKind, SystemId } from "./state";
@@ -21,7 +21,8 @@ export function outpostTechOk(pack: ContentPack, empire: Empire, kind: OutpostKi
 export function outpostBlocker(state: GameState, pack: ContentPack, empire: Empire, body: Body, kind: OutpostKind): string | null {
   const config = pack.outposts[kind];
   if (!outpostTechOk(pack, empire, kind)) return `${config.name} needs research`;
-  if (!config.bodies.includes(body.kind)) return `a ${config.name} can't be built on that`;
+  const gas = kind === "mining" && body.kind === "gasGiant" && hasFlag(pack, empire, "gasMining");
+  if (!config.bodies.includes(body.kind) && !gas) return `a ${config.name} can't be built on that`;
   if (state.outposts.some((o) => o.bodyId === body.id)) return "there is already an outpost there";
   return null;
 }
@@ -31,7 +32,7 @@ export function outpostDefense(pack: ContentPack, empire: Empire, outpost: Outpo
   if (outpost.kind !== "combat") return { maxHp: 0, shield: 0, weapons: [], maxTroops: 0, mines: 0 };
   const pct = 100 + empireEffects(pack, empire).defensePercent;
   const config = pack.outposts.combat;
-  const weapons = config.weapons.flatMap((w) => Array.from({ length: w.count }, () => ({ damage: Math.floor((w.damage * pct) / 100), accuracy: w.accuracy, range: 3 })));
+  const weapons = config.weapons.flatMap((w) => Array.from({ length: w.count }, () => ({ damage: Math.floor((w.damage * pct) / 100), accuracy: w.accuracy, range: 3, ammo: 0 })));
   return { maxHp: Math.floor((config.hp * pct) / 100), shield: 0, weapons, maxTroops: 0, mines: 0 };
 }
 
@@ -49,7 +50,7 @@ export function outpostFinances(state: GameState, pack: ContentPack, empireId: E
   let upkeep = 0;
   for (const o of state.outposts) {
     if (o.empireId !== empireId) continue;
-    if (o.kind === "mining") income += pack.outposts.mining.credits;
+    if (o.kind === "mining") income += Math.floor((pack.outposts.mining.credits * (100 + empireEffects(pack, state.empires[empireId]!).miningPercent)) / 100);
     upkeep += pack.outposts[o.kind].upkeep + (o.depot ? pack.outposts.depot.upkeep : 0);
   }
   return { income, upkeep };

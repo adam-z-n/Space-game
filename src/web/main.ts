@@ -18,6 +18,7 @@ import {
   prospectiveMaxPop,
   turnLimit,
   empireView,
+  empireEffects,
   omniscientView,
   planMove,
   scrapValue,
@@ -120,6 +121,13 @@ async function showSetup(message?: string): Promise<void> {
           h("div", { className: "empire-name", textContent: e.name }),
           h("div", { className: "muted small", textContent: `${species.name}: ${species.description}` }),
           h("div", { className: "small trait", textContent: species.traits.join(" · ") }),
+          h("div", {
+            className: "muted small",
+            textContent:
+              species.research.access === "full"
+                ? "Research: every school open"
+                : `Research: one school per field, two in ${[species.research.affinity, ...species.research.twoSchools].map((f) => pack.researchFields.find((x) => x.id === f)?.name ?? f).join(" and ")}; ${pack.researchFields.find((f) => f.id === species.research.affinity)?.name ?? "affinity"} +${species.research.affinityPercent}%`,
+          }),
         );
         return card;
       }),
@@ -437,6 +445,8 @@ function startGame(game: Game): void {
         return `${fleetView(e.fleetId)?.name ?? "Ship"} launched at ${colonyName(e.colonyId)}`;
       case "techResearched":
         return `Researched ${getTech(pack, e.techId).name}`;
+      case "techCaptured":
+        return `Captured the secrets of ${getTech(pack, e.techId).name} from the ${empire(e.fromEmpireId).name}`;
       case "populationGrew":
         return `${colonyName(e.colonyId)} grew to ${e.population}`;
       case "starvation":
@@ -489,6 +499,7 @@ function startGame(game: Game): void {
   function openEvent(e: GameEvent): void {
     switch (e.type) {
       case "techResearched":
+      case "techCaptured":
         return openPanel("research");
       case "starvation":
       case "inDebt":
@@ -552,7 +563,7 @@ function startGame(game: Game): void {
       button("Ship designs", () => openPanel("designs")),
       button("Research tree", () => openPanel("techtree")),
       button("Colonization planner", () => openPanel("planner")),
-      button(ui.showSupply ? "Hide supply range" : "Show supply range", () => {
+      button(ui.showSupply ? "Hide resupply points" : "Show resupply points", () => {
         ui.showSupply = !ui.showSupply;
         openPanel("none");
       }),
@@ -735,7 +746,7 @@ function startGame(game: Game): void {
     }
     for (const c of targets) {
       // Odds from the defenders the player last saw.
-      const odds = sabotageOdds(commandos, c.troops);
+      const odds = sabotageOdds(commandos, c.troops, empireEffects(pack, game.state.empires[game.playerId]!).sabotagePercent);
       for (const mission of SABOTAGE_MISSIONS) {
         box.append(button(`Sabotage ${c.name}: ${labels[mission]} (~${odds}%)`, () => ctx.issue({ type: "sabotage", empireId: game.playerId, fleetId: real.id, colonyId: c.colonyId, mission })));
       }

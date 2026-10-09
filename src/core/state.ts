@@ -5,7 +5,7 @@ import type { BodyKind, Formation } from "../content/schema";
  * so it can be cloned, saved, hashed, and sent over a network unchanged.
  */
 
-export const STATE_VERSION = 11;
+export const STATE_VERSION = 14;
 
 export type SystemId = number;
 export type EmpireId = number;
@@ -96,6 +96,8 @@ export interface Empire {
   taxLevel: string;
   /** Researched tech ids, in the order completed. */
   techs: string[];
+  /** Research schools the empire has committed to (see the content pack's researchSchools). */
+  schools: string[];
   /** Tech being researched, or null. Points bank up while nothing is chosen. */
   research: { current: string | null; progress: number };
   /** Counts fleets created per design, for naming. */
@@ -210,6 +212,12 @@ export interface Ship {
   id: ShipId;
   designId: string;
   hp: number;
+  /** Combat experience; see the content pack's ranks. */
+  xp: number;
+  /** Missile salvos fired since the ship last rearmed at a colony or depot. */
+  salvos: number;
+  /** Indexes into the design's components knocked out in battle, until repaired at a colony or depot. */
+  damaged: number[];
 }
 
 export const STANCES = ["aggressive", "balanced", "cautious"] as const;
@@ -234,8 +242,10 @@ export interface Fleet {
   name: string;
   ships: Ship[];
   orders: FleetOrders;
-  /** Turns of onboard supply left; refilled inside supply range. */
+  /** Turns of onboard supply left; refilled at a colony or depot. */
   supply: number;
+  /** Supply ships' stores, in ship-turns; refilled at a colony or depot. */
+  stores: number;
   /** Cached from ships and techs (see refreshFleetStats); slowest ship, out-of-supply penalty included. */
   speed: number;
   /** System the fleet is at, or the one it departed from when in transit. */
@@ -266,6 +276,8 @@ export type GameEvent =
   | { type: "buildingCompleted"; turn: number; empireId: EmpireId; colonyId: ColonyId; systemId: SystemId; buildingId: string }
   | { type: "shipCompleted"; turn: number; empireId: EmpireId; colonyId: ColonyId; systemId: SystemId; fleetId: FleetId }
   | { type: "techResearched"; turn: number; empireId: EmpireId; techId: string }
+  /** A tech learned by capturing a colony of `fromEmpireId`. */
+  | { type: "techCaptured"; turn: number; empireId: EmpireId; techId: string; fromEmpireId: EmpireId; colonyId: ColonyId; systemId: SystemId }
   | { type: "populationGrew"; turn: number; empireId: EmpireId; colonyId: ColonyId; systemId: SystemId; population: number }
   | { type: "starvation"; turn: number; empireId: EmpireId }
   | { type: "inDebt"; turn: number; empireId: EmpireId; credits: number }
@@ -327,6 +339,8 @@ export interface BattleShot {
   destroyed: boolean;
   /** Shot down by point defense (missiles and fighters). */
   intercepted?: boolean;
+  /** Name of the component this hit knocked out. */
+  knockedOut?: string;
 }
 
 export interface BattleReport {
@@ -335,8 +349,11 @@ export interface BattleReport {
   systemId: SystemId;
   empires: EmpireId[];
   ships: BattleShip[];
-  /** Per round: the range it was fought at (1 short, 2 medium, 3 long), ships whose weapons cyber attack shut down, shots, and who withdrew. */
-  rounds: { range: number; disrupted: ShipId[]; shots: BattleShot[]; retreated: FleetId[] }[];
+  /**
+   * Per round: the range it was fought at (1 short, 2 medium, 3 long), ships whose weapons cyber attack
+   * shut down, shots, who withdrew, and the parting shots the withdrawing fleets took.
+   */
+  rounds: { range: number; disrupted: ShipId[]; shots: BattleShot[]; retreated: FleetId[]; pursuit: BattleShot[] }[];
   /** Per empire: ships lost and fleets that withdrew. */
   results: { empireId: EmpireId; shipsLost: number; retreated: FleetId[]; damageDealt: number }[];
 }
