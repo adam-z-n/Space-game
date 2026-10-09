@@ -12,7 +12,9 @@ Victory conditions:
 - Endgame drive, in games with no turn limit: an AI holding over half the galaxy's population after turn 250 goes on
   the offensive; after turn 300, if the human players hold under 20% between them, every AI does; after turn 350,
   every AI does regardless. Driving AIs attack whatever their temperament, raiders mass into full fleets and
-  invade, and banked credits go into warships.
+  invade, and banked credits go into warships, up to three times the strongest rival's known strength.
+- AI empires keep at most 60 warships, so late games stay quick to play; past that their strength comes from
+  better designs. AI strikes now launch as full fleets rather than streams of single ships.
 - AI attack fixes (all modes): a strike force launched toward a target more than a turn away was called back to its
   staging system every turn and never arrived; and troop transports that had plotted a retreat after a skirmish at
   staging were never loaded, so the strike force couldn't invade. AI empires now capture about twice as many
