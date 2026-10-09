@@ -218,7 +218,9 @@ function attack(ctx: AiContext, strategy: Strategy): void {
   const anchor = [...atStaging].sort((a, b) => b.strength - a.strength || a.fleet.id - b.fleet.id)[0];
   let carried = anchor?.troops ?? 0;
   for (const info of transports) {
-    if (anchor && info.idle && info.fleet.systemId === staging) {
+    // Stopped at staging counts even with a course plotted (say, a retreat after a skirmish there):
+    // merging into the strike force cancels it.
+    if (anchor && info.fleet.progress === 0 && info.fleet.systemId === staging) {
       ctx.busy.add(info.fleet.id);
       carried += info.troops;
       ctx.commands.push({ type: "mergeFleets", empireId: ctx.id, fleetId: info.fleet.id, intoFleetId: anchor.fleet.id });

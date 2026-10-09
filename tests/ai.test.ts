@@ -133,6 +133,19 @@ describe("AI behaviour", () => {
       expect(orders).toEqual([]);
     });
 
+    it("loads troop transports at staging even when they have plotted a retreat", () => {
+      const s = armed("turns200", "warlord", 0);
+      const ai = s.empires[1]!;
+      const dist = buildContext(s, pack, 1).dist(ai.homeSystemId);
+      const next = s.galaxy.systems.map((x) => x.id).filter((id) => id !== ai.homeSystemId).sort((a, b) => dist[a]! - dist[b]!)[0]!;
+      ai.colonySightings[0]!.systemId = next;
+      const transport = newFleet(s, pack, ai, ["troop_transport"], ai.homeSystemId);
+      transport.route = [next]; // fleeing a skirmish at home
+      s.fleets.push(transport);
+      const merge = planAiTurn(s, pack, 1).find((c) => c.type === "mergeFleets" && c.fleetId === transport.id);
+      expect(merge).toBeDefined();
+    });
+
     it("never drives for the endgame in games with a turn limit", () => {
       const s = armed("turns400", "turtle", 0);
       s.turn = 390;
