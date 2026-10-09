@@ -35,7 +35,7 @@ export interface Strategy {
 }
 
 /** Turns after which the endgame drive can start, in games with no turn limit. */
-export const ENDGAME = { leaderTurn: 250, leaderShare: 50, humansTurn: 300, humansShare: 20, allTurn: 350 };
+export const ENDGAME = { leaderTurn: 250, leaderShare: 50, humansTurn: 300, humansShare: 20, allTurn: 350, reserve: 200, reservePerColony: 20 };
 
 /**
  * Whether `ctx`'s empire is in its endgame drive: only in games with no turn limit, when
@@ -104,9 +104,11 @@ export function decideStrategy(ctx: AiContext): Strategy {
   if (threat > 0 && (threat * 2 >= ctx.ownStrength + ctx.ownDefense || blockaded)) {
     posture = "defend";
   } else if (endgame && warTarget !== null) {
-    // Endgame drive: attack whatever our temperament, and keep building until we can win.
+    // Endgame drive: attack whatever our temperament. Build up to twice what we face, and past
+    // that keep turning a healthy treasury into warships (one more at a time, until it's spent down).
     posture = "attack";
-    wantedStrength = Math.max(wantedStrength, targetStrength * 2, ctx.ownStrength + Math.floor(ctx.ownStrength / 4) + 1);
+    const banked = ctx.empire.credits > ENDGAME.reserve + ctx.colonies.length * ENDGAME.reservePerColony;
+    wantedStrength = Math.max(wantedStrength, targetStrength * 2, banked ? ctx.ownStrength + 1 : 0);
   } else if (
     warTarget !== null &&
     p.aggression >= 4 &&
