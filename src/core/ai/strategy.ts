@@ -35,7 +35,7 @@ export interface Strategy {
 }
 
 /** Turns after which the endgame drive can start, in games with no turn limit. */
-export const ENDGAME = { leaderTurn: 250, leaderShare: 50, humansTurn: 300, humansShare: 20, allTurn: 350, reserve: 200, reservePerColony: 20 };
+export const ENDGAME = { leaderTurn: 250, leaderShare: 50, humansTurn: 300, humansShare: 20, allTurn: 350, reserve: 200, reservePerColony: 20, overkill: 3 };
 
 /**
  * Whether `ctx`'s empire is in its endgame drive: only in games with no turn limit, when
@@ -105,10 +105,17 @@ export function decideStrategy(ctx: AiContext): Strategy {
     posture = "defend";
   } else if (endgame && warTarget !== null) {
     // Endgame drive: attack whatever our temperament. Build up to twice what we face, and past
-    // that keep turning a healthy treasury into warships (one more at a time, until it's spent down).
+    // that keep turning a healthy treasury into warships (one more at a time) until we field three
+    // times the strongest rival's known fleets and colony defenses, which is enough to finish it.
     posture = "attack";
     const banked = ctx.empire.credits > ENDGAME.reserve + ctx.colonies.length * ENDGAME.reservePerColony;
-    wantedStrength = Math.max(wantedStrength, targetStrength * 2, banked ? ctx.ownStrength + 1 : 0);
+    const rivals = new Set([...ctx.rivalStrength.keys(), ...ctx.rivalColonies.map((c) => c.empireId)]);
+    const strongest = Math.max(
+      0,
+      ...[...rivals].map((id) => (ctx.rivalStrength.get(id) ?? 0) + ctx.rivalColonies.filter((c) => c.empireId === id).reduce((n, c) => n + defenseStrength(c.defenseHp), 0)),
+    );
+    const plenty = ctx.ownStrength >= strongest * ENDGAME.overkill;
+    wantedStrength = Math.max(wantedStrength, targetStrength * 2, banked && !plenty ? ctx.ownStrength + 1 : 0);
   } else if (
     warTarget !== null &&
     p.aggression >= 4 &&
