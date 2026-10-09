@@ -35,3 +35,4 @@ export function planAiTurn(state: GameState, pack: ContentPack, empireId: Empire
 
 export { decideStrategy, type Posture, type Strategy } from "./strategy";
 export { buildContext } from "./context";
+export { AI_MAX_WARSHIPS } from "./production";

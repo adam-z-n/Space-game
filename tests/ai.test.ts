@@ -3,7 +3,10 @@ import {
   Game,
   applyCommand,
   buildContext,
+  AI_MAX_WARSHIPS,
   checkVictory,
+  combatShipCount,
+  designStats,
   createInitialState,
   turnLimit,
   validateSettings,
@@ -163,6 +166,22 @@ describe("AI behaviour", () => {
       const into = new Set(merged.map((c) => (c.type === "mergeFleets" ? c.intoFleetId : -1)));
       expect(launched).toEqual(expect.arrayContaining([...into]));
       expect(launched.filter((id) => singles.some((f) => f.id === id))).toEqual([]);
+    });
+
+    it("stops building warships at the warship cap", () => {
+      const s = armed("domination", "warlord", 0);
+      const ai = s.empires[1]!;
+      s.turn = 400; // endgame drive
+      ai.credits = 50_000;
+      const queuedWarships = () => {
+        const cmds = planAiTurn(structuredClone(s), pack, 1);
+        return cmds.filter((c) => c.type === "queueBuild" && c.item.kind === "ship" && designStats(pack, ai.designs.find((d) => d.id === c.item.id)!, empireEffects(pack, ai)).armed).length;
+      };
+      expect(queuedWarships()).toBeGreaterThan(0);
+      // Fill up to the cap (the helper already gave us 8 frigates plus the starting pair).
+      const afloat = s.fleets.filter((f) => f.empireId === 1).reduce((n, f) => n + combatShipCount(pack, s, f), 0);
+      s.fleets.push(newFleet(s, pack, ai, Array.from({ length: AI_MAX_WARSHIPS - afloat }, () => "frigate"), ai.homeSystemId));
+      expect(queuedWarships()).toBe(0);
     });
 
     it("never drives for the endgame in games with a turn limit", () => {

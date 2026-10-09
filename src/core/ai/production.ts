@@ -1,10 +1,16 @@
 import { buildOptions, buyCost, colonyOutput, findBody, itemCost, planetStats, prospectiveMaxPop } from "../economy";
-import { designStats } from "../ships";
+import { combatShipCount, designStats } from "../ships";
 import type { Colony, Focus, QueueItem } from "../state";
 import type { AiContext } from "./context";
 import { designWhere } from "./designs";
 import { outpostTargets } from "./operations";
 import type { Strategy } from "./strategy";
+
+/**
+ * Most warships an AI empire keeps (built or queued). Past this its strength has to come from
+ * better designs; it also keeps late, open-ended games quick to play.
+ */
+export const AI_MAX_WARSHIPS = 60;
 
 /**
  * What to build, how to work each colony, and how to stay solvent.
@@ -36,6 +42,7 @@ export function planProduction(ctx: AiContext, strategy: Strategy, warshipId: st
   const warStats = warship ? designStats(pack, warship, fx) : null;
   const perWarship = warStats ? Math.max(1, Math.round((warStats.damagePerRound * (warStats.maxHp + warStats.shield * 6)) / 4)) : 1;
   let queuedWar = queuedOf((q) => isShip(q, (s) => s.armed && !s.colonize));
+  const warshipsAfloat = ctx.fleets.reduce((n, f) => n + combatShipCount(pack, ctx.state, f.fleet), 0);
   let deficit = strategy.wantedStrength - ctx.ownStrength - queuedWar * perWarship;
 
   const colonyDesign = designWhere(ctx, (s) => s.colonize);
@@ -71,7 +78,7 @@ export function planProduction(ctx: AiContext, strategy: Strategy, warshipId: st
     if (colony.queue.length > 0) continue;
     const options = buildOptions(ctx.state, pack, empire, colony);
     const can = (item: QueueItem | null): item is QueueItem => !!item && options.some((o) => o.kind === item.kind && o.id === item.id);
-    const affordable = !!warStats && warStats.upkeep <= room.upkeep && warStats.upkeep <= fleetRoom;
+    const affordable = !!warStats && warStats.upkeep <= room.upkeep && warStats.upkeep <= fleetRoom && warshipsAfloat + queuedWar < AI_MAX_WARSHIPS;
     const warItem = warship && affordable ? ({ kind: "ship", id: warship.id } as QueueItem) : null;
     const big = colony.population >= 3;
     let pick: QueueItem | null = null;
