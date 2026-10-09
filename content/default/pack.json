@@ -709,7 +709,10 @@
         "automation"
       ],
       "effects": {},
-      "description": "Unlocks the Repair Bay for repair tenders."
+      "description": "Supply ship crews repair 15% of every ship's hull each turn in the field, and get knocked-out parts working again, while their stores last.",
+      "flags": [
+        "fieldRepair"
+      ]
     },
     {
       "id": "robotic_workforce",
@@ -2375,7 +2378,8 @@
     "fleetSizeLimit": 8,
     "commandSizeBonus": 6,
     "oversizePenalty": 3,
-    "oversizePenaltyMax": 24
+    "oversizePenaltyMax": 24,
+    "supplyRepairPercent": 15
   },
   "hulls": [
     {
@@ -2592,15 +2596,6 @@
       "troops": 5
     },
     {
-      "id": "repair_bay",
-      "name": "Repair Bay",
-      "kind": "repair",
-      "description": "Repairs 15% of every ship's hull per turn, even outside supply.",
-      "cost": 8,
-      "repair": 15,
-      "requires": "field_repair"
-    },
-    {
       "id": "mine_layer",
       "name": "Mine Layer",
       "kind": "mines",
@@ -2811,7 +2806,7 @@
       "id": "supply_hold",
       "name": "Supply Hold",
       "kind": "supply",
-      "description": "Carries 20 ship-turns of stores: each turn in the field the fleet draws a turn of supply from them (one ship-turn per ship). Refilled at colonies and depots.",
+      "description": "Carries 20 ship-turns of stores. In the field the fleet draws a turn of supply from them each turn (one ship-turn per ship), and they reload spent missile launchers (one per ship). With Field Repair the crew also mends every ship. Refilled at colonies and depots.",
       "cost": 6,
       "stores": 20,
       "requires": "extended_tanks"
@@ -2938,16 +2933,6 @@
       "formation": "support"
     },
     {
-      "id": "repair_tender",
-      "name": "Repair Tender",
-      "hull": "transport",
-      "components": [
-        "repair_bay",
-        "armor_plating"
-      ],
-      "formation": "support"
-    },
-    {
       "id": "minelayer",
       "name": "Minelayer",
       "hull": "frigate",
@@ -2990,8 +2975,36 @@
     }
   ],
   "victory": {
-    "turnLimit": 200,
-    "dominationPercent": 50,
+    "modes": [
+      {
+        "id": "turns200",
+        "name": "200 turns",
+        "description": "The highest score after 200 turns wins. Holding half the galaxy's population, or outlasting every rival, wins early.",
+        "turnLimit": 200,
+        "dominationPercent": 50
+      },
+      {
+        "id": "turns400",
+        "name": "400 turns",
+        "description": "A longer game: the highest score after 400 turns wins. Holding half the galaxy's population, or outlasting every rival, wins early.",
+        "turnLimit": 400,
+        "dominationPercent": 50
+      },
+      {
+        "id": "domination",
+        "name": "Domination",
+        "description": "No turn limit. Hold 75% of the galaxy's population, or outlast every rival.",
+        "turnLimit": null,
+        "dominationPercent": 75
+      },
+      {
+        "id": "total",
+        "name": "Total domination",
+        "description": "No turn limit. Hold all of the galaxy's population: every rival colony taken or destroyed.",
+        "turnLimit": null,
+        "dominationPercent": 100
+      }
+    ],
     "dominationMinTurn": 50,
     "score": {
       "population": 10,

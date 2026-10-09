@@ -7,8 +7,9 @@ import type { EmpireId, Fleet, GameEvent, GameState, SystemId } from "./state";
  * Logistics. Fleets carry a few turns of supply and spend one each turn they are
  * away from a resupply point: one of their empire's colonies (unless blockaded) or
  * a supply depot. There they refill and repair. Supply ships carry stores that keep
- * a fleet going in the field; tankers' fuel tanks add turns. Once supply runs out a
- * fleet is slowed, hits less hard, and wears down.
+ * a fleet going in the field, reload its missiles and (with Field Repair) mend it;
+ * tankers' fuel tanks add turns. Once supply runs out a fleet is slowed, hits less
+ * hard, and wears down.
  */
 
 /** Systems where `empireId`'s fleets resupply: its colonies (blockaded ones excepted) and supply depots. */
@@ -54,7 +55,8 @@ export function updateBlockades(state: GameState, pack: ContentPack, events: Gam
  * Refill, repair, or wear down every fleet. Runs after movement, before combat.
  * At a resupply point a fleet refills its supply and its supply ships' stores and
  * repairs. In the field it spends a turn of supply; supply ships then hand out a
- * turn from their stores (one ship-turn per ship in the fleet) while they last.
+ * turn from their stores (one ship-turn per ship in the fleet) while they last, and
+ * reload missiles with what's left.
  */
 export function resolveSupply(state: GameState, pack: ContentPack, events: GameEvent[]): void {
   updateBlockades(state, pack, events);
@@ -65,9 +67,11 @@ export function resolveSupply(state: GameState, pack: ContentPack, events: GameE
     const empire = state.empires[fleet.empireId]!;
     const supplied = fleetInSupply(fleet, networks.get(fleet.empireId)!);
     const max = fleetMaxSupply(pack, state, fleet);
-    // Repair tenders (and Damage Control) mend the whole fleet wherever it is.
+    // Supply ship crews (with Field Repair, while stores last) and hull techs like Damage
+    // Control mend the whole fleet wherever it is.
     const fx = empireEffects(pack, empire);
-    const tender = Math.max(fx.fieldRepairPercent, fleetShipStats(pack, state, fleet).reduce((n, s) => Math.max(n, s.repair), 0));
+    const crews = fleet.stores > 0 && hasFlag(pack, empire, "fieldRepair") ? pack.combat.supplyRepairPercent : 0;
+    const mending = Math.max(fx.fieldRepairPercent, crews, fleetShipStats(pack, state, fleet).reduce((n, s) => Math.max(n, s.repair), 0));
     const repair = (percent: number) => {
       for (const ship of fleet.ships) {
         const hp = shipStats(pack, empire, ship).maxHp;
@@ -82,12 +86,12 @@ export function resolveSupply(state: GameState, pack: ContentPack, events: GameE
         ship.salvos = 0;
         ship.damaged = [];
       }
-      repair(Math.max(tender, pack.combat.dockRepairPercent));
+      repair(Math.max(mending, pack.combat.dockRepairPercent));
       refreshFleetStats(pack, state, fleet);
       continue;
     }
-    if (tender > 0) {
-      repair(tender);
+    if (mending > 0) {
+      repair(mending);
       // Repair crews also get one knocked-out component per ship working again.
       for (const ship of fleet.ships) if (ship.damaged.length > 0) ship.damaged = ship.damaged.slice(1);
     }
@@ -110,6 +114,14 @@ export function resolveSupply(state: GameState, pack: ContentPack, events: GameE
     if (fleet.supply < max && need > 0 && fleet.stores >= need) {
       fleet.supply += 1;
       fleet.stores -= need;
+    }
+    // Then they reload spent missile launchers: one ship-turn of stores per ship rearmed.
+    for (const ship of fleet.ships) {
+      if (fleet.stores < 1) break;
+      if (ship.salvos > 0) {
+        ship.salvos = 0;
+        fleet.stores -= 1;
+      }
     }
     if (had > 0 && fleet.supply === 0 && fleet.ships.length > 0) events.push({ type: "outOfSupply", turn: state.turn, empireId: fleet.empireId, fleetId: fleet.id, systemId: fleet.systemId });
     refreshFleetStats(pack, state, fleet);

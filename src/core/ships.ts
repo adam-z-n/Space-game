@@ -242,6 +242,16 @@ export function fleetArmed(pack: ContentPack, state: GameState, fleet: Fleet): b
   return fleetShipStats(pack, state, fleet).some((s) => s.armed);
 }
 
+/**
+ * Ships that count toward the fleet size limit: armed warships only, judged by design so a
+ * ship whose guns are knocked out still counts. Support ships (supply, troops, tankers...) ride free.
+ */
+export function combatShipCount(pack: ContentPack, state: GameState, fleet: Fleet): number {
+  const empire = state.empires[fleet.empireId]!;
+  const fx = empireEffects(pack, empire);
+  return fleet.ships.filter((ship) => designStats(pack, getDesign(empire, ship.designId), fx).armed).length;
+}
+
 export function fleetCanColonize(pack: ContentPack, state: GameState, fleet: Fleet): boolean {
   return fleetShipStats(pack, state, fleet).some((s) => s.colonize);
 }

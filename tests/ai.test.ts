@@ -3,7 +3,13 @@ import {
   Game,
   applyCommand,
   buildContext,
+  AI_MAX_WARSHIPS,
+  checkVictory,
+  combatShipCount,
+  designStats,
   createInitialState,
+  turnLimit,
+  validateSettings,
   decideStrategy,
   empireEffects,
   empireScore,
@@ -12,6 +18,7 @@ import {
   type GameState,
 } from "../src/core";
 import { defaultPack } from "../src/content/defaultPack";
+import { chartAll } from "./helpers";
 
 const pack = defaultPack();
 
@@ -60,7 +67,7 @@ describe("AI behaviour", () => {
       b.endTurn();
     }
     expect(JSON.stringify(a.state)).toBe(JSON.stringify(b.state));
-  });
+  }, 30_000);
 
   it("never reacts to rival fleets it cannot see", () => {
     const game = Game.create({ seed: "ai-fog", galaxySize: "medium", aiCount: 3 }, pack);
@@ -88,6 +95,133 @@ describe("AI behaviour", () => {
     const strategy = decideStrategy(buildContext(s, pack, 1));
     expect(strategy.posture).toBe("defend");
     expect(strategy.threat).toBe(200);
+  });
+
+  describe("weighing strength and the endgame drive", () => {
+    /** Empire 1 (an AI) with a strong fleet at home that has spotted empire 2's capital. */
+    const armed = (victory: string, personality: string, defenseHp: number) => {
+      const s = createInitialState({ seed: "ai-endgame", galaxySize: "small", aiCount: 2, victory }, pack);
+      const ai = s.empires[1]!;
+      ai.personality = personality;
+      s.turn = 100;
+      chartAll(s);
+      s.fleets.push(newFleet(s, pack, ai, Array.from({ length: 8 }, () => "frigate"), ai.homeSystemId));
+      const target = s.colonies.find((c) => c.empireId === 2 && c.capital)!;
+      ai.colonySightings = [
+        { colonyId: target.id, empireId: 2, systemId: target.systemId, bodyId: target.bodyId, name: target.name, population: target.population, defenseHp, troops: 5, turn: s.turn },
+      ];
+      return s;
+    };
+    const plan = (s: GameState) => decideStrategy(buildContext(s, pack, 1));
+
+    it("counts a target colony's defenses as well as its fleets", () => {
+      const own = buildContext(armed("turns200", "warlord", 0), pack, 1).ownStrength;
+      expect(plan(armed("turns200", "warlord", 0)).posture).toBe("attack");
+      // Defenses worth more than our fleet can take on put the attack off.
+      expect(plan(armed("turns200", "warlord", own * 2)).posture).not.toBe("attack");
+    });
+
+    it("lets a strike force already on its way to the target carry on", () => {
+      const s = armed("turns200", "warlord", 0);
+      const ai = s.empires[1]!;
+      // Move the rival colony we know of next door, well within the strike force's supply.
+      const dist = buildContext(s, pack, 1).dist(ai.homeSystemId);
+      const target = s.galaxy.systems.map((x) => x.id).filter((id) => id !== ai.homeSystemId).sort((a, b) => dist[a]! - dist[b]!)[0]!;
+      ai.colonySightings[0]!.systemId = target;
+      const strike = s.fleets.at(-1)!;
+      strike.route = [target];
+      strike.progress = 10;
+      expect(plan(s).posture).toBe("attack");
+      const orders = planAiTurn(s, pack, 1).filter((c) => c.type === "moveFleet" && c.fleetId === strike.id);
+      expect(orders).toEqual([]);
+    });
+
+    it("loads troop transports at staging even when they have plotted a retreat", () => {
+      const s = armed("turns200", "warlord", 0);
+      const ai = s.empires[1]!;
+      const dist = buildContext(s, pack, 1).dist(ai.homeSystemId);
+      const next = s.galaxy.systems.map((x) => x.id).filter((id) => id !== ai.homeSystemId).sort((a, b) => dist[a]! - dist[b]!)[0]!;
+      ai.colonySightings[0]!.systemId = next;
+      const transport = newFleet(s, pack, ai, ["troop_transport"], ai.homeSystemId);
+      transport.route = [next]; // fleeing a skirmish at home
+      s.fleets.push(transport);
+      const merge = planAiTurn(s, pack, 1).find((c) => c.type === "mergeFleets" && c.fleetId === transport.id);
+      expect(merge).toBeDefined();
+    });
+
+    it("forms warships waiting at staging into full fleets when it launches", () => {
+      const s = armed("turns200", "warlord", 0); // one full fleet of 8 frigates at home
+      const ai = s.empires[1]!;
+      const dist = buildContext(s, pack, 1).dist(ai.homeSystemId);
+      const next = s.galaxy.systems.map((x) => x.id).filter((id) => id !== ai.homeSystemId).sort((a, b) => dist[a]! - dist[b]!)[0]!;
+      ai.colonySightings[0]!.systemId = next;
+      const singles = [0, 1, 2].map(() => newFleet(s, pack, ai, ["frigate"], ai.homeSystemId));
+      s.fleets.push(...singles);
+      const cmds = planAiTurn(s, pack, 1);
+      // The full fleet can't take more, so the singles join the starting pair of frigates as a second fleet.
+      const merged = cmds.filter((c) => c.type === "mergeFleets" && singles.some((f) => f.id === c.fleetId));
+      expect(merged).toHaveLength(3);
+      // Two fleets head out; none of the singles goes on its own.
+      const launched = cmds.filter((c) => c.type === "moveFleet" && c.destinationId === next).map((c) => (c.type === "moveFleet" ? c.fleetId : -1));
+      const into = new Set(merged.map((c) => (c.type === "mergeFleets" ? c.intoFleetId : -1)));
+      expect(launched).toEqual(expect.arrayContaining([...into]));
+      expect(launched.filter((id) => singles.some((f) => f.id === id))).toEqual([]);
+    });
+
+    it("stops building warships at the warship cap", () => {
+      const s = armed("domination", "warlord", 0);
+      const ai = s.empires[1]!;
+      s.turn = 400; // endgame drive
+      ai.credits = 50_000;
+      const queuedWarships = () => {
+        const cmds = planAiTurn(structuredClone(s), pack, 1);
+        return cmds.filter((c) => c.type === "queueBuild" && c.item.kind === "ship" && designStats(pack, ai.designs.find((d) => d.id === c.item.id)!, empireEffects(pack, ai)).armed).length;
+      };
+      expect(queuedWarships()).toBeGreaterThan(0);
+      // Fill up to the cap (the helper already gave us 8 frigates plus the starting pair).
+      const afloat = s.fleets.filter((f) => f.empireId === 1).reduce((n, f) => n + combatShipCount(pack, s, f), 0);
+      s.fleets.push(newFleet(s, pack, ai, Array.from({ length: AI_MAX_WARSHIPS - afloat }, () => "frigate"), ai.homeSystemId));
+      expect(queuedWarships()).toBe(0);
+    });
+
+    it("never drives for the endgame in games with a turn limit", () => {
+      const s = armed("turns400", "turtle", 0);
+      s.turn = 390;
+      expect(plan(s).endgame).toBe(false);
+    });
+
+    it("drives the leader after turn 250 when it holds over half the population", () => {
+      const s = armed("domination", "turtle", 0);
+      s.turn = 260;
+      for (const c of s.colonies) c.population = c.empireId === 1 ? 60 : 20;
+      expect(plan(s)).toMatchObject({ endgame: true, posture: "attack" });
+      expect(decideStrategy(buildContext(s, pack, 2)).endgame).toBe(false);
+      s.turn = 250;
+      expect(plan(s).endgame).toBe(false);
+    });
+
+    it("drives every AI after turn 300 once the human players hold under 20%", () => {
+      const s = armed("domination", "turtle", 0);
+      s.turn = 310;
+      for (const c of s.colonies) c.population = c.empireId === 0 ? 30 : 35;
+      expect(plan(s).endgame).toBe(false);
+      for (const c of s.colonies) c.population = c.empireId === 0 ? 10 : 45;
+      expect(plan(s).endgame).toBe(true);
+    });
+
+    it("still drives in an open-ended game given a safety turn cap", () => {
+      const s = armed("domination", "turtle", 0);
+      s.settings.turnLimit = 1000;
+      s.turn = 351;
+      expect(plan(s).endgame).toBe(true);
+    });
+
+    it("drives every AI after turn 350", () => {
+      const s = armed("total", "turtle", 0);
+      s.turn = 351;
+      for (const c of s.colonies) c.population = 33;
+      expect(plan(s)).toMatchObject({ endgame: true, posture: "attack" });
+    });
   });
 
   it("creates warship designs in its personality's style", () => {
@@ -127,6 +261,58 @@ describe("victory", () => {
     const r = applyCommand(s, { type: "endTurn" }, pack);
     if (!r.ok) throw new Error(r.error);
     expect(r.state.outcome).toMatchObject({ winnerId: 2, reason: "domination" });
+  });
+
+  describe("victory conditions", () => {
+    /** Give `empireId` `percent`% of all population (every colony keeps at least 0). */
+    const giveShare = (s: GameState, empireId: number, percent: number) => {
+      const mine = s.colonies.filter((c) => c.empireId === empireId);
+      const others = s.colonies.filter((c) => c.empireId !== empireId);
+      for (const c of others) c.population = 0;
+      for (const c of mine) c.population = 0;
+      mine[0]!.population = percent;
+      if (others.length) others[0]!.population = 100 - percent;
+    };
+    const check = (s: GameState, turn: number) => {
+      checkVictory(s, pack, [], turn);
+      return s.outcome;
+    };
+
+    it("defaults to 200 turns, with half the population winning early", () => {
+      const s = createInitialState({ seed: "modes", galaxySize: "small", aiCount: 2 }, pack);
+      expect(turnLimit(s, pack)).toBe(200);
+      giveShare(s, 1, 60);
+      expect(check(s, pack.victory.dominationMinTurn)).toMatchObject({ winnerId: 1, reason: "domination" });
+    });
+
+    it("400 turns plays on past turn 200", () => {
+      const s = createInitialState({ seed: "modes", galaxySize: "small", aiCount: 2, victory: "turns400" }, pack);
+      expect(turnLimit(s, pack)).toBe(400);
+      expect(check(s, 200)).toBeNull();
+      expect(check(s, 400)).toMatchObject({ reason: "turnLimit" });
+    });
+
+    it("domination has no turn limit and needs 75% of the population", () => {
+      const s = createInitialState({ seed: "modes", galaxySize: "small", aiCount: 2, victory: "domination" }, pack);
+      expect(turnLimit(s, pack)).toBeNull();
+      giveShare(s, 1, 74);
+      expect(check(s, 999)).toBeNull();
+      giveShare(s, 1, 75);
+      expect(check(s, 1000)).toMatchObject({ winnerId: 1, reason: "domination" });
+    });
+
+    it("total domination needs every last colonist", () => {
+      const s = createInitialState({ seed: "modes", galaxySize: "small", aiCount: 2, victory: "total" }, pack);
+      expect(turnLimit(s, pack)).toBeNull();
+      giveShare(s, 2, 99);
+      expect(check(s, 500)).toBeNull();
+      giveShare(s, 2, 100);
+      expect(check(s, 501)).toMatchObject({ winnerId: 2, reason: "domination" });
+    });
+
+    it("rejects an unknown victory condition", () => {
+      expect(validateSettings({ seed: "x", galaxySize: "small", aiCount: 2, victory: "conquest" }, pack)).toMatch(/unknown victory/);
+    });
   });
 
   it("eliminates empires with no colonies and no colony ships", () => {

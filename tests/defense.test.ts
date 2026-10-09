@@ -199,13 +199,42 @@ describe("support ships", () => {
     expect(after).toBeLessThan(before);
   });
 
-  it("repair tenders mend their fleet outside supply", () => {
-    let s = line();
-    s.empires[0]!.techs.push("field_repair", "automation");
-    const fleet = newFleet(s, pack, s.empires[0]!, ["frigate", "repair_tender"], 3); // system 3 is outside supply
-    fleet.ships[0]!.hp = 10;
-    s.fleets.push(fleet);
-    s = run(s, end);
-    expect(s.fleets[0]!.ships[0]!.hp).toBe(10 + Math.ceil((26 * 15) / 100));
+  describe("supply ships in the field", () => {
+    // System 3 is outside supply.
+    const escorted = (techs: string[], stores?: number) => {
+      const s = line();
+      s.empires[0]!.techs.push(...techs);
+      const fleet = newFleet(s, pack, s.empires[0]!, ["frigate", "supply_ship"], 3);
+      fleet.ships[0]!.hp = 10;
+      if (stores !== undefined) fleet.stores = stores;
+      s.fleets.push(fleet);
+      return { s, fleet };
+    };
+
+    it("mend their fleet with Field Repair", () => {
+      const { s } = escorted(["automation", "field_repair"]);
+      const after = run(s, end);
+      expect(after.fleets[0]!.ships[0]!.hp).toBe(10 + Math.ceil((26 * pack.combat.supplyRepairPercent) / 100));
+    });
+
+    it("don't repair without Field Repair, or once their stores are gone", () => {
+      expect(run(escorted([]).s, end).fleets[0]!.ships[0]!.hp).toBe(10);
+      expect(run(escorted(["automation", "field_repair"], 0).s, end).fleets[0]!.ships[0]!.hp).toBe(10);
+    });
+
+    it("reload spent missile launchers from their stores", () => {
+      const { s, fleet } = escorted([]);
+      fleet.ships[0]!.salvos = 2;
+      const stores = fleet.stores;
+      const after = run(s, end).fleets[0]!;
+      expect(after.ships[0]!.salvos).toBe(0);
+      // One ship-turn per ship for the turn's supply, then one for the reload.
+      expect(after.stores).toBe(stores - 2 - 1);
+    });
+
+    it("replace repair tenders", () => {
+      expect(pack.components.some((c) => c.id === "repair_bay")).toBe(false);
+      expect(pack.startingDesigns.some((d) => d.id === "repair_tender")).toBe(false);
+    });
   });
 });

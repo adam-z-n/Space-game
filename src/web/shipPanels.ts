@@ -1,6 +1,7 @@
 import {
   FORMATIONS,
   RANGE_NAMES,
+  combatShipCount,
   componentAvailable,
   designBlocker,
   designStats,
@@ -58,7 +59,7 @@ const FORMATION_LABELS: Record<Formation, string> = { front: "Front line", scree
 export const FORMATION_HELP: Record<Formation, string> = {
   front: "Front line: closes with the enemy and draws most of its fire. Its maneuver decides who sets the battle range.",
   screen: "Screen: moves in front of your support ships and takes half the shots aimed at them (fighters slip past).",
-  support: "Support: hangs back, is targeted least and is harder to hit (+10% evasion). Use for transports, tenders and carriers.",
+  support: "Support: hangs back, is targeted least and is harder to hit (+10% evasion). Use for transports, supply ships and carriers.",
 };
 
 const ROLE_LABELS = { combat: "warship", transport: "transport", recon: "scout", support: "support ship" } as const;
@@ -331,18 +332,19 @@ export function fleetDetail(ctx: ShipContext, fleetId: FleetId): HTMLElement | n
   }
 
   const limit = pack.combat.fleetSizeLimit + (stats.some((s) => s.command > 0) ? pack.combat.commandSizeBonus : 0);
-  const over = fleet.ships.length - limit;
+  const warships = combatShipCount(pack, game.state, fleet);
+  const over = warships - limit;
   const sizeWarning =
     over > 0
       ? h("div", {
           className: "warn-text small",
-          textContent: `Too big to fight as one: ${fleet.ships.length} ships, limit ${limit}. −${Math.min(pack.combat.oversizePenaltyMax, over * pack.combat.oversizePenalty)}% accuracy and evasion. Split it, or add a command network.`,
+          textContent: `Too big to fight as one: ${warships} warships, limit ${limit}. −${Math.min(pack.combat.oversizePenaltyMax, over * pack.combat.oversizePenalty)}% accuracy and evasion. Split it, or add a command network.`,
         })
       : null;
   return h(
     "div",
     {},
-    h("div", { className: "muted small", textContent: `${fleet.ships.length} ship${fleet.ships.length > 1 ? "s" : ""} (limit ${limit}) · strength ${fleetStrength(pack, game.state, fleet)} · speed ${fleet.speed}` }),
+    h("div", { className: "muted small", textContent: `${fleet.ships.length} ship${fleet.ships.length > 1 ? "s" : ""} (${warships} of ${limit} warships) · strength ${fleetStrength(pack, game.state, fleet)} · speed ${fleet.speed}` }),
     sizeWarning,
     supply,
     ships,

@@ -60,7 +60,7 @@ Ships are built from hulls with component slots; roles are distinct enough that 
 | Combat | Frigate, cruiser, battleship, carrier | Destroy enemy forces and defenses |
 | Transport | Troop ship, cargo hauler, colony ship | Move troops, supplies, settlers |
 | Recon | Scout, picket | Extend vision, detect stealth |
-| Support | Tanker, repair tender, tender-minelayer | Extend range, restore damage, deny space |
+| Support | Tanker, supply ship, minelayer | Extend range, resupply, rearm and repair in the field, deny space |
 
 - **Ship design:** pick a hull, fill slots (weapons, armor, shields, engines, sensors, cargo), and save the design as a template.
 - **Fleets:** ships group into fleets with shared speed, supply draw, and orders. Fleet speed is its slowest ship.

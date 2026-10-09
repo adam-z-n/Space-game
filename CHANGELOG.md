@@ -2,12 +2,33 @@
 
 ## 1.2.0 (in progress)
 
+Victory conditions:
+
+- Choose how to win at setup: 200 turns (as before), 400 turns, Domination (no turn limit; hold 75% of the
+  galaxy's population) or Total domination (no turn limit; hold all of it). Outlasting every rival always wins.
+  Saves from earlier versions play as 200-turn games.
+- AI empires now count planetary defenses, not just fleets: a rival's colony defenses when sizing up an attack,
+  and their own when deciding whether an intruder is a real threat.
+- Endgame drive, in games with no turn limit: an AI holding over half the galaxy's population after turn 250 goes on
+  the offensive; after turn 300, if the human players hold under 20% between them, every AI does; after turn 350,
+  every AI does regardless. Driving AIs attack whatever their temperament, raiders mass into full fleets and
+  invade, and banked credits go into warships, up to three times the strongest rival's known strength.
+- AI empires keep at most 60 warships, so late games stay quick to play; past that their strength comes from
+  better designs. AI strikes now launch as full fleets rather than streams of single ships.
+- AI attack fixes (all modes): a strike force launched toward a target more than a turn away was called back to its
+  staging system every turn and never arrived; and troop transports that had plotted a retreat after a skirmish at
+  staging were never loaded, so the strike force couldn't invade. AI empires now capture about twice as many
+  colonies per game.
+
 Logistics, experience and command:
 
 - Fleets resupply only at your colonies (unless blockaded) and supply depots. Every turn away costs a turn of
-  supply; endurance rises to 10-16 turns by hull. Repairs also happen only there, or with a repair tender.
+  supply; endurance rises to 10-16 turns by hull. Repairs also happen only there, or from supply ships.
 - Supply ships (Supply Hold, from Extended Tanks) carry stores that keep their fleet supplied in the field:
-  one ship-turn per ship each turn until the stores run out. They refill at colonies and depots.
+  one ship-turn per ship each turn until the stores run out. They also reload spent missile launchers (one ship-turn
+  per ship rearmed) and, with Field Repair, mend 15% of every ship's hull a turn and fix one knocked-out part per
+  ship. They refill at colonies and depots. Supply ships replace repair tenders: the Repair Bay and the Repair
+  Tender design are gone, and tenders in older saves become supply ships.
 - Ships gain experience from battles they survive, more for kills and for fighting outnumbered, and rank up from
   Green to Regular, Veteran, Elite and Ace. Each rank adds accuracy and evasion: +1% on escorts and freighters up
   to +5% on dreadnoughts. A Military Academy trains new ships as Regulars.
@@ -45,11 +66,12 @@ Combat:
   and rearm only at your colonies and depots. Beams never run dry.
 - Battle damage: a heavy hit can knock out one of a ship's weapons, shields, engines or electronics (chance is the
   damage as a share of its hull, up to 40%). Knocked-out parts stay out until repaired at a colony or depot;
-  repair tenders and Damage Control fix one per ship per turn in the field.
+  supply ships (with Field Repair) and Damage Control fix one per ship per turn in the field.
 - Pursuit: a fleet that withdraws takes a parting volley from enemy ships more maneuverable than its slowest ship.
   Hit-and-Run Doctrine avoids it; Tractor Beams let every one of your ships take the shot.
-- Fleet size: fleets of more than 8 ships (14 with a command network) lose 3% accuracy and evasion per extra ship,
-  up to 24%. The AI keeps its fleets within the limit.
+- Fleet size: fleets of more than 8 warships (14 with a command network) lose 3% accuracy and evasion per extra
+  warship, up to 24%. Only armed ships count: supply ships, troop transports and other support ships ride along
+  free. The AI keeps its fleets within the limit.
 - Battle replays show parting shots and knocked-out parts; the fleet sheet shows the size limit, damaged parts and
   missile salvos left.
 

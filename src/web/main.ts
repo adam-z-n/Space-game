@@ -103,6 +103,12 @@ async function showSetup(message?: string): Promise<void> {
   const describeDifficulty = () => (difficultyHint.textContent = pack.difficulties.find((d) => d.id === difficulty.value)?.description ?? "");
   difficulty.onchange = describeDifficulty;
   describeDifficulty();
+  const victory = h("select");
+  for (const m of pack.victory.modes) victory.append(h("option", { value: m.id, textContent: m.name }));
+  const victoryHint = h("div", { className: "hint" });
+  const describeVictory = () => (victoryHint.textContent = pack.victory.modes.find((m) => m.id === victory.value)?.description ?? "");
+  victory.onchange = describeVictory;
+  describeVictory();
   const error = h("p", { className: "error", textContent: message ?? "" });
 
   // Empire picker: one card per playable empire, showing its species, traits and a ship in its colors.
@@ -138,7 +144,7 @@ async function showSetup(message?: string): Promise<void> {
   const start = button(
     "Start new game",
     () => {
-      const settings: GameSettings = { seed: seed.value.trim(), galaxySize: size.value, aiCount: Number(ai.value), difficulty: difficulty.value, playerEmpire: chosen };
+      const settings: GameSettings = { seed: seed.value.trim(), galaxySize: size.value, aiCount: Number(ai.value), difficulty: difficulty.value, victory: victory.value, playerEmpire: chosen };
       try {
         startGame(Game.create(settings, pack));
       } catch (e) {
@@ -171,6 +177,7 @@ async function showSetup(message?: string): Promise<void> {
       h("label", {}, "Galaxy size", size),
       h("label", {}, "AI empires", ai),
       h("label", {}, "Difficulty", difficulty, difficultyHint),
+      h("label", {}, "Victory", victory, victoryHint),
       start,
       importBtn,
       error,
@@ -538,7 +545,7 @@ function startGame(game: Game): void {
       h(
         "div",
         { className: "title" },
-        `Turn ${view.turn}/${turnLimit(game.state, pack)}`,
+        `Turn ${view.turn}${turnLimit(game.state, pack) === null ? "" : `/${turnLimit(game.state, pack)}`}`,
         h("small", {}, h("span", { className: "swatch", style: `background:${me.color}` }), `${me.name} · ${explored}/${view.systems.length} explored`),
       ),
       button("Fleets", () => openPanel(ui.panel === "fleets" ? "none" : "fleets")),
