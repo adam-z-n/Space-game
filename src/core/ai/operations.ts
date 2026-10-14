@@ -294,7 +294,8 @@ const landed = (ctx: AiContext, raw: number) => Math.floor((raw * (100 + ctx.fx.
 function siege(ctx: AiContext): void {
   const inOrbit = new Map<SystemId, FleetInfo[]>();
   for (const info of ctx.fleets) {
-    if (info.fleet.progress > 0 || info.fleet.route.length > 0) continue;
+    // Fleets already ordered away this turn (say, home to resupply) take no part.
+    if (info.fleet.progress > 0 || info.fleet.route.length > 0 || !free(ctx, info)) continue;
     inOrbit.set(info.fleet.systemId, [...(inOrbit.get(info.fleet.systemId) ?? []), info]);
   }
   const handled = new Set<number>();

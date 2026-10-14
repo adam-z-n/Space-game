@@ -1,5 +1,5 @@
 import { buildOptions, buyCost, colonyOutput, findBody, itemCost, planetStats, prospectiveMaxPop } from "../economy";
-import { combatShipCount, designStats } from "../ships";
+import { combatShipCount, designStats, fleetShipStats } from "../ships";
 import type { Colony, Focus, QueueItem } from "../state";
 import type { AiContext } from "./context";
 import { designWhere } from "./designs";
@@ -55,7 +55,9 @@ export function planProduction(ctx: AiContext, strategy: Strategy, warshipId: st
   const outpostDesign = designWhere(ctx, (s) => s.outpost);
   // A supply ship for the strike force when going to war.
   const supplyDesign = designWhere(ctx, (s) => s.stores > 0 && !s.armed);
-  let suppliers = ctx.fleets.filter((f) => f.supplier).length + queuedOf((q) => isShip(q, (s) => s.stores > 0 && !s.armed));
+  // Support ships are counted ship by ship: once merged into a strike force their fleet is armed.
+  const afloat = (test: (s: ReturnType<typeof designStats>) => boolean) => ctx.fleets.reduce((n, f) => n + fleetShipStats(pack, ctx.state, f.fleet).filter(test).length, 0);
+  let suppliers = afloat((s) => s.stores > 0 && !s.armed) + queuedOf((q) => isShip(q, (s) => s.stores > 0 && !s.armed));
   const wantSuppliers = strategy.posture === "attack" && strategy.warTarget !== null && supplyDesign ? 1 : 0;
   // One outpost ship at a time, while there are free asteroid fields or gas giants in supply range.
   let outposters = ctx.fleets.filter((f) => f.outpost).length + queuedOf((q) => isShip(q, (s) => s.outpost));
@@ -73,9 +75,9 @@ export function planProduction(ctx: AiContext, strategy: Strategy, warshipId: st
   const bomberDesign = designWhere(ctx, (s) => s.bombard > 0 && s.armed);
   const infiltratorDesign = designWhere(ctx, (s) => s.commandos > 0 && s.stealth && !s.armed);
   const atWar = strategy.posture === "attack" && strategy.targetColony !== null;
-  let bombers = ctx.fleets.filter((f) => f.bombard > 0).length + queuedOf((q) => isShip(q, (s) => s.bombard > 0));
+  let bombers = afloat((s) => s.bombard > 0) + queuedOf((q) => isShip(q, (s) => s.bombard > 0));
   const wantBombers = atWar && bomberDesign ? AI_SIEGE.bombers : 0;
-  let infiltrators = ctx.fleets.filter((f) => f.commandos > 0 && !f.armed).length + queuedOf((q) => isShip(q, (s) => s.commandos > 0 && !s.armed));
+  let infiltrators = afloat((s) => s.commandos > 0 && !s.armed) + queuedOf((q) => isShip(q, (s) => s.commandos > 0 && !s.armed));
   const wantInfiltrators = atWar && infiltratorDesign && strategy.targetColony!.defenseHp > 0 ? AI_SIEGE.infiltrators : 0;
   let settlers = ctx.fleets.filter((f) => f.colonize).length + queuedOf((q) => isShip(q, (s) => s.colonize));
   let scouts = ctx.fleets.filter((f) => f.recon).length + queuedOf((q) => isShip(q, (s) => s.role === "recon"));

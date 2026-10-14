@@ -23,6 +23,14 @@ function atWar(defenseHp: number, troops: number): GameState {
   ai.colonySightings = [{ colonyId: target.id, empireId: 2, systemId: target.systemId, bodyId: target.bodyId, name: target.name, population: target.population, defenseHp, troops, turn: s.turn }];
   return s;
 }
+/** `n` more big colonies for empire 1 in its home system, to build with. */
+function moreColonies(s: GameState, n: number): void {
+  const capital = s.colonies.find((c) => c.empireId === 1 && c.capital)!;
+  for (let i = 1; i <= n; i++) {
+    s.galaxy.systems[capital.systemId]!.bodies.push({ id: 9000 + i, kind: "planet", planetType: "terran", size: "medium", richness: "normal" });
+    s.colonies.push({ ...capital, id: 9100 + i, capital: false, bodyId: 9000 + i, buildings: [], queue: [] });
+  }
+}
 const target = (s: GameState) => s.colonies.find((c) => c.empireId === 2 && c.capital)!;
 const ordersFor = (commands: Command[], fleetId: number) => commands.filter((c) => "fleetId" in c && c.fleetId === fleetId);
 
@@ -34,6 +42,7 @@ describe("AI siege tactics", () => {
     const bombers = newFleet(s, pack, ai, ["siege"], at);
     const transports = newFleet(s, pack, ai, ["troop_transport"], at); // 10 troops vs 20 defenders: 25 needed
     transports.invadeColonyId = target(s).id;
+    bombers.supply = 20; // well supplied: no need to head home
     s.fleets.push(bombers, transports);
     expect(ordersFor(planAiTurn(s, pack, 1), bombers.id)).toContainEqual(expect.objectContaining({ type: "bombard", colonyId: target(s).id }));
 
@@ -69,12 +78,7 @@ describe("AI siege tactics", () => {
   it("builds siege ships and commandos for the war, and troop ships in batches", () => {
     const s = atWar(40, 30);
     for (const c of s.colonies.filter((c) => c.empireId === 1)) c.queue = [];
-    // Three more big colonies in the home system to build with.
-    const capital = s.colonies.find((c) => c.empireId === 1 && c.capital)!;
-    for (const i of [1, 2, 3]) {
-      s.galaxy.systems[capital.systemId]!.bodies.push({ id: 9000 + i, kind: "planet", planetType: "terran", size: "medium", richness: "normal" });
-      s.colonies.push({ ...capital, id: 9100 + i, capital: false, bodyId: 9000 + i, buildings: [], queue: [] });
-    }
+    moreColonies(s, 3);
     s.empires[1]!.credits = 500;
     const queued = planAiTurn(s, pack, 1).flatMap((c) => (c.type === "queueBuild" ? [c.item] : []));
     expect(queued).toContainEqual(expect.objectContaining({ id: "siege" }));
@@ -89,6 +93,20 @@ describe("AI siege tactics", () => {
     const create = planAiTurn(s, pack, 1).find((c) => c.type === "createDesign" && c.design.name.startsWith("Siege"));
     expect(create).toMatchObject({ type: "createDesign", design: { name: "Siege Mk 1", hull: "cruiser" } });
     if (create?.type === "createDesign") expect(create.design.components.filter((c) => c === "bomb_bay")).toHaveLength(2);
+  });
+
+  it("counts support ships riding inside strike fleets, so it doesn't keep building more", () => {
+    const s = atWar(40, 10);
+    const ai = s.empires[1]!;
+    ai.techs.push("extended_tanks");
+    for (const c of s.colonies.filter((c) => c.empireId === 1)) c.queue = [];
+    const strike = s.fleets.find((f) => f.empireId === 1 && f.ships.length === 8)!;
+    const supply = newFleet(s, pack, ai, ["supply_ship"], strike.systemId);
+    strike.ships.push(...supply.ships); // merged: the fleet is armed, but the supply ship is still there
+    moreColonies(s, 6);
+    ai.credits = 500;
+    const queued = planAiTurn(s, pack, 1).flatMap((c) => (c.type === "queueBuild" ? [c.item.id] : []));
+    expect(queued).not.toContain("supply_ship");
   });
 
   it("turns a combat outpost near the target into a supply depot", () => {
