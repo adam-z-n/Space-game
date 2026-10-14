@@ -14,17 +14,21 @@ state, all changes through commands); the rules data lives in `content/default/p
 
 - **Released:** only v1.0.0 (GitHub Release + tag). The owner publishes releases through the GitHub UI.
 - **Merged to `main` but not yet released:** 1.1 (PR #8 and earlier) and 1.2 (PRs #9 and #10). `package.json` still
-  says `1.1.0`; `CHANGELOG.md` has a `1.2.0 (in progress)` section. To release 1.2: bump `version`, retitle the
-  changelog section, merge, then the owner creates the `v1.2.0` release/tag (tag pushes from sessions get a 403).
+  says `1.1.0`; `CHANGELOG.md` has a `1.2.0 (unreleased)` section. To release: bump `version`, retitle the
+  changelog section, merge, then the owner creates the release/tag (tag pushes from sessions get a 403).
 - **1.2 contents:** resupply only at colonies, depots and supply ships; ship experience and ranks; Fleet Command
   Network; 118-tech tree with rival schools, race research access and affinities (balance-tested); conquest tech
   capture; missile ammo, component knock-outs, pursuit, fleet size limit (warships only); supply ships rearm and
   (with Field Repair) repair in the field, repair tenders removed; victory modes (200 turns, 400 turns,
   Domination 75%, Total domination 100%); AI weighs planetary defenses; AI endgame drive in open-ended modes;
   several AI attack fixes; AI warship cap of 60.
+- **1.3 (in progress on the session branch):** invasions land only the troops needed (125% of defenders) or
+  all-out; unarmed fleets hold behind friendly warships; ship batches ×1/×3/×5 (queue item `count`); Planets
+  screen; resupply points shown when a fleet is selected; galaxy types (content `galaxyTypes`: standard, sparse,
+  dense, clusters, spiral, ring); AI siege bombing, commando raids, depots; AI coalition against a leading human
+  in open-ended games (`state.coalition`, content `victory.coalition`); research costs scaled by tree depth.
 - **Next ideas** (`docs/ROADMAP.md`): diplomacy, espionage, trade, pass-and-play multiplayer; combat terrain,
-  ambush, admirals, boarding. Also open: AI siege tactics (bombard/sabotage dug-in systems) so Total domination
-  games finish more often (about 2 of 6 all-AI games do), and teaching the AI the 1.1 tools.
+  ambush, admirals, boarding.
 
 ## How the owner likes to work
 
@@ -50,7 +54,7 @@ state, all changes through commands); the rules data lives in `content/default/p
 
 - All randomness from the seeded `Rng`; no `Math.random`, clocks, or trig/exp/log/pow in `src/core`.
 - Iterate in a fixed order and break ties by id. Replays must reproduce the final state hash.
-- Changing persisted state means bumping `STATE_VERSION` in `src/core/state.ts` (now 15) and adding a step to
+- Changing persisted state means bumping `STATE_VERSION` in `src/core/state.ts` (now 16) and adding a step to
   `migrateState` in `src/core/save.ts`, with a test.
 - New content fields go in the zod schema (with `superRefine` checks for cross-references). New effect keys must
   also be added to the effect list in `src/core/economy.ts`.
@@ -78,4 +82,5 @@ state, all changes through commands); the rules data lives in `content/default/p
 - The batch sim prints only at the end. For long open-ended games, write a small probe script that logs
   progress every 100 turns.
 - Screenshots: `npm run build`, then `npx vite preview --port 4173` in the background, then a Playwright script
-  (`require` from `/node-tools/node_modules`, iPhone 13 device). The preview server sometimes stops; restart it.
+  (`require` from `/opt/node-tools/node_modules/playwright`, iPhone 13 device). To show a mid-game
+  state, write a save with a `tsx` script and put it in `localStorage` under `space4x:save:autosave` before loading. The preview server sometimes stops; restart it.
