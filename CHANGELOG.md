@@ -1,6 +1,6 @@
 # Changelog
 
-## 1.3.0 (in progress)
+## 1.3.0
 
 Invasions:
 
@@ -49,7 +49,7 @@ Galaxy types (new game setup):
   tightly linked stars, joined by a lane or two), Spiral (two arms around a core) and Ring (a ring of stars
   around an empty middle).
 
-## 1.2.0 (unreleased)
+## 1.2.0 (not released on its own; included in 1.3.0)
 
 Victory conditions:
 
@@ -124,7 +124,7 @@ Combat:
 - Battle replays show parting shots and knocked-out parts; the fleet sheet shows the size limit, damaged parts and
   missile salvos left.
 
-## 1.1.0
+## 1.1.0 (not released on its own; included in 1.3.0)
 
 Map and planning:
 

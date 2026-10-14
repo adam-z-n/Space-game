@@ -1,9 +1,8 @@
 # Roadmap
 
-Ideas for future versions, roughly grouped. Version 1.2 (unreleased) covers logistics, ship experience, fleet
-command, a larger research tree with race-specific schools, and four combat additions. Version 1.3 (in progress)
-covers invasion handling, build batches, a planets screen, galaxy types, research pacing, and AI siege tactics and
-an AI coalition against a leading human; the rest waits here.
+Ideas for future versions, roughly grouped. Version 1.3 (released with 1.1 and 1.2) covers, among much else,
+logistics, ship experience, a larger research tree with race-specific schools, invasion handling, build batches, a
+planets screen, galaxy types, research pacing, and AI siege tactics and coalition; the rest waits here.
 
 ## Future versions (requested)
 
