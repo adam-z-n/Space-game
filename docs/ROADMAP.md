@@ -30,6 +30,8 @@ an AI coalition against a leading human; the rest waits here.
 - AI tuning: the warlord and turtle personalities rarely win; expansionists win most.
 - Teach the AI the remaining 1.1 tools: minelayers and cloaked raiding (1.3 taught it bombardment, commando raids
   and supply depots).
+- AI debt in collapsing empires: an empire losing colonies to conquest keeps its fleet and runs deep into debt
+  (seen in long Total domination games); it should scrap ships faster as its income shrinks.
 - Mothballing fleets: lower upkeep while docked, slow to reactivate.
 - Mobile app builds (Capacitor for iOS and Android), performance, and polish.
 - The app checking for a new version itself, so phones don't keep showing an old copy.
