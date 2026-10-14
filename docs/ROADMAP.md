@@ -33,4 +33,7 @@ planets screen, galaxy types, research pacing, and AI siege tactics and coalitio
   (seen in long Total domination games); it should scrap ships faster as its income shrinks.
 - Mothballing fleets: lower upkeep while docked, slow to reactivate.
 - Mobile app builds (Capacitor for iOS and Android), performance, and polish.
+- Update the GitHub Actions workflows to action versions that run on Node.js 24 (checkout, setup-node,
+  configure-pages, upload-pages-artifact, upload-artifact): GitHub warns that their current versions target the
+  deprecated Node.js 20.
 - The app checking for a new version itself, so phones don't keep showing an old copy.
