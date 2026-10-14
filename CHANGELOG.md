@@ -26,6 +26,12 @@ Screens:
 - Resupply points now show on the map whenever one of your fleets is selected, instead of through a menu toggle.
 - The menu no longer has a Research tree entry; open it from the research screen.
 
+Research:
+
+- Techs deeper in the tree cost more: starting techs as before, then ×1.3, ×1.8, ×2.5 and ×3 for the deepest
+  (about 85,000 research for the whole tree, was 38,000). Empires used to finish the tree by turn 150-220; now a
+  research-minded empire gets there around turn 300.
+
 AI:
 
 - AI empires now use the 1.1 tools. Strike forces bring siege ships (bomb bays, once researched) that bombard
