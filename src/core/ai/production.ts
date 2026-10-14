@@ -1,5 +1,5 @@
 import { buildOptions, buyCost, colonyOutput, findBody, itemCost, planetStats, prospectiveMaxPop } from "../economy";
-import { combatShipCount, designStats } from "../ships";
+import { combatShipCount, designStats, fleetShipStats } from "../ships";
 import type { Colony, Focus, QueueItem } from "../state";
 import type { AiContext } from "./context";
 import { designWhere } from "./designs";
@@ -11,6 +11,9 @@ import type { Strategy } from "./strategy";
  * better designs; it also keeps late, open-ended games quick to play.
  */
 export const AI_MAX_WARSHIPS = 60;
+
+/** Siege ships and commando ships an AI empire keeps while at war (once researched). */
+export const AI_SIEGE = { bombers: 2, infiltrators: 1 };
 
 /**
  * What to build, how to work each colony, and how to stay solvent.
@@ -31,7 +34,8 @@ export function planProduction(ctx: AiContext, strategy: Strategy, warshipId: st
   avoidDebt(ctx, strategy, room);
 
   const fx = ctx.fx;
-  const queuedOf = (test: (item: QueueItem) => boolean) => ctx.colonies.reduce((n, c) => n + c.queue.filter(test).length, 0);
+  // Ships queued, batches counted in full.
+  const queuedOf = (test: (item: QueueItem) => boolean) => ctx.colonies.reduce((n, c) => n + c.queue.filter(test).reduce((k, q) => k + (q.count ?? 1), 0), 0);
   const isShip = (item: QueueItem, test: (s: ReturnType<typeof designStats>) => boolean) => {
     if (item.kind !== "ship") return false;
     const design = empire.designs.find((d) => d.id === item.id);
@@ -51,7 +55,9 @@ export function planProduction(ctx: AiContext, strategy: Strategy, warshipId: st
   const outpostDesign = designWhere(ctx, (s) => s.outpost);
   // A supply ship for the strike force when going to war.
   const supplyDesign = designWhere(ctx, (s) => s.stores > 0 && !s.armed);
-  let suppliers = ctx.fleets.filter((f) => f.supplier).length + queuedOf((q) => isShip(q, (s) => s.stores > 0 && !s.armed));
+  // Support ships are counted ship by ship: once merged into a strike force their fleet is armed.
+  const afloat = (test: (s: ReturnType<typeof designStats>) => boolean) => ctx.fleets.reduce((n, f) => n + fleetShipStats(pack, ctx.state, f.fleet).filter(test).length, 0);
+  let suppliers = afloat((s) => s.stores > 0 && !s.armed) + queuedOf((q) => isShip(q, (s) => s.stores > 0 && !s.armed));
   const wantSuppliers = strategy.posture === "attack" && strategy.warTarget !== null && supplyDesign ? 1 : 0;
   // One outpost ship at a time, while there are free asteroid fields or gas giants in supply range.
   let outposters = ctx.fleets.filter((f) => f.outpost).length + queuedOf((q) => isShip(q, (s) => s.outpost));
@@ -65,6 +71,14 @@ export function planProduction(ctx: AiContext, strategy: Strategy, warshipId: st
     if (target) troopsWanted = Math.ceil((target.troops * 3) / 2) + 2;
   }
   let troopShortfall = troopsWanted - carriedTroops;
+  // Siege ships and commandos ride with strike forces once researched.
+  const bomberDesign = designWhere(ctx, (s) => s.bombard > 0 && s.armed);
+  const infiltratorDesign = designWhere(ctx, (s) => s.commandos > 0 && s.stealth && !s.armed);
+  const atWar = strategy.posture === "attack" && strategy.targetColony !== null;
+  let bombers = afloat((s) => s.bombard > 0) + queuedOf((q) => isShip(q, (s) => s.bombard > 0));
+  const wantBombers = atWar && bomberDesign ? AI_SIEGE.bombers : 0;
+  let infiltrators = afloat((s) => s.commandos > 0 && !s.armed) + queuedOf((q) => isShip(q, (s) => s.commandos > 0 && !s.armed));
+  const wantInfiltrators = atWar && infiltratorDesign && strategy.targetColony!.defenseHp > 0 ? AI_SIEGE.infiltrators : 0;
   let settlers = ctx.fleets.filter((f) => f.colonize).length + queuedOf((q) => isShip(q, (s) => s.colonize));
   let scouts = ctx.fleets.filter((f) => f.recon).length + queuedOf((q) => isShip(q, (s) => s.role === "recon"));
   const wantSettlers = Math.min(1 + Math.floor(p.expansion / 4), strategy.colonyTargets.length);
@@ -99,8 +113,18 @@ export function planProduction(ctx: AiContext, strategy: Strategy, warshipId: st
       pick = { kind: "ship", id: colonyDesign.id };
       settlers++;
     } else if (troopShortfall > 0 && big && troopDesign && can({ kind: "ship", id: troopDesign.id })) {
-      pick = { kind: "ship", id: troopDesign.id };
-      troopShortfall -= designStats(pack, troopDesign, fx).troops;
+      // A batch covers the shortfall in one queue entry.
+      const each = Math.max(1, designStats(pack, troopDesign, fx).troops);
+      const count = Math.min(5, Math.ceil(troopShortfall / each));
+      pick = count > 1 ? { kind: "ship", id: troopDesign.id, count } : { kind: "ship", id: troopDesign.id };
+      troopShortfall -= each * count;
+    } else if (infiltrators < wantInfiltrators && big && infiltratorDesign && can({ kind: "ship", id: infiltratorDesign.id })) {
+      pick = { kind: "ship", id: infiltratorDesign.id };
+      infiltrators++;
+    } else if (bombers < wantBombers && big && bomberDesign && can({ kind: "ship", id: bomberDesign.id }) && designStats(pack, bomberDesign, fx).upkeep <= room.upkeep) {
+      pick = { kind: "ship", id: bomberDesign.id };
+      room.upkeep -= designStats(pack, bomberDesign, fx).upkeep;
+      bombers++;
     } else if (suppliers < wantSuppliers && big && supplyDesign && can({ kind: "ship", id: supplyDesign.id })) {
       pick = { kind: "ship", id: supplyDesign.id };
       suppliers++;

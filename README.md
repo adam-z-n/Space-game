@@ -18,7 +18,8 @@ Version 1.0 is Milestones 1 to 6 plus the classic theme. See [CHANGELOG.md](CHAN
 - Invasion: order a fleet carrying troops (troop bays) to invade a known rival colony; it lands once the colony's
   orbital defenses are knocked out. Ground combat weighs troops against garrison plus militia, with terrain
   (jungle, toxic and volcanic worlds are hard to take) and ground-forces tech. Captured colonies change hands
-  with their buildings; losing the capital moves it to the largest remaining colony.
+  with their buildings; losing the capital moves it to the largest remaining colony. Only the troops a safe win needs
+  land (125% of the defenders); short of that they wait in orbit, unless ordered all-out.
 - Support ships: repair tenders mend their fleet even outside supply; minelayers mine the system they wait in.
   Minefields hit hostile ships that stop in that system.
 - New designs (troop transport, repair tender, minelayer), six new techs, and terrain on every planet type
@@ -74,7 +75,7 @@ Version 1.0 is Milestones 1 to 6 plus the classic theme. See [CHANGELOG.md](CHAN
 - Colonies with population, growth, and a focus (balanced, industry, research, food) that assigns workers automatically
 - Four resources: industry (builds things at each colony), research (empire-wide), food (shared stock; shortages
   cause starvation), credits (taxes minus upkeep; debt cuts output)
-- Build queues per colony with turn forecasts; buy the current build with credits
+- Build queues per colony with turn forecasts and ship batches (×1, ×3, ×5); buy the current build with credits
 - Colony ships settle planets above a habitability threshold (techs lower it)
 - A 16-tech tree in six fields; techs add bonuses or unlock buildings, all defined in the content pack
 - Rival colonies are seen through sensors, with last-known sightings like fleets
@@ -175,7 +176,8 @@ These keep games replayable and multiplayer-ready:
 ## Decisions so far
 
 - Engine: TypeScript, web-first, Capacitor for native builds later.
-- Galaxy sizes: 32 / 64 / 100 systems, about 30% without planets (tunable in the content pack).
+- Galaxy sizes: 32 / 64 / 100 systems. Galaxy types: Standard (about 30% without planets), Sparse, Dense, Clusters,
+  Spiral and Ring (tunable in the content pack).
 - Resources: industry, research, food, credits.
 - Colony management uses focus presets rather than per-worker sliders, to keep it one-thumb friendly.
 - Every empire is hostile to every other; diplomacy is out of scope for v1.

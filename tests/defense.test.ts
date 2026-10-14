@@ -5,6 +5,7 @@ import {
   colonyDefense,
   createInitialState,
   defendingTroops,
+  chooseLanding,
   fleetTroops,
   newFleet,
   type Command,
@@ -118,8 +119,8 @@ describe("invasion", () => {
     expect(applyCommand(t, { type: "invade", empireId: 0, fleetId: t.fleets[0]!.id, colonyId: cap.id }, pack)).toMatchObject({ ok: false, error: "no known rival colony there" });
   });
 
-  it("captures a colony when the landing force wins, spending the transports", () => {
-    let s = besieged(4); // 40 troops vs 13 defenders
+  it("captures a colony when the landing force wins, landing only the transports it needs", () => {
+    let s = besieged(4); // 40 troops vs 13 defenders: 17 needed, so two transports land
     const fleet = s.fleets[0]!;
     const cap = enemyCapital(s);
     expect(fleetTroops(s, pack, fleet)).toBe(40);
@@ -129,7 +130,8 @@ describe("invasion", () => {
     expect(taken.capital).toBe(false);
     expect(taken.buildings).not.toContain("capitol");
     expect(taken.population).toBeLessThan(5);
-    expect(s.fleets.find((f) => f.id === fleet.id)!.ships.map((x) => x.designId)).toEqual(["frigate"]);
+    expect(s.fleets.find((f) => f.id === fleet.id)!.ships.map((x) => x.designId)).toEqual(["frigate", "troop_transport", "troop_transport"]);
+    expect(s.lastTurnEvents).toContainEqual(expect.objectContaining({ type: "invasion", empireId: 0, attackingTroops: 20, defendingTroops: 13 }));
     const events = s.lastTurnEvents.filter((e) => e.type === "invasion");
     expect(events.map((e) => e.empireId).sort()).toEqual([0, 1]);
     expect(events[0]).toMatchObject({ captured: true, attackerId: 0, defenderId: 1 });
@@ -138,12 +140,46 @@ describe("invasion", () => {
     expect(s.outcome).toMatchObject({ winnerId: 0, reason: "elimination" });
   });
 
-  it("is repelled when the defenders are stronger", () => {
-    let s = besieged(1); // 5 troops vs 13
+  it("waits in orbit when the troops on hand fall short of a safe landing", () => {
+    let s = besieged(1); // 10 troops vs 13: 17 needed
     const cap = enemyCapital(s);
-    s = run(s, { type: "invade", empireId: 0, fleetId: s.fleets[0]!.id, colonyId: cap.id }, end);
+    const fleet = s.fleets[0]!;
+    s = run(s, { type: "invade", empireId: 0, fleetId: fleet.id, colonyId: cap.id }, end);
+    expect(s.lastTurnEvents.some((e) => e.type === "invasion")).toBe(false);
+    expect(s.lastTurnEvents).toContainEqual(expect.objectContaining({ type: "invasionWaiting", empireId: 0, colonyId: cap.id, troops: 10, needed: 17 }));
+    const waiting = s.fleets.find((f) => f.id === fleet.id)!;
+    expect(waiting.ships).toHaveLength(2);
+    expect(waiting.invadeColonyId).toBe(cap.id);
+    // A second fleet ordered against the same colony lands together with the first.
+    const more = newFleet(s, pack, s.empires[0]!, ["troop_transport"], 4);
+    s.fleets.push(more);
+    s = run(s, { type: "invade", empireId: 0, fleetId: more.id, colonyId: cap.id }, end);
+    expect(s.colonies.find((c) => c.id === cap.id)!.empireId).toBe(0);
+    expect(s.lastTurnEvents).toContainEqual(expect.objectContaining({ type: "invasion", empireId: 0, attackingTroops: 20, captured: true }));
+  });
+
+  it("is repelled when an all-out landing meets stronger defenders", () => {
+    let s = besieged(1); // 10 troops vs 13
+    const cap = enemyCapital(s);
+    s = run(s, { type: "invade", empireId: 0, fleetId: s.fleets[0]!.id, colonyId: cap.id, allOut: true }, end);
     expect(s.colonies.find((c) => c.id === cap.id)!.empireId).toBe(1);
-    expect(s.lastTurnEvents).toContainEqual(expect.objectContaining({ type: "invasion", captured: false, empireId: 0 }));
+    expect(s.lastTurnEvents).toContainEqual(expect.objectContaining({ type: "invasion", captured: false, empireId: 0, attackingTroops: 10 }));
+    // The transport is spent and the warship's order lapses with it.
+    expect(s.fleets[0]!.ships.map((x) => x.designId)).toEqual(["frigate"]);
+    expect(s.fleets[0]!.invadeColonyId).toBeNull();
+  });
+
+  it("lands the biggest transports first", () => {
+    const s = besieged(0);
+    const cap = enemyCapital(s);
+    const fleet = newFleet(s, pack, s.empires[0]!, ["troop_transport", "troop_transport", "troop_transport"], 4);
+    s.empires[0]!.designs.push({ id: "big_lift", name: "Big Lift", hull: "cruiser", components: Array.from({ length: 4 }, () => "troop_bay"), formation: "support", obsolete: false });
+    const lift = newFleet(s, pack, s.empires[0]!, ["big_lift"], 4);
+    const landing = chooseLanding(s, pack, [fleet, lift], 13);
+    expect(landing.needed).toBe(17);
+    expect(fleetTroops(s, pack, lift)).toBeGreaterThanOrEqual(17);
+    expect([...landing.ships]).toEqual([lift.ships[0]!.id]);
+    expect(chooseLanding(s, pack, [fleet], defendingTroops(s, pack, cap)).ships.size).toBe(2);
   });
 
   it("can't land while orbital defenses still stand: the transports withdraw under fire", () => {
@@ -158,6 +194,34 @@ describe("invasion", () => {
     const transports = s.fleets.find((f) => f.empireId === 0)!;
     expect(transports.invadeColonyId).toBeNull();
     expect(transports.route.length).toBeGreaterThan(0);
+  });
+
+  it("transports hold their ground behind friendly warships still fighting, and land once the defenses fall", () => {
+    let s = line();
+    const cap = enemyCapital(s);
+    const warships = newFleet(s, pack, s.empires[0]!, Array.from({ length: 6 }, () => "frigate"), 4);
+    warships.orders.retreatPercent = 100;
+    const transports = newFleet(s, pack, s.empires[0]!, ["troop_transport", "troop_transport", "troop_transport"], 4);
+    expect(transports.orders.mission).toBe("evade"); // unarmed fleets default to evading
+    s.fleets.push(warships, transports);
+    s = run(s, { type: "invade", empireId: 0, fleetId: transports.id, colonyId: cap.id });
+    for (let turn = 0; turn < 8 && s.colonies.find((c) => c.id === cap.id)!.empireId !== 0; turn++) {
+      s = run(s, end);
+      const t = s.fleets.find((f) => f.id === transports.id);
+      expect(t?.route ?? []).toEqual([]); // never sent fleeing
+    }
+    expect(s.colonies.find((c) => c.id === cap.id)!.empireId).toBe(0);
+  });
+
+  it("transports on their own still withdraw from a battle", () => {
+    let s = line();
+    const cap = enemyCapital(s);
+    const transports = newFleet(s, pack, s.empires[0]!, ["troop_transport", "troop_transport"], 4);
+    s.fleets.push(transports);
+    s = run(s, { type: "invade", empireId: 0, fleetId: transports.id, colonyId: cap.id }, end);
+    const t = s.fleets.find((f) => f.id === transports.id)!;
+    expect(t.route.length).toBeGreaterThan(0);
+    expect(t.invadeColonyId).toBeNull();
   });
 
   it("moving cancels the order", () => {

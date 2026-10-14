@@ -24,6 +24,10 @@ export interface FleetInfo {
   recon: boolean;
   /** Ground troops aboard (0 for most fleets). */
   troops: number;
+  /** Bombardment per turn its bomb bays deal. */
+  bombard: number;
+  /** Commando teams aboard. */
+  commandos: number;
   maxSupply: number;
   /** Current hit points as a fraction of full, in percent. */
   hpPercent: number;
@@ -96,6 +100,8 @@ export function buildContext(state: GameState, pack: ContentPack, empireId: Empi
         supplier: stats.some((s) => s.stores > 0) && !stats.some((s) => s.armed),
         recon: stats.every((s) => s.role === "recon"),
         troops: stats.reduce((n, s) => n + s.troops, 0),
+        bombard: stats.reduce((n, s) => n + s.bombard, 0),
+        commandos: stats.reduce((n, s) => n + s.commandos, 0),
         maxSupply: fleetMaxSupply(pack, state, fleet),
         hpPercent: maxHp > 0 ? Math.floor((hp * 100) / maxHp) : 0,
         idle: fleet.progress === 0 && fleet.route.length === 0,

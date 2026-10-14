@@ -1,7 +1,9 @@
 # Roadmap
 
-Ideas for future versions, roughly grouped. Version 1.2 (in progress) covers logistics, ship experience, fleet
-command, a larger research tree with race-specific schools, and four combat additions; the rest waits here.
+Ideas for future versions, roughly grouped. Version 1.2 (unreleased) covers logistics, ship experience, fleet
+command, a larger research tree with race-specific schools, and four combat additions. Version 1.3 (in progress)
+covers invasion handling, build batches, a planets screen, galaxy types, research pacing, and AI siege tactics and
+an AI coalition against a leading human; the rest waits here.
 
 ## Future versions (requested)
 
@@ -26,7 +28,10 @@ command, a larger research tree with race-specific schools, and four combat addi
 ## Other candidates noted along the way
 
 - AI tuning: the warlord and turtle personalities rarely win; expansionists win most.
-- Teach the AI the 1.1 tools: bombardment, commando raids and cloaking, supply depots.
+- Teach the AI the remaining 1.1 tools: minelayers and cloaked raiding (1.3 taught it bombardment, commando raids
+  and supply depots).
+- AI debt in collapsing empires: an empire losing colonies to conquest keeps its fleet and runs deep into debt
+  (seen in long Total domination games); it should scrap ships faster as its income shrinks.
 - Mothballing fleets: lower upkeep while docked, slow to reactivate.
 - Mobile app builds (Capacitor for iOS and Android), performance, and polish.
 - The app checking for a new version itself, so phones don't keep showing an old copy.

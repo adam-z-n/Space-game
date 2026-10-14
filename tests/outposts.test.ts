@@ -58,7 +58,7 @@ function withOutposter(s: GameState, systemId = 1) {
 
 describe("bigger galaxies", () => {
   it("make about a third of the systems planet-free", () => {
-    const { galaxy } = generateGalaxy(Rng.fromSeed("empty"), pack, "medium", 1);
+    const { galaxy } = generateGalaxy(Rng.fromSeed("empty"), pack, "medium", 1, "standard");
     expect(galaxy.systems).toHaveLength(64);
     const empty = galaxy.systems.filter((x) => !x.bodies.some((b) => b.kind === "planet")).length;
     expect(empty).toBeGreaterThanOrEqual(12);

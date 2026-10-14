@@ -44,7 +44,7 @@ import { GalaxyMap, type MapTarget, type RoutePreview } from "./map";
 import { applyTheme } from "./theme";
 import { spriteIcon } from "./sprites";
 import { button, h, turnsText } from "./dom";
-import { colonyPanel, empirePanel, gameOverPanel, queueEverywhere, researchPanel, resourceBar, type PanelContext } from "./economyPanels";
+import { colonyPanel, empirePanel, gameOverPanel, planetsPanel, queueEverywhere, researchPanel, resourceBar, type PanelContext } from "./economyPanels";
 import { planetPlans, plannerLabels, plannerPanel, techTreePanel } from "./planningPanels";
 import { battlePanel, designerPanel, designsPanel, fleetDetail, startDraft, type ShipContext } from "./shipPanels";
 
@@ -95,6 +95,12 @@ async function showSetup(message?: string): Promise<void> {
   const seed = h("input", { value: randomSeed(), autocomplete: "off", spellcheck: false });
   const size = h("select");
   for (const g of pack.galaxySizes) size.append(h("option", { value: g.id, textContent: `${g.name} (${g.systems} systems)`, selected: g.id === "medium" }));
+  const galaxyType = h("select");
+  for (const t of pack.galaxyTypes) galaxyType.append(h("option", { value: t.id, textContent: t.name }));
+  const galaxyTypeHint = h("div", { className: "hint" });
+  const describeGalaxyType = () => (galaxyTypeHint.textContent = pack.galaxyTypes.find((t) => t.id === galaxyType.value)?.description ?? "");
+  galaxyType.onchange = describeGalaxyType;
+  describeGalaxyType();
   const ai = h("select");
   for (let n = MIN_AI; n <= MAX_AI; n++) ai.append(h("option", { value: String(n), textContent: `${n} rivals`, selected: n === 3 }));
   const difficulty = h("select");
@@ -144,7 +150,7 @@ async function showSetup(message?: string): Promise<void> {
   const start = button(
     "Start new game",
     () => {
-      const settings: GameSettings = { seed: seed.value.trim(), galaxySize: size.value, aiCount: Number(ai.value), difficulty: difficulty.value, victory: victory.value, playerEmpire: chosen };
+      const settings: GameSettings = { seed: seed.value.trim(), galaxySize: size.value, galaxyType: galaxyType.value, aiCount: Number(ai.value), difficulty: difficulty.value, victory: victory.value, playerEmpire: chosen };
       try {
         startGame(Game.create(settings, pack));
       } catch (e) {
@@ -175,6 +181,7 @@ async function showSetup(message?: string): Promise<void> {
       empires,
       h("label", {}, "Galaxy seed", h("div", { className: "row" }, seed, button("Random", () => (seed.value = randomSeed()), { type: "button" }))),
       h("label", {}, "Galaxy size", size),
+      h("label", {}, "Galaxy type", galaxyType, galaxyTypeHint),
       h("label", {}, "AI empires", ai),
       h("label", {}, "Difficulty", difficulty, difficultyHint),
       h("label", {}, "Victory", victory, victoryHint),
@@ -203,7 +210,7 @@ interface UiState {
   /** A destination being considered for the selected fleet, waiting for confirmation. */
   preview: (RoutePreview & { destinationId: SystemId }) | null;
   report: GameEvent[] | null;
-  panel: "none" | "menu" | "fleets" | "research" | "techtree" | "planner" | "empire" | "colony" | "designs" | "designer" | "battle" | "gameover";
+  panel: "none" | "menu" | "fleets" | "research" | "techtree" | "planner" | "planets" | "empire" | "colony" | "designs" | "designer" | "battle" | "gameover";
   /** Show the colonization planner's planet values on the map. */
   showPlanetValues: boolean;
   /** Battle shown when panel is "battle", and the replay round. */
@@ -213,7 +220,6 @@ interface UiState {
   colonyId: ColonyId | null;
   contextMenu: { target: MapTarget; x: number; y: number } | null;
   revealMap: boolean;
-  showSupply: boolean;
   /** The attention item the "to do" button showed last, so the next press moves on from it. */
   lastAttention: string | null;
 }
@@ -235,7 +241,6 @@ function startGame(game: Game): void {
     battleRound: 0,
     contextMenu: null,
     revealMap: false,
-    showSupply: true,
     showPlanetValues: false,
     lastAttention: null,
   };
@@ -476,6 +481,12 @@ function startGame(game: Game): void {
         if (mine) return e.captured ? `Captured ${name}! (${e.attackingTroops} troops vs ${e.defendingTroops})` : `Invasion of ${name} repelled (${e.attackingTroops} troops vs ${e.defendingTroops})`;
         return e.captured ? `${empire(e.attackerId).name} captured ${name}` : `Repelled ${empire(e.attackerId).name}'s landing on ${name}`;
       }
+      case "coalition":
+        return e.active
+          ? "The AI empires have united against you: you hold too much of the galaxy"
+          : "The AI coalition against you has broken up";
+      case "invasionWaiting":
+        return `Troops at ${colonyName(e.colonyId)} are waiting for more: ${e.troops} of ${e.needed} needed`;
       case "defensesDown":
         return `${colonyName(e.colonyId)}'s orbital defenses are down`;
       case "mineHits":
@@ -525,6 +536,7 @@ function startGame(game: Game): void {
       case "battle":
         return openBattle(e.battleId);
       case "empireEliminated":
+      case "coalition":
         return openPanel("empire");
       case "gameOver":
         return openPanel("gameover");
@@ -568,12 +580,8 @@ function startGame(game: Game): void {
       "div",
       { className: "menu" },
       button("Ship designs", () => openPanel("designs")),
-      button("Research tree", () => openPanel("techtree")),
+      button("Planets", () => openPanel("planets")),
       button("Colonization planner", () => openPanel("planner")),
-      button(ui.showSupply ? "Hide resupply points" : "Show resupply points", () => {
-        ui.showSupply = !ui.showSupply;
-        openPanel("none");
-      }),
       button("Export save file", () => download(`space4x-turn${game.state.turn}.json`, serializeSave(game))),
       button(ui.revealMap ? "Hide map (debug)" : "Reveal map (debug)", () => {
         ui.revealMap = !ui.revealMap;
@@ -770,15 +778,28 @@ function startGame(game: Game): void {
     const targets = view.systems[where]!.colonies.filter((c) => !c.own);
     const box = h("div", { className: "column" }, h("div", { className: "small", textContent: `Carrying ${troops} ground troops` }));
     const pending = targets.find((c) => c.colonyId === real.invadeColonyId);
+    const margin = pack.combat.invasionMarginPercent;
     if (pending) {
-      box.append(
-        h("div", { className: "warn-text small", textContent: `Will land on ${pending.name} once its orbital defenses are down (defenders ~${pending.troops}).` }),
-        button("Cancel invasion", () => ctx.issue({ type: "invade", empireId: game.playerId, fleetId: real.id, colonyId: null })),
-      );
+      // Other fleets of ours ordered against the same colony land together.
+      const committed = game.state.fleets
+        .filter((f) => f.empireId === game.playerId && f.invadeColonyId === pending.colonyId && f.systemId === real.systemId && f.progress === 0)
+        .reduce((n, f) => n + fleetTroops(game.state, pack, f), 0);
+      const needed = Math.ceil((pending.troops * margin) / 100);
+      const text = real.invadeAllOut
+        ? `All-out: every troop ship lands on ${pending.name} once its orbital defenses are down (defenders ~${pending.troops}).`
+        : `Will land the troops needed on ${pending.name} (~${needed} for ~${pending.troops} defenders) once its orbital defenses are down; spare transports stay in orbit.` +
+          (real.progress === 0 && real.systemId === where && committed < needed ? ` Waiting: ${committed} of ~${needed} troops here.` : "");
+      box.append(h("div", { className: "warn-text small", textContent: text }));
+      if (!real.invadeAllOut) {
+        box.append(button("Land everything now (all-out)", () => ctx.issue({ type: "invade", empireId: game.playerId, fleetId: real.id, colonyId: pending.colonyId, allOut: true })));
+      }
+      box.append(button("Cancel invasion", () => ctx.issue({ type: "invade", empireId: game.playerId, fleetId: real.id, colonyId: null })));
     } else {
       for (const c of targets) {
-        const odds = troops > c.troops * 1.3 ? "good odds" : troops > c.troops ? "close" : "likely to fail";
+        const needed = Math.ceil((c.troops * margin) / 100);
+        const odds = troops >= needed ? "enough" : troops > c.troops ? "close: waits for more, or go all-out" : "too few: waits for more, or go all-out";
         box.append(button(`Invade ${c.name} · ${troops} vs ~${c.troops} (${odds})`, () => ctx.issue({ type: "invade", empireId: game.playerId, fleetId: real.id, colonyId: c.colonyId }), { className: "primary" }));
+        if (troops < needed) box.append(button(`All-out on ${c.name}: land all ${troops} now`, () => ctx.issue({ type: "invade", empireId: game.playerId, fleetId: real.id, colonyId: c.colonyId, allOut: true })));
       }
     }
     return box;
@@ -1008,7 +1029,7 @@ function startGame(game: Game): void {
     view = ui.revealMap ? omniscientView(game.state, pack, game.playerId) : empireView(game.state, pack, game.playerId);
     if (ui.selectedFleet !== null && !fleetView(ui.selectedFleet)) ui.selectedFleet = null;
     const annotations = ui.showPlanetValues ? plannerLabels(planetPlans(game.state, pack, view, game.state.empires[game.playerId]!), pack) : undefined;
-    map.setScene({ view, selectedSystem: ui.selectedSystem, selectedFleet: ui.selectedFleet, preview: ui.preview, showSupply: ui.showSupply, annotations });
+    map.setScene({ view, selectedSystem: ui.selectedSystem, selectedFleet: ui.selectedFleet, preview: ui.preview, showSupply: fleetView(ui.selectedFleet)?.own === true, annotations });
     const panel =
       ui.panel === "menu"
         ? menuPanel()
@@ -1023,6 +1044,8 @@ function startGame(game: Game): void {
                     ui.showPlanetValues = !ui.showPlanetValues;
                     update();
                   })
+            : ui.panel === "planets"
+              ? planetsPanel(ctx)
             : ui.panel === "empire"
               ? empirePanel(ctx)
               : ui.panel === "colony" && ui.colonyId !== null

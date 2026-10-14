@@ -146,6 +146,7 @@ function fight(
       progress: 0,
       holding: true,
       invadeColonyId: null,
+      invadeAllOut: false,
       bombardColonyId: null,
       sabotage: null,
     };
@@ -300,7 +301,10 @@ function fight(
       const now = fleet.ships.reduce((n, s) => n + s.hp, 0);
       const lostPercent = start > 0 ? Math.floor(((start - now) * 100) / start) : 0;
       if (stations.has(fleet.id)) continue; // defenses never withdraw
-      const evading = fleet.orders.mission === "evade" || !armed(fleet);
+      // Unarmed fleets (transports, supply ships...) hang back behind their own side's warships
+      // while any of those are still fighting, instead of fleeing at the first shot.
+      const screened = !armed(fleet) && active().some((f) => f.empireId === fleet.empireId && !stations.has(f.id) && f.orders.mission === "engage" && armed(f));
+      const evading = !screened && (fleet.orders.mission === "evade" || !armed(fleet));
       if (evading || (fleet.orders.retreatPercent < 100 && lostPercent >= fleet.orders.retreatPercent)) {
         retreated.add(fleet.id);
         withdrew.push(fleet.id);
@@ -374,6 +378,7 @@ function fight(
       fleet.route = retreatRoute(state, pack, fleet);
       fleet.holding = false;
       fleet.invadeColonyId = null;
+      fleet.invadeAllOut = false;
       fleet.bombardColonyId = null;
       fleet.sabotage = null;
     }

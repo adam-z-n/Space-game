@@ -326,6 +326,7 @@ export function newFleet(state: GameState, pack: ContentPack, empire: Empire, de
     progress: 0,
     holding: false,
     invadeColonyId: null,
+    invadeAllOut: false,
     bombardColonyId: null,
     sabotage: null,
     stores: 0,

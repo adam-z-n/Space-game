@@ -15,6 +15,7 @@ import {
   empireScore,
   newFleet,
   planAiTurn,
+  type GameEvent,
   type GameState,
 } from "../src/core";
 import { defaultPack } from "../src/content/defaultPack";
@@ -216,6 +217,17 @@ describe("AI behaviour", () => {
       expect(plan(s).endgame).toBe(true);
     });
 
+    it("in a coalition, every AI goes after the human players, whoever is nearer", () => {
+      const s = armed("domination", "turtle", 0);
+      s.turn = 200;
+      const human = s.colonies.find((c) => c.empireId === 0 && c.capital)!;
+      s.empires[1]!.colonySightings.push({ colonyId: human.id, empireId: 0, systemId: human.systemId, bodyId: human.bodyId, name: human.name, population: human.population, defenseHp: 0, troops: 5, turn: s.turn });
+      const before = plan(s);
+      s.coalition = true;
+      expect(plan(s)).toMatchObject({ endgame: true, posture: "attack", warTarget: 0 });
+      expect(before.endgame).toBe(false);
+    });
+
     it("drives every AI after turn 350", () => {
       const s = armed("total", "turtle", 0);
       s.turn = 351;
@@ -308,6 +320,29 @@ describe("victory", () => {
       expect(check(s, 500)).toBeNull();
       giveShare(s, 2, 100);
       expect(check(s, 501)).toMatchObject({ winnerId: 2, reason: "domination" });
+    });
+
+    it("unites the AI empires against human players holding half the galaxy, in open-ended games only", () => {
+      const s = createInitialState({ seed: "modes", galaxySize: "small", aiCount: 2, victory: "domination" }, pack);
+      const events: GameEvent[] = [];
+      giveShare(s, 0, 55);
+      checkVictory(s, pack, events, 174);
+      expect(s.coalition).toBe(false); // not before turn 175
+      checkVictory(s, pack, events, 175);
+      expect(s.coalition).toBe(true);
+      expect(events).toContainEqual(expect.objectContaining({ type: "coalition", empireId: 0, active: true }));
+      giveShare(s, 0, 45);
+      checkVictory(s, pack, events, 176);
+      expect(s.coalition).toBe(true); // holds until the humans fall below 40%
+      giveShare(s, 0, 39);
+      checkVictory(s, pack, events, 177);
+      expect(s.coalition).toBe(false);
+      expect(events).toContainEqual(expect.objectContaining({ type: "coalition", empireId: 0, active: false }));
+
+      const limited = createInitialState({ seed: "modes", galaxySize: "small", aiCount: 2, victory: "turns400" }, pack);
+      giveShare(limited, 0, 49);
+      checkVictory(limited, pack, [], 300);
+      expect(limited.coalition).toBe(false);
     });
 
     it("rejects an unknown victory condition", () => {

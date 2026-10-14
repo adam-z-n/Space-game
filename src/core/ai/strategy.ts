@@ -1,5 +1,5 @@
 import { availableTechs, colonizeBlocker, prospectiveMaxPop, researchAccess, techCost } from "../economy";
-import { colonyOnBody, type EmpireId, type SystemId } from "../state";
+import { colonyOnBody, type ColonySighting, type EmpireId, type SystemId } from "../state";
 import { populationShares, victoryMode } from "../victory";
 import { defenseStrength, lean, type AiContext } from "./context";
 
@@ -27,6 +27,8 @@ export interface Strategy {
   /** Total warship strength we want. */
   wantedStrength: number;
   colonyTargets: ColonyTarget[];
+  /** The war target's colony nearest our capital: where strike forces, troops and commandos go first. */
+  targetColony: ColonySighting | null;
   /**
    * Endgame drive (games with no turn limit only): go on the offensive whatever our
    * temperament, raiders mass into full fleets, and banked credits go into warships.
@@ -45,6 +47,8 @@ export const ENDGAME = { leaderTurn: 250, leaderShare: 50, humansTurn: 300, huma
  */
 export function endgameDrive(ctx: AiContext): boolean {
   const { state, pack } = ctx;
+  // The coalition against the human players (open-ended games only) is an endgame drive of its own.
+  if (state.coalition) return true;
   // The victory mode decides (a testing cap on an open-ended game doesn't switch the drive off).
   if (victoryMode(state, pack).turnLimit !== null) return false;
   if (state.turn > ENDGAME.allTurn) return true;
@@ -74,13 +78,21 @@ export function decideStrategy(ctx: AiContext): Strategy {
   const blockaded = ctx.colonies.some((c) => c.blockaded);
 
   // War target: the rival whose nearest known colony is closest to our capital; ties go to the weaker one,
-  // counting both its fleets and that colony's orbital defenses.
+  // counting both its fleets and that colony's orbital defenses. In a coalition, only the human players
+  // count, the strongest of them first.
   let warTarget: EmpireId | null = null;
   let targetDefense = 0;
   let best = Infinity;
+  let candidates = ctx.rivalColonies;
+  if (state.coalition) {
+    const shares = populationShares(state);
+    const humans = state.empires.filter((e) => !e.isAI && !e.eliminated).sort((a, b) => (shares.get(b.id) ?? 0) - (shares.get(a.id) ?? 0) || a.id - b.id);
+    const leader = humans.find((h) => ctx.rivalColonies.some((c) => c.empireId === h.id));
+    if (leader) candidates = ctx.rivalColonies.filter((c) => c.empireId === leader.id);
+  }
   if (ctx.capital) {
     const fromCapital = ctx.dist(ctx.capital.systemId);
-    for (const colony of ctx.rivalColonies) {
+    for (const colony of candidates) {
       const defense = defenseStrength(colony.defenseHp);
       const d = fromCapital[colony.systemId]! * 10 + (ctx.rivalStrength.get(colony.empireId) ?? 0) + defense;
       if (d < best) {
@@ -135,7 +147,13 @@ export function decideStrategy(ctx: AiContext): Strategy {
     wantedStrength = Math.max(wantedStrength, Math.floor((targetStrength * nerve) / 100));
   }
 
-  return { posture, warTarget, threat, wantedStrength, colonyTargets, endgame };
+  let targetColony: ColonySighting | null = null;
+  if (warTarget !== null && ctx.capital) {
+    const fromCapital = ctx.dist(ctx.capital.systemId);
+    targetColony = ctx.rivalColonies.filter((c) => c.empireId === warTarget).sort((a, b) => fromCapital[a.systemId]! - fromCapital[b.systemId]! || a.colonyId - b.colonyId)[0] ?? null;
+  }
+
+  return { posture, warTarget, threat, wantedStrength, colonyTargets, targetColony, endgame };
 }
 
 /** Pick a tech: personality field weights, nudged by what the empire needs right now. */

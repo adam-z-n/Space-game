@@ -86,5 +86,29 @@ export function checkVictory(state: GameState, pack: ContentPack, events: GameEv
   if (outcome) {
     state.outcome = outcome;
     for (const empire of state.empires) events.push({ type: "gameOver", turn, empireId: empire.id, winnerId: outcome.winnerId, reason: outcome.reason });
+    return;
   }
+  updateCoalition(state, pack, events, turn);
+}
+
+/** Share of the galaxy's population held by the human players together, in percent. */
+export function humanShare(state: GameState): number {
+  const shares = populationShares(state);
+  return state.empires.filter((e) => !e.isAI).reduce((n, e) => n + (shares.get(e.id) ?? 0), 0);
+}
+
+/**
+ * In games with no turn limit, the AI empires band together once the human players hold too much
+ * of the galaxy, and stand down again only when the humans have been pushed well back.
+ */
+function updateCoalition(state: GameState, pack: ContentPack, events: GameEvent[], turn: number): void {
+  const rule = pack.victory.coalition;
+  const humans = state.empires.filter((e) => !e.isAI && !e.eliminated);
+  let active = state.coalition;
+  if (victoryMode(state, pack).turnLimit !== null || humans.length === 0) active = false;
+  else if (!active) active = turn >= rule.turn && humanShare(state) >= rule.startPercent;
+  else active = humanShare(state) >= rule.endPercent;
+  if (active === state.coalition) return;
+  state.coalition = active;
+  for (const human of humans) events.push({ type: "coalition", turn, empireId: human.id, active });
 }
