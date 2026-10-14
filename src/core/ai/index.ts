@@ -2,7 +2,7 @@ import type { ContentPack } from "../../content/schema";
 import type { Command } from "../commands";
 import type { EmpireId, GameState } from "../state";
 import { buildContext } from "./context";
-import { planWarship } from "./designs";
+import { planBomber, planWarship } from "./designs";
 import { planOperations } from "./operations";
 import { planProduction } from "./production";
 import { chooseResearch, decideStrategy } from "./strategy";
@@ -26,6 +26,10 @@ export function planAiTurn(state: GameState, pack: ContentPack, empireId: Empire
 
   const warship = planWarship(ctx);
   if (warship.create) ctx.commands.push({ type: "createDesign", empireId, design: warship.create });
+  if (strategy.posture === "attack") {
+    const bomber = planBomber(ctx);
+    if (bomber) ctx.commands.push({ type: "createDesign", empireId, design: bomber });
+  }
 
   planOperations(ctx, strategy);
   // Disbanding (production) must not touch fleets that operations just moved or merged.

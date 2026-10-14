@@ -481,6 +481,10 @@ function startGame(game: Game): void {
         if (mine) return e.captured ? `Captured ${name}! (${e.attackingTroops} troops vs ${e.defendingTroops})` : `Invasion of ${name} repelled (${e.attackingTroops} troops vs ${e.defendingTroops})`;
         return e.captured ? `${empire(e.attackerId).name} captured ${name}` : `Repelled ${empire(e.attackerId).name}'s landing on ${name}`;
       }
+      case "coalition":
+        return e.active
+          ? "The AI empires have united against you: you hold too much of the galaxy"
+          : "The AI coalition against you has broken up";
       case "invasionWaiting":
         return `Troops at ${colonyName(e.colonyId)} are waiting for more: ${e.troops} of ${e.needed} needed`;
       case "defensesDown":
@@ -532,6 +536,7 @@ function startGame(game: Game): void {
       case "battle":
         return openBattle(e.battleId);
       case "empireEliminated":
+      case "coalition":
         return openPanel("empire");
       case "gameOver":
         return openPanel("gameover");

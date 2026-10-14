@@ -98,6 +98,7 @@ export function createInitialState(settings: GameSettings, pack: ContentPack): G
     lastTurnEvents: [],
     lastBattles: [],
     outcome: null,
+    coalition: false,
     minefields: [],
     outposts: [],
   };

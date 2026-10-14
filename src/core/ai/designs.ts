@@ -94,3 +94,28 @@ export function currentWarship(ctx: AiContext): ShipDesign | null {
 export function designWhere(ctx: AiContext, test: (s: ReturnType<typeof designStats>) => boolean): ShipDesign | null {
   return ctx.empire.designs.find((d) => designBuildable(ctx.pack, ctx.empire, d) && test(designStats(ctx.pack, d, ctx.fx))) ?? null;
 }
+
+/**
+ * A siege ship for strike forces once bomb bays are researched: the biggest hull that takes them,
+ * 40% bomb bays, a weapon or two to count as a warship, the rest armor. Null when we have one already.
+ */
+export function planBomber(ctx: AiContext): Extract<Command, { type: "createDesign" }>["design"] | null {
+  const { pack, empire } = ctx;
+  if (designWhere(ctx, (s) => s.bombard > 0 && s.armed)) return null;
+  const bomb = pack.components.find((c) => c.bombard > 0 && componentAvailable(pack, empire, c.id));
+  const current = currentWarship(ctx);
+  if (!bomb || !current) return null;
+  const hull = pack.hulls
+    .filter((h) => hullAvailable(pack, empire, h.id) && componentFits(pack, empire, h.id, bomb.id))
+    .sort((a, b) => b.slots - a.slots || b.structure - a.structure || a.id.localeCompare(b.id))[0];
+  if (!hull) return null;
+  const slots = hullSlots(pack, empire, hull.id);
+  const weapon = current.components.find((id) => pack.components.find((c) => c.id === id)?.kind === "weapon" && componentFits(pack, empire, hull.id, id));
+  const armor = pack.components.filter((c) => c.kind === "armor" && componentAvailable(pack, empire, c.id)).sort((a, b) => b.hp - a.hp || a.id.localeCompare(b.id))[0];
+  if (!weapon) return null;
+  const bombs = Math.max(1, Math.round((slots * 40) / 100));
+  const components = [...Array.from({ length: bombs }, () => bomb.id), weapon];
+  if (slots - components.length >= 3) components.push(weapon);
+  while (components.length < slots) components.push(armor?.id ?? weapon);
+  return { name: "Siege Mk 1", hull: hull.id, components, formation: "front" };
+}

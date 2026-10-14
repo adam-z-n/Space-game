@@ -3051,6 +3051,7 @@
       }
     ],
     "dominationMinTurn": 50,
+    "coalition": { "turn": 175, "startPercent": 50, "endPercent": 40 },
     "score": {
       "population": 10,
       "colony": 25,

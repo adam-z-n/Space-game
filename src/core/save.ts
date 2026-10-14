@@ -228,8 +228,9 @@ export function migrateState(state: GameState, pack: ContentPack): GameState {
   }
 
   if (old.version === 15) {
-    // v16: invasions land only the troops they need unless ordered all-out.
+    // v16: invasions land only the troops they need unless ordered all-out; the AI coalition.
     for (const fleet of migrated.fleets) fleet.invadeAllOut = false;
+    migrated.coalition = false;
     old.version = 16;
   }
 

@@ -422,6 +422,11 @@ const Victory = z.object({
   modes: z.array(VictoryMode).min(1),
   /** Domination can't be won before this turn. */
   dominationMinTurn: z.number().int().nonnegative(),
+  /**
+   * Games with no turn limit: from `turn` on, once the human players together hold `startPercent` of the
+   * galaxy's population every AI turns on them, until they fall below `endPercent`.
+   */
+  coalition: z.object({ turn: z.number().int().nonnegative(), startPercent: z.number().int().min(1).max(100), endPercent: z.number().int().min(0).max(100) }),
   score: z.object({
     population: z.number().int().nonnegative(),
     colony: z.number().int().nonnegative(),

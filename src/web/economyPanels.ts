@@ -134,6 +134,17 @@ export function empirePanel(ctx: PanelContext): HTMLElement {
     row("Share of galaxy population", `${share}% (domination at ${mode.dominationPercent}% from turn ${pack.victory.dominationMinTurn})`),
     row("Turn limit", limit === null ? "none: play until someone dominates" : `${limit}: highest score wins`),
   );
+  if (mode.turnLimit === null) {
+    const rule = pack.victory.coalition;
+    list.append(
+      row(
+        "AI coalition",
+        game.state.coalition
+          ? `united against you until you fall below ${rule.endPercent}%`
+          : `forms against you at ${rule.startPercent}% from turn ${rule.turn}`,
+      ),
+    );
+  }
 
   // Rivals: what we know. Personalities show once we've met them.
   const known = new Set([...empire.sightings.map((s) => s.empireId), ...empire.colonySightings.map((c) => c.empireId)]);

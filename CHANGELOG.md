@@ -26,6 +26,17 @@ Screens:
 - Resupply points now show on the map whenever one of your fleets is selected, instead of through a menu toggle.
 - The menu no longer has a Research tree entry; open it from the research screen.
 
+AI:
+
+- AI empires now use the 1.1 tools. Strike forces bring siege ships (bomb bays, once researched) that bombard
+  a colony whose defenses are down until the troops in orbit can take it, then stop. Cloaked commando ships go
+  ahead to knock out a target's defenses, then thin its garrison. A combat outpost near the front becomes a
+  supply depot. Without bombers, a close-run landing goes in all-out instead of waiting.
+- AI troop ships follow the new invasion rule and are built in batches.
+- Coalition (Domination and Total domination games only): from turn 175, once the human players hold half the
+  galaxy's population, every AI empire turns on them, the strongest human first, until they fall below 40%.
+  The turn report says when it forms or breaks up, and the Empire screen shows the rule.
+
 Galaxy types (new game setup):
 
 - Standard (as before), Sparse (55% of systems without planets), Dense (10%), Clusters (groups of about six

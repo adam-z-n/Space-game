@@ -311,6 +311,8 @@ export type GameEvent =
       attackingTroops: number;
       defendingTroops: number;
     }
+  /** AI empires band together against the human players (active), or stand down (sent to every human). */
+  | { type: "coalition"; turn: number; empireId: EmpireId; active: boolean }
   /** Troops in orbit fall short of what a safe landing needs; they wait (sent to the attacker only). */
   | { type: "invasionWaiting"; turn: number; empireId: EmpireId; colonyId: ColonyId; systemId: SystemId; troops: number; needed: number }
   | { type: "defensesDown"; turn: number; empireId: EmpireId; colonyId: ColonyId; systemId: SystemId }
@@ -389,6 +391,11 @@ export interface GameState {
   lastBattles: BattleReport[];
   /** Set when the game ends; no further turns resolve. */
   outcome: GameOutcome | null;
+  /**
+   * Open-ended games: the human players grew too strong (see the content pack's victory.coalition),
+   * so every AI empire has turned on them.
+   */
+  coalition: boolean;
   /** Mines each empire keeps in a system; they hit other empires' ships that stop there. */
   minefields: Minefield[];
   outposts: Outpost[];

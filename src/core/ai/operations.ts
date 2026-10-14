@@ -1,6 +1,6 @@
 import { combatShipCount, fleetShipStats } from "../ships";
 import { colonyOnBody, type FleetOrders, type OutpostKind, type SystemId } from "../state";
-import { outpostBlocker } from "../outposts";
+import { outpostBlocker, outpostTechOk } from "../outposts";
 import { defenseStrength, fleetAt, moveTo, withinReach, type AiContext, type FleetInfo } from "./context";
 import type { Strategy } from "./strategy";
 
@@ -16,6 +16,9 @@ export function planOperations(ctx: AiContext, strategy: Strategy): void {
   scout(ctx);
   defend(ctx, strategy);
   invade(ctx);
+  siege(ctx);
+  raid(ctx, strategy);
+  depots(ctx, strategy);
   attack(ctx, strategy);
   garrison(ctx, strategy);
   gather(ctx, strategy);
@@ -278,6 +281,74 @@ function invade(ctx: AiContext): void {
     ctx.busy.add(info.fleet.id);
     ctx.commands.push({ type: "invade", empireId: ctx.id, fleetId: info.fleet.id, colonyId: colony.colonyId });
   }
+}
+
+/** Ground troops a fleet lands, with the empire's ground-combat bonus. */
+const landed = (ctx: AiContext, raw: number) => Math.floor((raw * (100 + ctx.fx.groundPercent)) / 100);
+
+/**
+ * Siege: over a rival colony whose orbital defenses are down, bombers pound it while the troops in
+ * orbit are too few for a safe landing, and stop once they are enough (its people are the prize).
+ * Without bombers, a landing that is close to even goes in all-out rather than waiting forever.
+ */
+function siege(ctx: AiContext): void {
+  const inOrbit = new Map<SystemId, FleetInfo[]>();
+  for (const info of ctx.fleets) {
+    if (info.fleet.progress > 0 || info.fleet.route.length > 0) continue;
+    inOrbit.set(info.fleet.systemId, [...(inOrbit.get(info.fleet.systemId) ?? []), info]);
+  }
+  const handled = new Set<number>();
+  const targets = [...ctx.rivalColonies].sort((a, b) => a.troops - b.troops || a.colonyId - b.colonyId);
+  for (const colony of targets) {
+    const fleets = (inOrbit.get(colony.systemId) ?? []).filter((f) => !handled.has(f.fleet.id));
+    if (fleets.length === 0) continue;
+    const troops = landed(ctx, fleets.reduce((n, f) => n + f.troops, 0));
+    const short = troops < Math.ceil((colony.troops * ctx.pack.combat.invasionMarginPercent) / 100);
+    const bombers = fleets.filter((f) => f.bombard > 0);
+    for (const info of bombers) {
+      handled.add(info.fleet.id);
+      const want = short && colony.defenseHp <= 0 ? colony.colonyId : null;
+      if (info.fleet.bombardColonyId !== want) ctx.commands.push({ type: "bombard", empireId: ctx.id, fleetId: info.fleet.id, colonyId: want });
+    }
+    if (short && bombers.length === 0 && troops * 100 >= colony.troops * SIEGE.allOutPercent) {
+      for (const info of fleets) {
+        if (info.troops === 0 || info.fleet.invadeColonyId !== colony.colonyId || info.fleet.invadeAllOut) continue;
+        ctx.commands.push({ type: "invade", empireId: ctx.id, fleetId: info.fleet.id, colonyId: colony.colonyId, allOut: true });
+      }
+    }
+  }
+}
+
+/** Troops, in percent of the defenders, worth an all-out landing when no bombers can soften the target. */
+export const SIEGE = { allOutPercent: 110 };
+
+/** Commandos (cloaked infiltrators) go ahead of the strike force: they knock out the defenses, then thin the garrison. */
+function raid(ctx: AiContext, strategy: Strategy): void {
+  const target = strategy.targetColony;
+  if (strategy.posture !== "attack" || !target) return;
+  for (const info of ctx.fleets) {
+    if (info.commandos === 0 || info.armed || !free(ctx, info)) continue;
+    moveTo(ctx, info, target.systemId);
+    const mission = target.defenseHp > 0 ? "defenses" : "garrison";
+    const order = info.fleet.sabotage;
+    if (order?.colonyId !== target.colonyId || order.mission !== mission) {
+      ctx.commands.push({ type: "sabotage", empireId: ctx.id, fleetId: info.fleet.id, colonyId: target.colonyId, mission });
+    }
+  }
+}
+
+/** Going to war, turn the combat outpost nearest the target into a supply depot if it is closer than any colony. */
+function depots(ctx: AiContext, strategy: Strategy): void {
+  const target = strategy.targetColony;
+  const cost = ctx.pack.outposts.depot.cost;
+  if (strategy.posture !== "attack" || !target || !outpostTechOk(ctx.pack, ctx.empire, "depot")) return;
+  if (ctx.empire.credits < cost + 100 + ctx.colonies.length * 10) return;
+  const toTarget = ctx.dist(target.systemId);
+  const nearestSupply = Math.min(...[...ctx.supplied].map((s) => toTarget[s]!), Infinity);
+  const outpost = ctx.state.outposts
+    .filter((o) => o.empireId === ctx.id && o.kind === "combat" && !o.depot && o.defenseHp > 0)
+    .sort((a, b) => toTarget[a.systemId]! - toTarget[b.systemId]! || a.id - b.id)[0];
+  if (outpost && toTarget[outpost.systemId]! < nearestSupply) ctx.commands.push({ type: "upgradeOutpost", empireId: ctx.id, outpostId: outpost.id });
 }
 
 /** Defensive personalities post warships on border systems facing the war target. */
