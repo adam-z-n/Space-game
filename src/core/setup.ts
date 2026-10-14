@@ -13,6 +13,7 @@ export const MAX_AI = 5;
 export function validateSettings(settings: GameSettings, pack: ContentPack): string | null {
   if (!settings.seed) return "seed is required";
   if (!pack.galaxySizes.some((g) => g.id === settings.galaxySize)) return `unknown galaxy size "${settings.galaxySize}"`;
+  if (settings.galaxyType !== undefined && !pack.galaxyTypes.some((g) => g.id === settings.galaxyType)) return `unknown galaxy type "${settings.galaxyType}"`;
   if (!Number.isInteger(settings.aiCount) || settings.aiCount < MIN_AI || settings.aiCount > MAX_AI) {
     return `AI count must be ${MIN_AI}-${MAX_AI}`;
   }
@@ -32,7 +33,7 @@ export function createInitialState(settings: GameSettings, pack: ContentPack): G
   if (error) throw new Error(error);
 
   const rng = Rng.fromSeed(settings.seed);
-  const generated = generateGalaxy(rng.fork("galaxy"), pack, settings.galaxySize, 1);
+  const generated = generateGalaxy(rng.fork("galaxy"), pack, settings.galaxySize, 1, settings.galaxyType ?? pack.galaxyTypes[0]!.id);
   const galaxy = generated.galaxy;
   let nextId = generated.nextId;
 

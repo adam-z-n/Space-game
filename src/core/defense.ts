@@ -160,8 +160,13 @@ export function resolveInvasions(state: GameState, pack: ContentPack, events: Ga
     // Only the first attacking empire lands this turn; others keep waiting.
     const attackerId = fleets[0]!.empireId;
     const attackers = fleets.filter((f) => f.empireId === attackerId);
-    let attack = attackers.reduce((n, f) => n + fleetTroops(state, pack, f), 0);
     let defense = defendingTroops(state, pack, colony);
+    const landing = chooseLanding(state, pack, attackers, defense);
+    if (landing.ships.size === 0) {
+      events.push({ type: "invasionWaiting", turn: state.turn, empireId: attackerId, colonyId, systemId: colony.systemId, troops: landing.available, needed: landing.needed });
+      continue;
+    }
+    let attack = landing.troops;
     const startAttack = attack;
     const startDefense = defense;
     for (let round = 0; round < 20 && attack > 0 && defense > 0; round++) {
@@ -170,12 +175,15 @@ export function resolveInvasions(state: GameState, pack: ContentPack, events: Ga
       defense -= toDefender;
       attack -= toAttacker;
     }
-    // Troop ships are spent whether or not they win.
+    // Landed troop ships are spent whether or not they win; the rest stay in orbit.
     for (const fleet of attackers) {
-      const stats = fleetShipStats(pack, state, fleet);
-      fleet.ships = fleet.ships.filter((_, i) => stats[i]!.troops === 0);
-      fleet.invadeColonyId = null;
-      refreshFleetStats(pack, state, fleet);
+      const before = fleet.ships.length;
+      fleet.ships = fleet.ships.filter((s) => !landing.ships.has(s.id));
+      if (fleet.ships.length !== before) refreshFleetStats(pack, state, fleet);
+      if (fleetTroops(state, pack, fleet) === 0) {
+        fleet.invadeColonyId = null;
+        fleet.invadeAllOut = false;
+      }
     }
     const defenderId = colony.empireId;
     const captured = defense <= 0 && attack > 0;
@@ -205,6 +213,37 @@ export function resolveInvasions(state: GameState, pack: ContentPack, events: Ga
   }
   state.rngState = rng.state;
   state.fleets = state.fleets.filter((f) => f.ships.length > 0);
+}
+
+/**
+ * Which troop ships land on a colony held by `defense` troops. All-out orders land every one.
+ * Otherwise the biggest land first until their troops reach the safety margin (125% of the
+ * defenders: a near-certain win) and the rest stay in orbit; if all of them together fall
+ * short, none land and they wait for reinforcements.
+ */
+export function chooseLanding(state: GameState, pack: ContentPack, fleets: Fleet[], defense: number): { ships: Set<number>; troops: number; available: number; needed: number } {
+  const boost = 100 + empireEffects(pack, state.empires[fleets[0]!.empireId]!).groundPercent;
+  const troopsOf = (raw: number) => Math.floor((raw * boost) / 100);
+  const carriers: { id: number; raw: number }[] = [];
+  for (const fleet of [...fleets].sort((a, b) => a.id - b.id)) {
+    fleetShipStats(pack, state, fleet).forEach((stats, i) => {
+      if (stats.troops > 0) carriers.push({ id: fleet.ships[i]!.id, raw: stats.troops });
+    });
+  }
+  carriers.sort((a, b) => b.raw - a.raw || a.id - b.id);
+  const allRaw = carriers.reduce((n, c) => n + c.raw, 0);
+  const needed = Math.ceil((defense * pack.combat.invasionMarginPercent) / 100);
+  const available = troopsOf(allRaw);
+  if (fleets.some((f) => f.invadeAllOut)) return { ships: new Set(carriers.map((c) => c.id)), troops: available, available, needed };
+  if (available < needed) return { ships: new Set(), troops: 0, available, needed };
+  const picked: { id: number; raw: number }[] = [];
+  let raw = 0;
+  for (const c of carriers) {
+    if (troopsOf(raw) >= needed) break;
+    picked.push(c);
+    raw += c.raw;
+  }
+  return { ships: new Set(picked.map((c) => c.id)), troops: troopsOf(raw), available, needed };
 }
 
 function captureColony(state: GameState, pack: ContentPack, colony: Colony, newOwner: EmpireId, survivors: number, events: GameEvent[]): void {

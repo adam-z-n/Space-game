@@ -156,6 +156,16 @@ describe("save migration", () => {
     expect(designs.flatMap((d) => d.components)).not.toContain("repair_bay");
   });
 
+  it("brings version 15 saves up to date: invasions default to landing only what is needed", () => {
+    const pack = defaultPack();
+    const s = createInitialState({ seed: "v15", galaxySize: "small", aiCount: 2 }, pack);
+    for (const fleet of s.fleets) delete (fleet as Partial<typeof fleet>).invadeAllOut;
+    s.version = 15;
+    const migrated = migrateState(s, pack);
+    expect(migrated.version).toBe(STATE_VERSION);
+    expect(migrated.fleets.every((f) => f.invadeAllOut === false)).toBe(true);
+  });
+
   it("loads a real Milestone 2 save and keeps playing", () => {
     const json = readFileSync(new URL("./fixtures/save-v2-m2.json", import.meta.url), "utf8");
     const loaded = deserializeSave(json, defaultPack());

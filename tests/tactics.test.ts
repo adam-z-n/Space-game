@@ -167,7 +167,7 @@ describe("ground war", () => {
     army.orders = { ...army.orders, mission: "engage", retreatPercent: 100 };
     s.fleets.push(army);
     const before = defendingTroops(s, pack, cap);
-    s = run(s, { type: "invade", empireId: 0, fleetId: army.id, colonyId: cap.id }, end);
+    s = run(s, { type: "invade", empireId: 0, fleetId: army.id, colonyId: cap.id, allOut: true }, end);
     const after = s.colonies.find((c) => c.id === cap.id)!;
     expect(after.empireId).toBe(1);
     expect(after.militiaLosses).toBeGreaterThan(0);

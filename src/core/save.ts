@@ -227,6 +227,12 @@ export function migrateState(state: GameState, pack: ContentPack): GameState {
     old.version = 15;
   }
 
+  if (old.version === 15) {
+    // v16: invasions land only the troops they need unless ordered all-out.
+    for (const fleet of migrated.fleets) fleet.invadeAllOut = false;
+    old.version = 16;
+  }
+
   if (startVersion !== migrated.version) {
     for (const empire of migrated.empires) refreshEmpireStats(migrated, pack, empire);
     updateSightings(migrated, pack, null, migrated.turn);

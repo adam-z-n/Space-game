@@ -36,6 +36,9 @@ import { outpostBlocker, outpostDefense, outpostTechOk } from "./outposts";
 import { colonyDefense, fleetTroops } from "./defense";
 import { resolveTurn } from "./turn";
 
+/** Most ships one queue entry can batch. */
+export const MAX_BATCH = 10;
+
 /**
  * Every change to the game, by the player or the AI, is one of these commands.
  * Commands are plain JSON so a game is fully described by its settings plus its
@@ -69,8 +72,9 @@ export type Command =
   /**
    * Order a fleet carrying troops to land on a rival colony once its orbital defenses are down.
    * The fleet must be at (or heading for) the colony's system; null cancels the order.
+   * Normally only the troops needed land (see Fleet.invadeAllOut); allOut commits every troop ship now.
    */
-  | { type: "invade"; empireId: EmpireId; fleetId: FleetId; colonyId: ColonyId | null }
+  | { type: "invade"; empireId: EmpireId; fleetId: FleetId; colonyId: ColonyId | null; allOut?: boolean }
   /** Order a fleet with bomb bays to bombard a known rival colony in orbit each turn its defenses are down; null cancels. */
   | { type: "bombard"; empireId: EmpireId; fleetId: FleetId; colonyId: ColonyId | null }
   /** Use an outpost ship in its current system to build an outpost on an asteroid field or gas giant. */
@@ -185,6 +189,8 @@ export function validateCommand(state: GameState, command: Command, pack: Conten
       const colony = ownColony(state, command.empireId, command.colonyId);
       if (typeof colony === "string") return colony;
       if (colony.queue.length >= 10) return "queue is full";
+      const count = command.item.count;
+      if (count !== undefined && (command.item.kind !== "ship" || !Number.isInteger(count) || count < 1 || count > MAX_BATCH)) return `only ships can be built in batches of 1-${MAX_BATCH}`;
       return buildBlocker(state, pack, state.empires[command.empireId]!, colony, command.item);
     }
     case "dequeueBuild":
@@ -340,6 +346,7 @@ export function applyCommand(state: GameState, command: Command, pack: ContentPa
       fleet.progress = plan.progress;
       fleet.holding = false;
       fleet.invadeColonyId = null; // re-issue after moving
+      fleet.invadeAllOut = false;
       fleet.bombardColonyId = null;
       fleet.sabotage = null;
       break;
@@ -362,9 +369,11 @@ export function applyCommand(state: GameState, command: Command, pack: ContentPa
     case "setFocus":
       findColony(next, command.colonyId)!.focus = command.focus;
       break;
-    case "queueBuild":
-      findColony(next, command.colonyId)!.queue.push({ ...command.item });
+    case "queueBuild": {
+      const { count, ...item } = command.item;
+      findColony(next, command.colonyId)!.queue.push(count !== undefined && count > 1 ? { ...item, count } : item);
       break;
+    }
     case "dequeueBuild": {
       const colony = findColony(next, command.colonyId)!;
       colony.queue.splice(command.index, 1);
@@ -464,9 +473,12 @@ export function applyCommand(state: GameState, command: Command, pack: ContentPa
     case "setFoodReserve":
       next.empires[command.empireId]!.foodReserve = command.reserve;
       break;
-    case "invade":
-      findFleet(next, command.fleetId)!.invadeColonyId = command.colonyId;
+    case "invade": {
+      const fleet = findFleet(next, command.fleetId)!;
+      fleet.invadeColonyId = command.colonyId;
+      fleet.invadeAllOut = command.colonyId !== null && command.allOut === true;
       break;
+    }
     case "bombard":
       findFleet(next, command.fleetId)!.bombardColonyId = command.colonyId;
       break;

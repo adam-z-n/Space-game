@@ -5,11 +5,15 @@ import { defaultPack } from "../src/content/defaultPack";
 const pack = defaultPack();
 const SEEDS = Array.from({ length: 25 }, (_, i) => `seed-${i}`);
 
-describe.each(pack.galaxySizes.map((g) => g.id))("galaxy generation (%s)", (galaxySize) => {
-  const size = pack.galaxySizes.find((g) => g.id === galaxySize)!;
+const CASES = pack.galaxyTypes.flatMap((t) => pack.galaxySizes.map((g) => [t.id, g.id] as const));
 
-  it.each(SEEDS)("produces a valid galaxy for %s", (seed) => {
-    const settings: GameSettings = { seed, galaxySize, aiCount: 5 };
+describe.each(CASES)("galaxy generation (%s, %s)", (galaxyType, galaxySize) => {
+  const size = pack.galaxySizes.find((g) => g.id === galaxySize)!;
+  // Every seed for the standard map; a sample for the other types.
+  const seeds = galaxyType === "standard" ? SEEDS : SEEDS.slice(0, 8);
+
+  it.each(seeds)("produces a valid galaxy for %s", (seed) => {
+    const settings: GameSettings = { seed, galaxySize, galaxyType, aiCount: 5 };
     const { galaxy, empires, fleets } = createInitialState(settings, pack);
     const n = galaxy.systems.length;
 
@@ -58,6 +62,49 @@ describe.each(pack.galaxySizes.map((g) => g.id))("galaxy generation (%s)", (gala
     for (const home of homes) {
       for (const neighbor of adj[home]!) expect(homes).not.toContain(neighbor.id);
     }
+  });
+});
+
+describe("galaxy types", () => {
+  const galaxies = (galaxyType: string) => SEEDS.slice(0, 10).map((seed) => createInitialState({ seed, galaxySize: "medium", galaxyType, aiCount: 3 }, pack).galaxy);
+  const emptyShare = (galaxyType: string) => {
+    const systems = galaxies(galaxyType).flatMap((g) => g.systems);
+    return systems.filter((x) => !x.bodies.some((b) => b.kind === "planet")).length / systems.length;
+  };
+
+  it("sparse maps have far more planet-free systems than dense ones", () => {
+    const sparse = emptyShare("sparse");
+    const standard = emptyShare("standard");
+    const dense = emptyShare("dense");
+    expect(sparse).toBeGreaterThan(standard + 0.15);
+    expect(dense).toBeLessThan(standard - 0.1);
+  });
+
+  it("clusters are tightly linked inside and joined by few lanes", () => {
+    for (const galaxy of galaxies("clusters")) {
+      const adj = buildAdjacency(galaxy.systems.length, galaxy.lanes);
+      // Long lanes (well over a cluster's width) are the links between clusters.
+      const long = galaxy.lanes.filter((l) => l.length > 450).length;
+      expect(long).toBeLessThan(galaxy.lanes.length / 4);
+      expect(isConnected(adj)).toBe(true);
+    }
+  });
+
+  it("rings leave the middle of the map empty", () => {
+    for (const galaxy of galaxies("ring")) {
+      const xs = galaxy.systems.map((x) => x.x);
+      const ys = galaxy.systems.map((x) => x.y);
+      const cx = (Math.min(...xs) + Math.max(...xs)) / 2;
+      const cy = (Math.min(...ys) + Math.max(...ys)) / 2;
+      const rx = (Math.max(...xs) - Math.min(...xs)) / 2;
+      const ry = (Math.max(...ys) - Math.min(...ys)) / 2;
+      const inner = galaxy.systems.filter((x) => ((x.x - cx) / rx) ** 2 + ((x.y - cy) / ry) ** 2 < 0.2);
+      expect(inner).toHaveLength(0);
+    }
+  });
+
+  it("rejects unknown types", () => {
+    expect(() => createInitialState({ seed: "x", galaxySize: "small", galaxyType: "donut", aiCount: 2 }, pack)).toThrow(/galaxy type/);
   });
 });
 

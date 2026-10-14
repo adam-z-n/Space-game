@@ -9,8 +9,7 @@
       "systems": 32,
       "radiusX": 660,
       "radiusY": 470,
-      "minStarDistance": 110,
-      "emptyPercent": 30
+      "minStarDistance": 110
     },
     {
       "id": "medium",
@@ -18,8 +17,7 @@
       "systems": 64,
       "radiusX": 950,
       "radiusY": 670,
-      "minStarDistance": 110,
-      "emptyPercent": 30
+      "minStarDistance": 110
     },
     {
       "id": "large",
@@ -27,8 +25,54 @@
       "systems": 100,
       "radiusX": 1180,
       "radiusY": 840,
-      "minStarDistance": 110,
+      "minStarDistance": 110
+    }
+  ],
+  "galaxyTypes": [
+    {
+      "id": "standard",
+      "name": "Standard",
+      "description": "Stars scattered evenly; about a third of systems have no planets.",
+      "layout": "scatter",
       "emptyPercent": 30
+    },
+    {
+      "id": "sparse",
+      "name": "Sparse",
+      "description": "Habitable worlds are rare: over half the systems have no planets, so every good one is contested.",
+      "layout": "scatter",
+      "emptyPercent": 55
+    },
+    {
+      "id": "dense",
+      "name": "Dense",
+      "description": "Planets almost everywhere: a fast land grab and big empires.",
+      "layout": "scatter",
+      "emptyPercent": 10
+    },
+    {
+      "id": "clusters",
+      "name": "Clusters",
+      "description": "Small groups of closely linked stars, joined to each other by only a lane or two: natural chokepoints.",
+      "layout": "clusters",
+      "emptyPercent": 30,
+      "spreadPercent": 125
+    },
+    {
+      "id": "spiral",
+      "name": "Spiral",
+      "description": "Two arms winding out from the core; travel runs along the arms, and the core links them.",
+      "layout": "spiral",
+      "emptyPercent": 30,
+      "spreadPercent": 130
+    },
+    {
+      "id": "ring",
+      "name": "Ring",
+      "description": "A broad ring of stars around an empty middle: the long way round is the only way.",
+      "layout": "ring",
+      "emptyPercent": 30,
+      "spreadPercent": 120
     }
   ],
   "starTypes": [
@@ -2332,6 +2376,7 @@
     "garrisonRegenPercent": 10,
     "defenseRepairPercent": 15,
     "captureLossPercent": 25,
+    "invasionMarginPercent": 125,
     "mineHitPercent": 30,
     "mineDamage": 6,
     "maxMines": 60,

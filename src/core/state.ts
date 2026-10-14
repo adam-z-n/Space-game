@@ -5,7 +5,7 @@ import type { BodyKind, Formation } from "../content/schema";
  * so it can be cloned, saved, hashed, and sent over a network unchanged.
  */
 
-export const STATE_VERSION = 15;
+export const STATE_VERSION = 16;
 
 export type SystemId = number;
 export type EmpireId = number;
@@ -17,6 +17,8 @@ export type ShipId = number;
 export interface GameSettings {
   seed: string;
   galaxySize: string;
+  /** Content galaxy type id (map style); defaults to the pack's first. */
+  galaxyType?: string;
   /** Number of AI empires (2-5). */
   aiCount: number;
   /** AI also plays empire 0; for batch testing and spectating. */
@@ -118,6 +120,8 @@ export interface QueueItem {
   /** Building or ship design id ("colony_base" for colony bases). */
   id: string;
   bodyId?: BodyId;
+  /** Ships: how many still to build in this batch, the one under way included (absent means 1). */
+  count?: number;
 }
 
 export interface Colony {
@@ -262,6 +266,11 @@ export interface Fleet {
   holding: boolean;
   /** Land this fleet's troops on this colony once its orbital defenses are down. */
   invadeColonyId: ColonyId | null;
+  /**
+   * Invasion style: false lands only as many troops as needed for a near-certain win, waiting in orbit
+   * until enough are on hand; true lands every troop ship now, even against the odds.
+   */
+  invadeAllOut: boolean;
   /** Bomb this colony from orbit each turn while its orbital defenses are down. */
   bombardColonyId: ColonyId | null;
   /** Commandos aboard strike this colony each turn the fleet is in its system. */
@@ -302,6 +311,8 @@ export type GameEvent =
       attackingTroops: number;
       defendingTroops: number;
     }
+  /** Troops in orbit fall short of what a safe landing needs; they wait (sent to the attacker only). */
+  | { type: "invasionWaiting"; turn: number; empireId: EmpireId; colonyId: ColonyId; systemId: SystemId; troops: number; needed: number }
   | { type: "defensesDown"; turn: number; empireId: EmpireId; colonyId: ColonyId; systemId: SystemId }
   /** Sent to both sides. */
   | { type: "bombarded"; turn: number; empireId: EmpireId; attackerId: EmpireId; colonyId: ColonyId; systemId: SystemId; populationLost: number; buildingLost: string | null }

@@ -391,7 +391,7 @@ export function queueForecast(state: GameState, pack: ContentPack, colony: Colon
   const invested = colony.progress;
   let needed = 0;
   return colony.queue.map((item) => {
-    needed += itemCost(pack, empire, item);
+    needed += itemCost(pack, empire, item) * (item.count ?? 1);
     if (industry <= 0) return Infinity;
     return Math.max(1, Math.ceil((needed - invested) / industry));
   });
@@ -457,7 +457,13 @@ export function resolveEconomy(state: GameState, pack: ContentPack, events: Game
         const cost = itemCost(pack, empire, item);
         if (colony.progress < cost) break;
         colony.progress -= cost;
-        colony.queue.shift();
+        // A batch stays at the front until its last ship is done.
+        if ((item.count ?? 1) > 1) {
+          item.count = item.count! - 1;
+          if (item.count === 1) delete item.count;
+        } else {
+          colony.queue.shift();
+        }
         if (item.kind === "colonyBase") {
           // The target may have been taken (or become unreachable) since it was queued.
           const body = findBody(state, colony.systemId, item.bodyId!);

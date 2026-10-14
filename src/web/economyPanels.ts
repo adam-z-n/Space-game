@@ -167,6 +167,111 @@ export function empirePanel(ctx: PanelContext): HTMLElement {
   return h("div", { className: "sheet panel" }, h("h2", {}, "Empire", closeButton(ctx)), list);
 }
 
+const JOBS = ["farmers", "industry", "research"] as const;
+const JOB_LABELS = { farmers: "Farmers", industry: "Industry", research: "Research" };
+
+/** Hand-placed workers: "+" moves one worker to a job from the busiest other job; "Auto" hands back to the focus. */
+function workerControls(ctx: PanelContext, colony: Colony): HTMLElement {
+  const { game, pack } = ctx;
+  const out = colonyOutput(game.state, pack, colony);
+  const moveWorker = (to: (typeof JOBS)[number]) => {
+    const w = { ...out.workers };
+    const from = JOBS.filter((j) => j !== to && w[j] > 0).sort((a, b) => w[b] - w[a])[0];
+    if (!from) return;
+    w[from] -= 1;
+    w[to] += 1;
+    ctx.issue({ type: "setWorkers", empireId: game.playerId, colonyId: colony.id, workers: w });
+  };
+  return h(
+    "div",
+    { className: "workers" },
+    ...JOBS.map((j) =>
+      h("div", { className: "worker" }, h("span", { textContent: `${JOB_LABELS[j]} ${out.workers[j]}` }), button("+", () => moveWorker(j), { ariaLabel: `Move a worker to ${JOB_LABELS[j]}`, disabled: out.workers[j] === colony.population })),
+    ),
+    colony.workers ? button("Auto", () => ctx.issue({ type: "setWorkers", empireId: game.playerId, colonyId: colony.id, workers: null }), { title: "Let the focus place workers again" }) : null,
+  );
+}
+
+type PlanetSort = "name" | "food" | "industry" | "research" | "credits";
+/** The planets screen's sort and expanded row survive re-renders (not saved). */
+const planetsView: { sort: PlanetSort; descending: boolean; open: ColonyId | null } = { sort: "industry", descending: true, open: null };
+
+/** Every colony's output and workers in one sortable list, with worker controls per row. */
+export function planetsPanel(ctx: PanelContext): HTMLElement {
+  const { game, pack } = ctx;
+  const rows = game.state.colonies
+    .filter((c) => c.empireId === game.playerId)
+    .map((colony) => {
+      const out = colonyOutput(game.state, pack, colony);
+      return { colony, out, values: { food: out.food, industry: out.industry, research: out.research, credits: out.credits - out.upkeep } };
+    });
+  const { sort, descending } = planetsView;
+  rows.sort((a, b) => {
+    const by = sort === "name" ? a.colony.name.localeCompare(b.colony.name) : a.values[sort] - b.values[sort];
+    return (descending ? -by : by) || a.colony.id - b.colony.id;
+  });
+
+  const header = (key: PlanetSort, label: string) =>
+    button(`${label}${sort === key ? (descending ? " ▼" : " ▲") : ""}`, () => {
+      planetsView.descending = sort === key ? !descending : key !== "name";
+      planetsView.sort = key;
+      ctx.refresh();
+    }, { className: `planets-head${sort === key ? " on" : ""}`, ariaLabel: `Sort by ${label}` });
+  const cell = (value: number, workers?: number) =>
+    h("span", { className: "planets-cell" }, h("span", { textContent: `${value}` }), workers === undefined ? null : h("span", { className: "muted small", textContent: ` (${workers})` }));
+
+  const sum = (key: keyof (typeof rows)[number]["values"]) => rows.reduce((n, r) => n + r.values[key], 0);
+  const workerSum = (job: (typeof JOBS)[number]) => rows.reduce((n, r) => n + r.out.workers[job], 0);
+  const list = h(
+    "ul",
+    { className: "planets" },
+    h("li", { className: "planets-row planets-heads" }, header("name", "Planet"), header("food", "Food"), header("industry", "Ind."), header("research", "Res."), header("credits", "Cr.")),
+    h(
+      "li",
+      { className: "planets-row planets-total" },
+      h("span", { textContent: `All ${rows.length}` }),
+      cell(sum("food"), workerSum("farmers")),
+      cell(sum("industry"), workerSum("industry")),
+      cell(sum("research"), workerSum("research")),
+      cell(sum("credits")),
+    ),
+  );
+  for (const { colony, out, values } of rows) {
+    const open = planetsView.open === colony.id;
+    const row = h(
+      "li",
+      { className: `planets-row tappable${open ? " open" : ""}` },
+      h("span", { className: "planets-name" }, h("span", { textContent: `${colony.capital ? "★ " : ""}${colony.name}` }), h("span", { className: "muted small", textContent: ` ${colony.population}/${out.maxPop}${colony.workers ? " · manual" : ""}` })),
+      cell(values.food, out.workers.farmers),
+      cell(values.industry, out.workers.industry),
+      cell(values.research, out.workers.research),
+      cell(values.credits),
+    );
+    row.onclick = () => {
+      planetsView.open = open ? null : colony.id;
+      ctx.refresh();
+    };
+    list.append(row);
+    if (open) {
+      list.append(
+        h(
+          "li",
+          { className: "column-item planets-detail" },
+          workerControls(ctx, colony),
+          h("div", { className: "row" }, button("Open colony", () => ctx.openColony(colony.id))),
+        ),
+      );
+    }
+  }
+  return h(
+    "div",
+    { className: "sheet panel tall" },
+    h("h2", {}, "Planets", closeButton(ctx)),
+    h("div", { className: "sub", textContent: "Output per turn (workers). Tap a heading to sort, a planet to place its workers." }),
+    list,
+  );
+}
+
 export function colonyPanel(ctx: PanelContext, colonyId: ColonyId): HTMLElement | null {
   const { game, pack } = ctx;
   const colony = findColony(game.state, colonyId);
@@ -195,23 +300,7 @@ export function colonyPanel(ctx: PanelContext, colonyId: ColonyId): HTMLElement 
     );
   }
 
-  // Hand-placed workers: "+" moves one worker here from the busiest other job.
-  const jobs = ["farmers", "industry", "research"] as const;
-  const jobLabel = { farmers: "Farmers", industry: "Industry", research: "Research" };
-  const moveWorker = (to: (typeof jobs)[number]) => {
-    const w = { ...out.workers };
-    const from = jobs.filter((j) => j !== to && w[j] > 0).sort((a, b) => w[b] - w[a])[0];
-    if (!from) return;
-    w[from] -= 1;
-    w[to] += 1;
-    ctx.issue({ type: "setWorkers", empireId: game.playerId, colonyId, workers: w });
-  };
-  const workers = h(
-    "div",
-    { className: "workers" },
-    ...jobs.map((j) => h("div", { className: "worker" }, h("span", { textContent: `${jobLabel[j]} ${out.workers[j]}` }), button("+", () => moveWorker(j), { ariaLabel: `Move a worker to ${jobLabel[j]}`, disabled: out.workers[j] === colony.population }))),
-    colony.workers ? button("Auto", () => ctx.issue({ type: "setWorkers", empireId: game.playerId, colonyId, workers: null }), { title: "Let the focus place workers again" }) : null,
-  );
+  const workers = workerControls(ctx, colony);
 
   const stats = h(
     "div",
@@ -230,7 +319,10 @@ export function colonyPanel(ctx: PanelContext, colonyId: ColonyId): HTMLElement 
     const controls = h("span", { className: "row-actions" });
     if (i > 0) controls.append(button("↑", () => ctx.issue({ type: "prioritizeBuild", empireId: game.playerId, colonyId, index: i }), { ariaLabel: "Build next" }));
     controls.append(button("✕", () => ctx.issue({ type: "dequeueBuild", empireId: game.playerId, colonyId, index: i }), { ariaLabel: "Remove" }));
-    const label = h("span", { className: "grow" }, h("div", { textContent: itemName(pack, empire, item, game.state, colony.systemId) }), h("div", { className: "muted small", textContent: `${turnsText(forecast[i]!)} · ${cost} ⚙` }));
+    const batch = item.count ?? 1;
+    const name = `${itemName(pack, empire, item, game.state, colony.systemId)}${batch > 1 ? ` ×${batch}` : ""}`;
+    const detail = batch > 1 ? `all ${turnsText(forecast[i]!)} · ${cost} ⚙ each` : `${turnsText(forecast[i]!)} · ${cost} ⚙`;
+    const label = h("span", { className: "grow" }, h("div", { textContent: name }), h("div", { className: "muted small", textContent: detail }));
     if (i === 0) label.append(bar(colony.progress / cost));
     queue.append(h("li", {}, label, controls));
   });
@@ -259,10 +351,30 @@ export function colonyPanel(ctx: PanelContext, colonyId: ColonyId): HTMLElement 
           ? pack.buildings.find((b) => b.id === item.id)!.description
           : designSummary(pack, empire, getDesign(empire, item.id));
     const alone = out.industry > 0 ? Math.ceil(itemCostValue / out.industry) : Infinity;
+    // Ships can be queued in batches; the row itself queues one.
+    const batches =
+      item.kind === "ship"
+        ? h(
+            "span",
+            { className: "row-actions batch" },
+            ...[1, 3, 5].map((count) =>
+              button(`×${count}`, () => ctx.issue({ type: "queueBuild", empireId: game.playerId, colonyId, item: count > 1 ? { ...item, count } : item }), {
+                ariaLabel: `Queue ${count}`,
+                className: "small-button",
+              }),
+            ),
+          )
+        : null;
     const li = h(
       "li",
       { className: "tappable" },
-      h("span", { className: "grow" }, h("div", { textContent: `${item.kind === "ship" ? "Ship: " : ""}${itemName(pack, empire, item, game.state, colony.systemId)}` }), h("div", { className: "muted small", textContent: description })),
+      h(
+        "span",
+        { className: "grow" },
+        h("div", { textContent: `${item.kind === "ship" ? "Ship: " : ""}${itemName(pack, empire, item, game.state, colony.systemId)}` }),
+        h("div", { className: "muted small", textContent: description }),
+        batches,
+      ),
       h("span", { textContent: `${itemCostValue} ⚙ · ${turnsText(alone)}` }),
     );
     li.onclick = () => ctx.issue({ type: "queueBuild", empireId: game.playerId, colonyId, item });

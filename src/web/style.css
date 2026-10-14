@@ -917,3 +917,67 @@ svg.sprite.dim {
   padding-top: 10px;
   color: var(--accent);
 }
+
+/* ---------- planets screen ---------- */
+
+.sheet ul.planets li.planets-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1.7fr) repeat(4, minmax(0, 1fr));
+  gap: 4px;
+  align-items: center;
+  font-size: 13px;
+}
+
+.sheet ul.planets li.planets-row > span {
+  color: var(--text);
+  text-align: right;
+  white-space: nowrap;
+}
+
+.sheet ul.planets li.planets-row > span.planets-name,
+.sheet ul.planets li.planets-row > span:first-child {
+  text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sheet ul.planets li.planets-row span.muted {
+  color: var(--muted);
+}
+
+.planets-heads button.planets-head {
+  min-height: 36px;
+  padding: 0 4px;
+  font-size: 12px;
+  white-space: nowrap;
+  text-align: right;
+}
+
+.planets-heads button.planets-head:first-child {
+  text-align: left;
+}
+
+.planets-heads button.planets-head.on {
+  color: var(--accent);
+}
+
+.sheet ul.planets li.planets-total {
+  font-weight: bold;
+}
+
+.sheet ul.planets li.planets-row.open {
+  background: #4fc3f71a;
+}
+
+.sheet ul.planets li.planets-detail {
+  border-top: none;
+  padding-top: 0;
+}
+
+.row-actions.batch {
+  margin-top: 6px;
+}
+
+.row-actions.batch button.small-button {
+  min-width: 52px;
+}

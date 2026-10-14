@@ -1,6 +1,38 @@
 # Changelog
 
-## 1.2.0 (in progress)
+## 1.3.0 (in progress)
+
+Invasions:
+
+- Troop ships land only as many troops as a safe win needs: the biggest transports go first until they reach 125%
+  of the defenders (a 99.9% win), and the rest stay in orbit for the next target. Transports from several fleets
+  ordered against the same colony land together.
+- If the troops on hand fall short, they wait in orbit for reinforcements (the turn report and fleet sheet say how
+  many more are needed), or you can order an all-out landing that commits every transport now, to wear down the
+  garrison even if it fails.
+- Fixed: transports, supply ships and other unarmed fleets fled from any battle in their system, dropping their
+  invasion orders, even while your warships were winning it. They now hold position behind your warships, and
+  withdraw only if those withdraw or are destroyed.
+
+Building:
+
+- Queue ships in batches of 1, 3 or 5 from a colony's build list. A batch is one queue entry ("Troop Ship ×5")
+  that builds its ships one after another; each ship still becomes its own fleet.
+
+Screens:
+
+- New Planets screen (menu): every colony's food, industry, research and credits per turn, with the workers on each
+  job. Tap a heading to sort; tap a planet to move its workers or hand them back to its focus.
+- Resupply points now show on the map whenever one of your fleets is selected, instead of through a menu toggle.
+- The menu no longer has a Research tree entry; open it from the research screen.
+
+Galaxy types (new game setup):
+
+- Standard (as before), Sparse (55% of systems without planets), Dense (10%), Clusters (groups of about six
+  tightly linked stars, joined by a lane or two), Spiral (two arms around a core) and Ring (a ring of stars
+  around an empty middle).
+
+## 1.2.0 (unreleased)
 
 Victory conditions:
 

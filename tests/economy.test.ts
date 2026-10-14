@@ -104,6 +104,31 @@ describe("production", () => {
     expect(capital(s).buildings).toContain("factory");
   });
 
+  it("builds ships in batches, each as its own fleet, keeping the batch at the front until done", () => {
+    let s = fresh();
+    const cap = capital(s);
+    s = run(s, { type: "queueBuild", empireId: 0, colonyId: cap.id, item: { kind: "ship", id: "scout", count: 3 } });
+    s = run(s, { type: "queueBuild", empireId: 0, colonyId: cap.id, item: { kind: "building", id: "factory" } });
+    expect(capital(s).queue[0]).toEqual({ kind: "ship", id: "scout", count: 3 });
+    expect(queueForecast(s, pack, capital(s))).toEqual([5, 8]); // 10 industry: 3 scouts at 14 (42), then factory 30 (72)
+    s = run(s, end, end);
+    expect(capital(s).queue[0]).toEqual({ kind: "ship", id: "scout", count: 2 });
+    s = run(s, end, end, end);
+    expect(capital(s).queue.map((q) => q.id)).toEqual(["factory"]);
+    const scouts = s.fleets.filter((f) => f.empireId === 0 && f.ships[0]!.designId === "scout");
+    expect(scouts.map((f) => f.ships.length)).toEqual([1, 1, 1, 1]); // the starting scout plus three, never merged
+  });
+
+  it("allows batches only for ships, of 1-10", () => {
+    const s = fresh();
+    const colonyId = capital(s).id;
+    const queue = (item: { kind: "building" | "ship"; id: string; count: number }) => applyCommand(s, { type: "queueBuild", empireId: 0, colonyId, item }, pack);
+    expect(queue({ kind: "building", id: "factory", count: 2 }).ok).toBe(false);
+    expect(queue({ kind: "ship", id: "scout", count: 11 }).ok).toBe(false);
+    expect(queue({ kind: "ship", id: "scout", count: 0 }).ok).toBe(false);
+    expect(queue({ kind: "ship", id: "scout", count: 5 }).ok).toBe(true);
+  });
+
   it("rejects duplicate buildings and locked items", () => {
     const s = fresh();
     const colonyId = capital(s).id;

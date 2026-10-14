@@ -21,8 +21,21 @@ const GalaxySize = z.object({
   radiusY: z.number().int().positive(),
   /** Minimum distance between two stars. */
   minStarDistance: z.number().int().positive(),
+});
+
+export const GALAXY_LAYOUTS = ["scatter", "clusters", "spiral", "ring"] as const;
+export type GalaxyLayout = (typeof GALAXY_LAYOUTS)[number];
+
+/** Map styles offered at setup; the first is the default. */
+const GalaxyType = z.object({
+  id,
+  name: z.string().min(1),
+  description: z.string().min(1),
+  layout: z.enum(GALAXY_LAYOUTS),
   /** Share of systems with no planets at all: only gas giants, asteroids, anomalies or nothing. */
-  emptyPercent: z.number().int().min(0).max(100).default(0),
+  emptyPercent: z.number().int().min(0).max(100),
+  /** Scales the galaxy size's radii (layouts that leave space empty need more room). */
+  spreadPercent: z.number().int().min(50).max(300).default(100),
 });
 
 const StarType = z.object({
@@ -297,6 +310,8 @@ const Combat = z.object({
   defenseRepairPercent: z.number().int().min(0).max(100),
   /** Population lost when a colony changes hands, in percent. */
   captureLossPercent: z.number().int().min(0).max(100),
+  /** A normal invasion lands troops until they reach this percent of the defenders, and waits if it can't. */
+  invasionMarginPercent: z.number().int().min(100),
   /** Each hostile ship in a minefield has this chance per turn to hit a mine, which deals mineDamage. */
   mineHitPercent: z.number().int().min(0).max(100),
   mineDamage: z.number().int().nonnegative(),
@@ -576,6 +591,7 @@ export const ContentPackSchema = z
     name: z.string().min(1),
     version: z.string().regex(/^\d+\.\d+\.\d+$/),
     galaxySizes: z.array(GalaxySize).min(1),
+    galaxyTypes: z.array(GalaxyType).min(1),
     starTypes: z.array(StarType).min(1),
     bodyKindWeights: z.object({
       planet: weight,
@@ -622,6 +638,7 @@ export const ContentPackSchema = z
       }
     };
     unique("galaxySizes", pack.galaxySizes.map((g) => g.id));
+    unique("galaxyTypes", pack.galaxyTypes.map((g) => g.id));
     unique("starTypes", pack.starTypes.map((s) => s.id));
     unique("planetTypes", pack.planetTypes.map((p) => p.id));
     unique("planetSizes", pack.planetSizes.map((p) => p.id));
