@@ -12,9 +12,9 @@ state, all changes through commands); the rules data lives in `content/default/p
 
 ## Where things stand
 
-- **Released:** only v1.0.0 (GitHub Release + tag). The owner publishes releases through the GitHub UI.
-- **Merged to `main` but not yet released:** 1.1 (PR #8 and earlier) and 1.2 (PRs #9 and #10). `package.json` still
-  says `1.1.0`; `CHANGELOG.md` has a `1.2.0 (unreleased)` section. To release: bump `version`, retitle the
+- **Released:** v1.0.0; v1.3.0 (which includes 1.1 and 1.2, never released on their own) once its release PR
+  merges and the owner tags it. The owner publishes
+  releases through the GitHub UI. To release: bump `version` (`npm version X.Y.Z --no-git-tag-version`), retitle the
   changelog section, merge, then the owner creates the release/tag (tag pushes from sessions get a 403).
 - **1.2 contents:** resupply only at colonies, depots and supply ships; ship experience and ranks; Fleet Command
   Network; 118-tech tree with rival schools, race research access and affinities (balance-tested); conquest tech
@@ -22,7 +22,7 @@ state, all changes through commands); the rules data lives in `content/default/p
   (with Field Repair) repair in the field, repair tenders removed; victory modes (200 turns, 400 turns,
   Domination 75%, Total domination 100%); AI weighs planetary defenses; AI endgame drive in open-ended modes;
   several AI attack fixes; AI warship cap of 60.
-- **1.3 (in progress on the session branch):** invasions land only the troops needed (125% of defenders) or
+- **1.3 contents:** invasions land only the troops needed (125% of defenders) or
   all-out; unarmed fleets hold behind friendly warships; ship batches ×1/×3/×5 (queue item `count`); Planets
   screen; resupply points shown when a fleet is selected; galaxy types (content `galaxyTypes`: standard, sparse,
   dense, clusters, spiral, ring); AI siege bombing, commando raids, depots; AI coalition against a leading human
