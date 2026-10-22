@@ -143,7 +143,7 @@ a fleet change its flagship anywhere.
   - Every shot that can reach the enemy flagship goes for it. That breaks enemy fleets apart, at the cost of
     ignoring the escorts.
   - Range and screening rules still apply, so a flagship kept in the rear of a formation is harder to reach.
-  - Groups (no flagship) are targeted as with Largest.
+  - Groups (no flagship) are targeted as with Warships.
   - Without the tech, the option is hidden.
 - A flagship outside battle that dies some other way (attrition, bombs, nanites after battle) has the same effect,
   minus the withdrawal.
@@ -242,7 +242,7 @@ My picks for 1.5 are marked ★. The rest can go to the roadmap.
 | ★ Officer experience | Officers earn experience from battles: Veteran, then Seasoned, then Legendary, each +3% accuracy and evasion for their fleet. | Officers become worth protecting, so losing one hurts. A light first step toward Admirals. | Small |
 | ★ Cohesion | A newly formed fleet starts at 50% cohesion and gains 10% a turn. Each ship added drops it 10% (minimum 50%). Below 100% the fleet loses up to 10% accuracy. | Rewards keeping fleets together and planning before a strike. Stops merging everything at the last moment. | Small |
 | ★ Chain of Command (tech, late) | When the flagship dies, the officer is still lost, but the fleet holds together: the toughest ship left becomes flagship and cohesion falls to 50%. | A late answer to flagship targeting. | Small |
-| ★ Flagship screening | The Screen formation (or the existing Escort stance) gives a 30% chance that a flagship-targeted shot hits an escort instead. Holographic Decoys (existing tech) hide which ship is the flagship from enemies 50% of the time. | Counterplay to Command Ship Analysis, using existing systems. | Small |
+| ★ Flagship screening | Ships in the Screen formation guard the flagship: a flagship-targeted shot has a 30% chance to hit a screening ship instead. Holographic Decoys (existing tech) hide which ship is the flagship from enemies 50% of the time. | Counterplay to Command Ship Analysis, using existing systems. | Small |
 | Escape pods (tech) | The officer survives losing the flagship half the time. The fleet still breaks up, but the place doesn't go empty. | A softer alternative to Chain of Command. | Small |
 | Command relays | A depot upgrade that counts as a command post: fleets stopped there take any order, and fleets can form there. | Gives forward bases a purpose before Subspace Command. Raids on relays become a target. | Medium |
 | Doctrines per command | Each command picks Assault (+accuracy in round 1), Defensive (+evasion), Rapid (+speed) or Siege (+bombing and troops). Changing takes 5 turns. | A choice per command that shapes how you fight. | Medium |
