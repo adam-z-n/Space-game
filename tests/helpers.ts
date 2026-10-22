@@ -39,6 +39,7 @@ export function testFleet(state: GameState, opts: { id: number; empireId: number
     speed,
     sensorRange: opts.hull === "test60" ? 0 : 120,
     systemId: opts.systemId,
+    cameFrom: null,
     route: [],
     progress: 0,
     holding: false,

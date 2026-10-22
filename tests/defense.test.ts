@@ -244,18 +244,36 @@ describe("invasion", () => {
     expect(enemyCapital(s).defenseHp).toBe(0);
   });
 
-  it("says why troops in orbit can't land while the colony's guns stand", () => {
+  it("no fleet holds orbit under a colony's standing guns: attackers that fail to knock them out pull back the way they came", () => {
     let s = line();
     const cap = enemyCapital(s);
     cap.buildings.push("defense_platform");
-    cap.defenseHp = 500; // too much to knock out this turn
-    const warship = newFleet(s, pack, s.empires[0]!, Array.from({ length: 6 }, () => "frigate"), 4);
-    warship.orders.retreatPercent = 100;
+    cap.defenseHp = 500; // too much to knock out in one battle
+    const warships = newFleet(s, pack, s.empires[0]!, Array.from({ length: 6 }, () => "frigate"), 4);
+    warships.orders.retreatPercent = 100;
     const transports = newFleet(s, pack, s.empires[0]!, ["troop_transport", "troop_transport"], 4);
-    s.fleets.push(warship, transports);
+    for (const f of [warships, transports]) f.cameFrom = 3; // just arrived from system 3
+    s.fleets.push(warships, transports);
     s = run(s, { type: "invade", empireId: 0, fleetId: transports.id, colonyId: cap.id }, end);
-    expect(s.colonies.find((c) => c.id === cap.id)!.empireId).toBe(1);
-    expect(s.lastTurnEvents).toContainEqual(expect.objectContaining({ type: "invasionWaiting", empireId: 0, reason: "defenses" }));
+    expect(s.lastBattles).toHaveLength(1);
+    expect(enemyCapital(s).defenseHp).toBeGreaterThan(0);
+    for (const id of [warships.id, transports.id]) {
+      const f = s.fleets.find((x) => x.id === id)!;
+      expect(f.route).toEqual([3]); // back where they came from
+      expect(f.invadeColonyId).toBeNull();
+    }
+  });
+
+  it("fleets that knock the defenses out hold orbit", () => {
+    let s = line();
+    const cap = enemyCapital(s);
+    cap.defenseHp = 5;
+    const warships = newFleet(s, pack, s.empires[0]!, Array.from({ length: 6 }, () => "frigate"), 4);
+    warships.orders.retreatPercent = 100;
+    s.fleets.push(warships);
+    s = run(s, end);
+    expect(enemyCapital(s).defenseHp).toBe(0);
+    expect(s.fleets.find((f) => f.id === warships.id)!.route).toEqual([]);
   });
 
   it("moving cancels the order", () => {

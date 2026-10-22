@@ -487,9 +487,7 @@ function startGame(game: Game): void {
           ? "The AI empires have united against you: you hold too much of the galaxy"
           : "The AI coalition against you has broken up";
       case "invasionWaiting":
-        return e.reason === "defenses"
-          ? `Troops at ${colonyName(e.colonyId)} can't land: its orbital defenses are up, and warships must knock them out`
-          : `Troops at ${colonyName(e.colonyId)} are waiting for more: ${e.troops} of ${e.needed} needed`;
+        return `Troops at ${colonyName(e.colonyId)} are waiting for more: ${e.troops} of ${e.needed} needed`;
       case "defensesDown":
         return `${colonyName(e.colonyId)}'s orbital defenses are down`;
       case "mineHits":

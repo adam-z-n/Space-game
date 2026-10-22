@@ -2470,7 +2470,8 @@
       "evasion": 0,
       "maneuver": 1,
       "veteranBonus": 1,
-      "endurance": 12
+      "endurance": 12,
+      "freighter": true
     },
     {
       "id": "cruiser",

@@ -322,6 +322,7 @@ export function newFleet(state: GameState, pack: ContentPack, empire: Empire, de
     speed: 0,
     sensorRange: 0,
     systemId,
+    cameFrom: null,
     route: [],
     progress: 0,
     holding: false,

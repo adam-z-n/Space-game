@@ -169,6 +169,8 @@ const Hull = z.object({
   veteranBonus: z.number().int().min(0).max(20),
   /** Turns a ship can operate outside supply. */
   endurance: z.number().int().nonnegative(),
+  /** Cargo hull: unarmed ships on it caught without an escort by armed enemies are destroyed, not driven off. */
+  freighter: z.boolean().default(false),
   requires: id.optional(),
 });
 

@@ -8,9 +8,19 @@ Fixes and screens:
   queueing builds, picking research...), so several changes in a row need no scrolling back.
 - The colony screen shows the planet itself: size and type, minerals, habitability, food yield and terrain defense.
 - The Planets screen has a population column, sortable like the others.
-- Fixed: troop ships in orbit could wait forever without landing. A colony with no guns can't stop a landing; a
-  colony's knocked-out defenses stay down while any enemy ship is in orbit; and when guns still stand, the turn
-  report and fleet sheet say that warships must knock them out first.
+- Fixed: troop ships in orbit could wait forever without landing. A colony with no guns can't stop a landing, and
+  a colony's knocked-out defenses stay down while any enemy ship is in orbit. The fleet sheet says when warships
+  must knock out a colony's defenses before troops can land.
+
+Combat:
+
+- A beaten fleet retreats the way it came, instead of to the nearest empty system (which could lead deeper into
+  enemy space). Fleets built where they fight fall back as before.
+- Unescorted freighters (troop, colony, supply and outpost ships, tankers) caught by armed enemy ships are
+  destroyed rather than driven off. Scouts still slip away, and cloaked ships stay out of the fight.
+- No fleet can hold orbit under a colony's standing guns: after a battle that leaves any of its guns working,
+  every enemy fleet there pulls back the way it came. Knocking out a colony's defenses now takes a fleet strong
+  enough to do it in one battle (damage still carries over, and repairs stop under siege).
 
 ## 1.3.0
 

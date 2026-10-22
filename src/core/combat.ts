@@ -142,6 +142,7 @@ function fight(
       speed: 0,
       sensorRange: 0,
       systemId,
+      cameFrom: null,
       route: [],
       progress: 0,
       holding: true,
@@ -260,6 +261,14 @@ function fight(
     return shots;
   };
 
+  // Unescorted unarmed fleets carrying freighters (no warships or defenses on their side) caught by armed
+  // enemy ships set to engage can't slip away: they stay in the fight, and the freighters still there when
+  // it ends are lost. Unarmed ships on faster hulls (scouts) still get away as before.
+  const hunters = (empireId: EmpireId) => shipFleets.some((f) => f.empireId !== empireId && f.orders.mission === "engage" && armed(f) && f.ships.length > 0);
+  const escorted = (empireId: EmpireId) => fleets.some((f) => f.empireId === empireId && (stations.has(f.id) || armed(f)));
+  const freighter = (fleet: Fleet, ship: Ship) => !!pack.hulls.find((h) => h.id === getDesign(state.empires[fleet.empireId]!, ship.designId).hull)?.freighter;
+  const trapped = new Set(shipFleets.filter((f) => !armed(f) && f.ships.some((x) => freighter(f, x)) && !escorted(f.empireId) && hunters(f.empireId)).map((f) => f.id));
+
   // Battles open at long range; each round the more maneuverable side moves the range toward its liking.
   let range = 3;
   for (let round = 0; round < cfg.rounds; round++) {
@@ -304,6 +313,7 @@ function fight(
       // Unarmed fleets (transports, supply ships...) hang back behind their own side's warships
       // while any of those are still fighting, instead of fleeing at the first shot.
       const screened = !armed(fleet) && active().some((f) => f.empireId === fleet.empireId && !stations.has(f.id) && f.orders.mission === "engage" && armed(f));
+      if (trapped.has(fleet.id)) continue;
       const evading = !screened && (fleet.orders.mission === "evade" || !armed(fleet));
       if (evading || (fleet.orders.retreatPercent < 100 && lostPercent >= fleet.orders.retreatPercent)) {
         retreated.add(fleet.id);
@@ -328,6 +338,14 @@ function fight(
     for (const fleet of fleets) fleet.ships = fleet.ships.filter((s) => s.hp > 0);
     report.rounds.push({ range, disrupted: [...disrupted].sort((a, b) => a - b), shots, retreated: withdrew, pursuit });
     range = nextRange(pack, range, active(), combatants, stations);
+  }
+
+  // Trapped fleets: freighters are run down if armed enemies are still on the field; anything else gets away.
+  for (const fleet of shipFleets) {
+    if (!trapped.has(fleet.id) || fleet.ships.length === 0) continue;
+    const stillHunted = active().some((f) => f.empireId !== fleet.empireId && !stations.has(f.id) && f.orders.mission === "engage" && armed(f));
+    if (stillHunted) fleet.ships = fleet.ships.filter((ship) => !freighter(fleet, ship));
+    if (fleet.ships.length > 0) retreated.add(fleet.id);
   }
 
   // Experience for every ship that came through: a battle survived, kills, and odds overcome.
@@ -372,7 +390,14 @@ function fight(
     if (hp === 0 && colony) events.push({ type: "defensesDown", turn: state.turn, empireId: colony.empireId, colonyId: colony.id, systemId });
   }
 
-  // Retreating fleets fall back to the nearest friendly or empty system.
+  // Nobody holds orbit under a colony's guns: while any colony here still has working defenses, every other
+  // empire's ships pull out (and try again later, or with more).
+  const guarded = state.colonies.filter((c) => c.systemId === systemId && c.defenseHp > 0 && colonyDefense(pack, state.empires[c.empireId]!, c).weapons.length > 0);
+  for (const fleet of shipFleets) {
+    if (fleet.ships.length > 0 && guarded.some((c) => c.empireId !== fleet.empireId)) retreated.add(fleet.id);
+  }
+
+  // Retreating fleets fall back the way they came (or, built here, to the nearest friendly or empty system).
   for (const fleet of shipFleets) {
     if (retreated.has(fleet.id) && fleet.ships.length > 0) {
       fleet.route = retreatRoute(state, pack, fleet);
@@ -530,6 +555,15 @@ function targetWeight(pack: ContentPack, attacker: Fleet, target: Combatant, fig
 function retreatRoute(state: GameState, pack: ContentPack, fleet: Fleet): SystemId[] {
   const empire = state.empires[fleet.empireId]!;
   const adj = knownAdjacency(state, fleet.empireId);
+  // Back the way it came, whatever has turned up there since.
+  if (fleet.cameFrom !== null && fleet.cameFrom !== fleet.systemId) {
+    const { dist, prev } = shortestPaths(adj, fleet.systemId);
+    if (dist[fleet.cameFrom] !== Infinity) {
+      const path: SystemId[] = [];
+      for (let at: number = fleet.cameFrom; at !== fleet.systemId && at !== -1; at = prev[at]!) path.push(at);
+      return path.reverse();
+    }
+  }
   const rivalColonies = new Set(empire.colonySightings.map((c) => c.systemId));
   const hostileFleets = new Set(state.fleets.filter((f) => f.empireId !== fleet.empireId && f.progress === 0 && f.route.length === 0).map((f) => f.systemId));
   const own = new Set(state.colonies.filter((c) => c.empireId === fleet.empireId).map((c) => c.systemId));

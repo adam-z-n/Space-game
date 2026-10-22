@@ -149,7 +149,6 @@ export function resolveMines(state: GameState, pack: ContentPack, events: GameEv
 export function resolveInvasions(state: GameState, pack: ContentPack, events: GameEvent[]): void {
   const rng = new Rng(state.rngState);
   const landings = new Map<number, Fleet[]>();
-  const blocked = new Set<string>();
   for (const fleet of state.fleets.slice().sort((a, b) => a.id - b.id)) {
     const targetId = fleet.invadeColonyId;
     if (targetId === null) continue;
@@ -159,14 +158,7 @@ export function resolveInvasions(state: GameState, pack: ContentPack, events: Ga
       continue;
     }
     if (fleet.progress > 0 || fleet.systemId !== colony.systemId || fleetTroops(state, pack, fleet) === 0) continue; // keep waiting
-    if (!defensesDown(state, pack, colony)) {
-      // In orbit, but the colony's guns still stand: say so (once per colony and empire).
-      if (!blocked.has(`${colony.id}:${fleet.empireId}`)) {
-        blocked.add(`${colony.id}:${fleet.empireId}`);
-        events.push({ type: "invasionWaiting", turn: state.turn, empireId: fleet.empireId, colonyId: colony.id, systemId: colony.systemId, troops: 0, needed: 0, reason: "defenses" });
-      }
-      continue;
-    }
+    if (!defensesDown(state, pack, colony)) continue; // its guns still stand
     landings.set(colony.id, [...(landings.get(colony.id) ?? []), fleet]);
   }
 
@@ -178,7 +170,7 @@ export function resolveInvasions(state: GameState, pack: ContentPack, events: Ga
     let defense = defendingTroops(state, pack, colony);
     const landing = chooseLanding(state, pack, attackers, defense);
     if (landing.ships.size === 0) {
-      events.push({ type: "invasionWaiting", turn: state.turn, empireId: attackerId, colonyId, systemId: colony.systemId, troops: landing.available, needed: landing.needed, reason: "troops" });
+      events.push({ type: "invasionWaiting", turn: state.turn, empireId: attackerId, colonyId, systemId: colony.systemId, troops: landing.available, needed: landing.needed });
       continue;
     }
     let attack = landing.troops;

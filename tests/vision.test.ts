@@ -159,11 +159,15 @@ describe("save migration", () => {
   it("brings version 15 saves up to date: invasions default to landing only what is needed", () => {
     const pack = defaultPack();
     const s = createInitialState({ seed: "v15", galaxySize: "small", aiCount: 2 }, pack);
-    for (const fleet of s.fleets) delete (fleet as Partial<typeof fleet>).invadeAllOut;
+    for (const fleet of s.fleets) {
+      delete (fleet as Partial<typeof fleet>).invadeAllOut;
+      delete (fleet as Partial<typeof fleet>).cameFrom;
+    }
     s.version = 15;
     const migrated = migrateState(s, pack);
     expect(migrated.version).toBe(STATE_VERSION);
     expect(migrated.fleets.every((f) => f.invadeAllOut === false)).toBe(true);
+    expect(migrated.fleets.every((f) => f.cameFrom === null)).toBe(true);
   });
 
   it("loads a real Milestone 2 save and keeps playing", () => {

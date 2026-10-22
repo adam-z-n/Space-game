@@ -76,6 +76,7 @@ function resolveMovement(state: GameState, pack: ContentPack, events: GameEvent[
         budget = 0;
       } else {
         budget -= remaining;
+        fleet.cameFrom = fleet.systemId;
         fleet.systemId = next;
         fleet.route.shift();
         fleet.progress = 0;

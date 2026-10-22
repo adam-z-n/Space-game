@@ -5,7 +5,7 @@ import type { BodyKind, Formation } from "../content/schema";
  * so it can be cloned, saved, hashed, and sent over a network unchanged.
  */
 
-export const STATE_VERSION = 16;
+export const STATE_VERSION = 17;
 
 export type SystemId = number;
 export type EmpireId = number;
@@ -256,6 +256,8 @@ export interface Fleet {
   speed: number;
   /** System the fleet is at, or the one it departed from when in transit. */
   systemId: SystemId;
+  /** The system the fleet last came from (where a beaten fleet falls back to); null if built where it is. */
+  cameFrom: SystemId | null;
   /** Systems still to visit; route[0] is the next hop. Empty when idle. */
   route: SystemId[];
   /** Distance travelled along the lane toward route[0]. 0 means "in system". */
@@ -314,17 +316,7 @@ export type GameEvent =
   /** AI empires band together against the human players (active), or stand down (sent to every human). */
   | { type: "coalition"; turn: number; empireId: EmpireId; active: boolean }
   /** Troops in orbit fall short of what a safe landing needs; they wait (sent to the attacker only). */
-  | {
-      type: "invasionWaiting";
-      turn: number;
-      empireId: EmpireId;
-      colonyId: ColonyId;
-      systemId: SystemId;
-      troops: number;
-      needed: number;
-      /** troops: too few in orbit; defenses: its guns still stand (absent in older saves: troops). */
-      reason?: "troops" | "defenses";
-    }
+  | { type: "invasionWaiting"; turn: number; empireId: EmpireId; colonyId: ColonyId; systemId: SystemId; troops: number; needed: number }
   | { type: "defensesDown"; turn: number; empireId: EmpireId; colonyId: ColonyId; systemId: SystemId }
   /** Sent to both sides. */
   | { type: "bombarded"; turn: number; empireId: EmpireId; attackerId: EmpireId; colonyId: ColonyId; systemId: SystemId; populationLost: number; buildingLost: string | null }
