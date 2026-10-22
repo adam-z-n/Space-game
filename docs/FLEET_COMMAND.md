@@ -1,66 +1,89 @@
 # 1.5 Fleet command overhaul: design proposal
 
-Status: proposal, revision 2, waiting for the owner's approval. Builds on the agreed draft in `docs/ROADMAP.md`
+Status: proposal, revision 3, waiting for the owner's approval. Builds on the agreed draft in `docs/ROADMAP.md`
 and the owner's answers and requests:
 - A fleet stopped away from a colony or outpost takes new orders only with Subspace Command.
 - Support ships cost 1 command point each.
 - Two techs each add an officer (a fleet) to every naval command.
 - A midgame tech allows targeting flagships.
 - Ships not in a fleet can always move between your own colonies and outposts.
+- Officer experience, cohesion, Chain of Command and flagship screening.
+- Each naval command is based at a system, and fleets form only there.
+- Outpost and depot upgrades that unlock with weapons research.
 
 ## 1. The idea in one paragraph
 
-Ships move about freely in loose **groups**, but a group can't start a fight. To attack you form a **fleet**
-under one of your **naval commands**: one of that command's **officers** takes charge, you name a **flagship**,
-and the fleet's ships come out of the command's pool of points. Only fleets enter
-systems with known enemy ships or colonies, invade, bomb or sabotage. A fleet commits to its course: once it
-leaves, it can't be turned around in flight, and once it stops away from your colonies and outposts it can only be
-sent back to one (both lifted by the Subspace Command tech). If the flagship is destroyed the officer dies with it,
-the fleet breaks up and withdraws, and that officer's place stays empty for a few turns.
+Ships move about freely in loose **groups**, but a group can't start a fight. To attack you form a **fleet** at
+the home system of one of your **naval commands**. One of that command's **officers** takes charge, you name a
+**flagship**, and the fleet's ships come out of the command's pool of points. Only fleets enter systems with known
+enemy ships or colonies, invade, bomb or sabotage. A fleet commits to its course: once it leaves, it can't be turned
+around in flight, and once it stops away from your colonies and outposts it can only be sent back to one (both
+lifted by the Subspace Command tech). If the flagship is destroyed the officer dies with it, the fleet breaks up and
+withdraws, and that officer's place stays empty for a few turns. A new fleet also needs a few turns of drill
+(cohesion) before it fights at its best, and officers who survive battles get better.
 
 ## 2. Groups and fleets
 
-| | Group (no command) | Fleet (formed, has a command) |
+| | Group (no command) | Fleet (formed, in a command) |
 |---|---|---|
-| Move within your space | Yes | Yes |
-| Enter a system with known enemy ships or colonies | Only one holding your own colony or outpost | Yes |
+| Move to your own colonies and outposts | Always, even when enemies are there | Yes |
+| Enter other systems with known enemy ships or colonies | No (armed groups) | Yes |
 | Invade, bomb, sabotage | No | Yes |
 | Fight when attacked | Yes | Yes |
 | Change course in flight | Yes | Only with Subspace Command |
 | New orders when stopped away from your colonies and outposts | Yes | Only "return to a colony or outpost", unless you have Subspace Command |
-| Size | No cap; more than 8 warships fight worse (today's oversize penalty) | Capped by command points; no oversize penalty |
-| Command Network bonus | No | Yes (as today) |
+| Size | No cap; more than 8 warships fight worse (today's oversize penalty) | Capped by its command's points; no oversize penalty |
+| Command Network, officer rank, cohesion | No | Yes |
 
 - **Unarmed groups go anywhere.** Scouts, colony ships, outpost ships and supply ships aren't attacking, so they
   ignore the "enter" rule. Troop ships, bombers and commandos can travel unformed, but they need a fleet to invade,
   bomb or sabotage.
 - **Known** means what your empire knows: sightings and charted colonies, the same knowledge the AI uses. If an
-  armed group's next stop turns hostile while it travels, it halts where it is and you get a "group halted" event.
-  It never blunders into a fight.
-- **Home ground.** A group can always move to any of your colonies or outposts, even when enemies are there, so
-  you can shift ships around your empire and defend your own worlds without a command. The route avoids systems
-  with known enemies when it can. When there is no other way, a group may pass through one, but it can't stop there.
+  armed group's next stop turns hostile while it travels, and isn't one of your colonies or outposts, the group
+  halts where it is and you get a "group halted" event.
+- **Home ground.** The route to your own colony or outpost avoids systems with known enemies when it can. When there
+  is no other way, a group may pass through one, but it can't stop there.
 
-## 3. Naval commands and points
+## 3. Naval commands: home systems, points and officers
+
+### Home systems
+
+- **First command**: based at your capital from the start.
+- **New commands**: when you can support another (one per 5 colonies), you are asked to pick its home system.
+  - The home must be a system with one of your colonies, and each system holds at most one command.
+  - The command is ready 3 turns after you place it.
+  - Until you choose, the extra command just waits; nothing is lost.
+- **Forming fleets**: only at a command's home system, and the new fleet belongs to that command. So where you base
+  commands decides where your strikes start from.
+- **Losing the home** (your last colony in that system is captured or destroyed):
+  - **Still supported** (you have enough colonies for all your commands): the command is **displaced**. You are asked
+    to move it to another of your colony systems, and it is ready again 5 turns after you choose. Its fleets keep
+    their officers and carry on meanwhile, but none can form for it.
+  - **No longer supported**: the command is lost, and its fleets become groups at once. They can still go home,
+    since groups can always move to your own colonies.
+- **Fewer colonies without losing a home**: you keep every command you have. You just can't add one until you are
+  back over the number again.
+- **Capital moves**: the command based there stays where it is.
+
+### Points and officers
 
 | Rule | Number |
 |---|---|
-| Commands at start | 1 |
-| Extra commands | +1 per 5 colonies (5 colonies: 2, 10: 3, 15: 4...) |
+| Commands at start | 1, at your capital |
+| Extra commands | +1 per 5 colonies (5 colonies: 2, 10: 3, 15: 4...), each placed at a colony system you pick |
 | Points per command at start | 12, shared by all its fleets |
-| Officers per command at start | 1 (so one fleet per command) |
-| Officer Academy (new tech) | +1 officer per command |
-| Combined Fleet Doctrine (new tech) | +1 officer per command (3 in all) |
 | Growth with population | +1 point per command for every 10 population in the empire |
 | Naval Staff College (new tech) | +4 points per command |
 | Fleet Admiralty (new tech) | +8 points per command |
-| Fleet Command Network on the flagship | +6 points to its command while that fleet exists (replaces today's "+6 ships" size bonus) |
+| Fleet Command Network on a flagship | +6 points to its command while that fleet exists (replaces today's "+6 ships" size bonus) |
+| Officers per command at start | 1 (so one fleet per command) |
+| Officer Academy (new tech) | +1 officer per command |
+| Combined Fleet Doctrine (new tech) | +1 officer per command (3 in all) |
 
-**Points and officers work together.** Points set how many ships a command can field in all. Officers set how many
-separate fleets it can split them into. Extra officers don't add strength; they let you run several operations at
-once, such as a main strike, a raid and an escort for an invasion, from the same points. A fleet belongs to one
-command, and forming one uses that command's free points and a free officer. When you form a fleet, the command with
-the most room is suggested.
+**Points and officers work together.**
+- Points set how many ships a command can field in all.
+- Officers set how many separate fleets it can split them into. Extra officers don't add strength; they let you run
+  several operations at once, such as a main strike, a raid and an escort for an invasion, from the same points.
 
 Points per ship:
 
@@ -76,12 +99,13 @@ Points per ship:
 A ship counts as armed by design, the same test the fleet size limit uses today, so a ship whose guns are knocked
 out still costs its hull's points.
 
-**Example.** At the start you have 1 command of 12 points and 1 officer: one fleet of 6 destroyers, or 2 cruisers,
-a destroyer and 2 troop ships. After Officer Academy the same 12 points can be two fleets, say 8 points striking
-while 4 escort a troop convoy.
+**Example.** At the start you have 1 command of 12 points at your capital, with 1 officer: one fleet of 6
+destroyers, or 2 cruisers, a destroyer and 2 troop ships. After Officer Academy the same 12 points can be two fleets,
+say 8 points striking while 4 escort a troop convoy.
 
-A mid-game empire with 12 colonies, 60 population, Staff College and Officer Academy has 3 commands of
-12 + 6 + 4 = 22 points with 2 officers each: up to 6 fleets and 66 points in all.
+A mid-game empire with 12 colonies, 60 population, Staff College and Officer Academy has:
+- 3 commands (the capital and two colonies you picked), each with 12 + 6 + 4 = 22 points and 2 officers.
+- Up to 6 fleets and 66 points in all.
 
 **What AI games look like today** (probe: 8 small and 4 medium all-AI games, normal difficulty, median and best
 empire alive at each turn):
@@ -93,134 +117,219 @@ empire alive at each turn):
 | 150 | 6-11 / 23 | 30-76 / 138 | 3-4 / 49 | 9-16 / 102 | 6-8 / 26 |
 | 200 | 5-9 / 29 | 34-79 / 163 | 3-4 / 48 | 12-17 / 55 | 8-9 / 29 |
 
-So 12 points rarely pinches the AI before turn 100. Later the leaders' strike fleets (26-29 points) will need
-the techs, a Command Network flagship or a second fleet. The total across all commands almost never binds: the
-rules bite through the size of each fleet, the command count early on, and committing to a course. That is the
-intent: you can still build a large navy, but you have to plan how you use it.
+So 12 points rarely pinches the AI before turn 100. Later the leaders' strike fleets (26-29 points) will need the
+techs, a Command Network flagship or a second command. The rules mostly bite through the size of each command, where
+fleets can form, and committing to a course: you can still build a large navy, but you have to plan how you use it.
 
-**When limits drop** (colonies or population lost): formed fleets are never broken up by force. You just can't form
-new fleets or add ships until you are back under the limits. A command lost when colonies fall leaves its fleets
-over the limit in the same way. They keep their officers, but no new fleets form until there is room. Saves from 1.4 load the same way (see section 8).
+**When limits drop** (population lost, or a Command Network flagship gone): formed fleets are never broken up by
+force. You just can't form new fleets in that command or add ships until it is back under its points.
 
 ## 4. Forming, changing and dissolving
 
-- **Form fleet**: at one of your colonies, outposts or depots (a "command post"), in a command with a free officer
-  and enough free points. Pick the flagship. It must be an armed ship, and the strongest one is suggested. The fleet gets an officer with a
-  generated name (named officers are the seed of the later Admirals idea; in 1.5 they have no traits).
-- **Add ships**: merge a group into a fleet anywhere both are stopped in the same system, if the points fit.
-  Reinforcements can join in the field.
+- **Form fleet**: at a command's home system, with a free officer and enough free points in that command. Pick the
+  flagship. It must be an armed ship, and the strongest one is suggested. The fleet gets an officer with a
+  generated name. It starts at 50% cohesion (section 6).
+- **Add ships**: merge a group into a fleet anywhere both are stopped in the same system, if its command's points fit.
+  Each ship added lowers cohesion by 10% (to no less than 50%). Reinforcements can join in the field, at a cost.
 - **Detach ships**: anywhere. Detached ships become a group.
-- **Change flagship**: at a command post, or anywhere with Subspace Command.
-- **Dissolve**: anywhere. The ships become a group, and the officer and points are free again at once. A group can't attack, so
-  dissolving away from home doesn't get around the course rules: to attack again the ships must go back to a command
-  post and form a fleet again.
+- **Change flagship**: at a colony, outpost or depot, or anywhere with Subspace Command. Cohesion drops by 20%.
+- **Dissolve**: anywhere. The ships become a group, and the officer (with their experience) and the points are free
+  again at once. A group can't attack, so dissolving away from home doesn't get around the course rules: to attack
+  again the ships must go back to a command's home and form again.
 
 ## 5. Orders and movement for fleets
 
 Without Subspace Command:
 
-- A fleet in flight can't take a new course or halt. It flies to the destination you gave it. Automatic retreats
-  after a lost battle still happen, as today (back the way it came).
-- A fleet stopped at a command post takes any order.
-- A fleet stopped anywhere else can be ordered only to a command post (any of yours it can reach). It can still hold,
-  change stance, retreat threshold and target priority, invade, bomb or sabotage the system it is in, and take ships
-  in or detach them.
-- So a strike has to be planned: pick the target, go, fight, then come home or push on only if you planned the
+- **In flight**: a fleet can't take a new course or halt. It flies to the destination you gave it. Automatic
+  retreats after a lost battle still happen, as today (back the way it came).
+- **At a colony, outpost or depot of yours** (a "command post"): it takes any order.
+- **Stopped anywhere else**: it can be ordered only to a command post (any of yours it can reach). It can still
+  hold, change stance, retreat threshold and target priority, invade, bomb or sabotage the system it is in, and take
+  ships in or detach them.
+- So a strike has to be planned: pick the target, go, fight, then come home, or push on only if you planned the
   route through. Routes with several stops are allowed, so "via A to B" works.
 
-**Subspace Command** (new tech) lifts both limits: change course in flight, and full orders anywhere. It also lets
-a fleet change its flagship anywhere.
+**Subspace Command** (new tech) lifts both limits: change course in flight, and full orders anywhere. Fleets still
+form only at command homes.
 
-## 6. Flagship and officer in battle
+## 6. Officers, flagships and cohesion
 
-- **Flagship destroyed**: the officer dies with it. At the end of that round the fleet breaks up. Its surviving ships
-  withdraw from the battle as a beaten fleet does today: parting shots and pursuit as usual, and graviton-pinned
-  ships can't leave. After the battle they are a group, back where they came from.
-- **Empty place**: a new officer arrives in **5 turns**. Until then that command has one officer fewer.
-- **Command Network**: its bonuses (accuracy, evasion, +1 maneuver, the datalink techs) now need the fleet to be
-  formed. If the network ship is the flagship, the fleet also gets +6 points.
-- **Flagship targeting** (from the midgame tech Command Ship Analysis): a new target priority, **Flagship**.
-  - Every shot that can reach the enemy flagship goes for it. That breaks enemy fleets apart, at the cost of
-    ignoring the escorts.
-  - Range and screening rules still apply, so a flagship kept in the rear of a formation is harder to reach.
-  - Groups (no flagship) are targeted as with Warships.
-  - Without the tech, the option is hidden.
-- A flagship outside battle that dies some other way (attrition, bombs, nanites after battle) has the same effect,
-  minus the withdrawal.
+**Officer experience.**
 
-## 7. New techs
+| Rank | Experience | Fleet bonus |
+|---|---|---|
+| Officer | 0 | none |
+| Veteran | 6 | +3% accuracy and evasion |
+| Seasoned | 15 | +6% |
+| Legendary | 30 | +9% |
+
+- An officer gets 2 experience per battle fought and 2 more for a win.
+- An officer whose fleet is dissolved goes back to the command's pool with their rank. The next fleet formed there
+  gets the most experienced free officer. So Officer Academy also lets you keep veterans in reserve.
+
+**Cohesion.**
+- A new fleet starts at 50% cohesion and gains 10% a turn, up to 100%.
+- Each ship merged in costs 10% (minimum 50%), and changing flagship costs 20%.
+- Below 100% the fleet loses accuracy: at 50% it is 10% less accurate, scaling down to no loss at 100%.
+- It rewards keeping fleets together and forming them before you need them, not merging everything at the last
+  moment.
+
+**Flagship destroyed.**
+- The officer dies with it. At the end of that round the fleet breaks up.
+- Its surviving ships withdraw from the battle as a beaten fleet does today: parting shots and pursuit as usual, and
+  graviton-pinned ships can't leave. After the battle they are a group, back where they came from.
+- A flagship that dies outside battle (attrition, bombs, nanites after battle) has the same effect, minus the
+  withdrawal.
+- A new officer arrives in **5 turns**. Until then that command has one officer fewer.
+- **Chain of Command** (new late tech): the officer is still lost, but the fleet holds together. The toughest ship
+  left becomes flagship and cohesion falls to 50%. The fleet fights on under its usual retreat rules.
+
+**Flagship targeting** (from the midgame tech Command Ship Analysis): a new target priority, **Flagship**.
+- Every shot that can reach the enemy flagship goes for it. That breaks enemy fleets apart, at the cost of ignoring
+  the escorts.
+- Range rules still apply. Groups (no flagship) are targeted as with Warships.
+- Without the tech, the option is hidden.
+
+**Flagship screening** (the counter).
+- Ships in the Screen formation guard their flagship: a flagship-targeted shot has a 30% chance to hit a screening
+  ship instead.
+- With Holographic Decoys (existing tech), enemies firing at your flagship pick the wrong ship 50% of the time.
+
+**Command Network**: its bonuses (accuracy, evasion, +1 maneuver, the datalink techs) now need the fleet to be
+formed. If the network ship is the flagship, its command also gets +6 points.
+
+## 7. Outpost and depot upgrades
+
+Combat outposts and supply depots can be upgraded step by step, from Mark I to Mark V. Each mark unlocks with
+weapons research after Outpost Construction.
+
+| Mark | Unlocks at (weapons techs known) | Cost (credits) | Hit points | Guns | Upkeep |
+|---|---|---|---|---|---|
+| Base | Outpost Construction | 30 (outpost ship) | 60 | 2 x 5 damage, 70% accuracy | 1 |
+| I | 3 | 150 | 100 | 3 x 6, 70% | 1 |
+| II | 6 | 250 | 150 | 3 x 8, 72% | 2 |
+| III | 9 | 400 | 220 | 4 x 9, 75% | 2 |
+| IV | 12 | 600 | 300 | 4 x 11, 75% | 3 |
+| V | 15 | 850 | 400 | 5 x 12, 78% | 3 |
+
+For comparison, an Orbital Fortress is 120 hit points with 3 x 8 guns for 120 credits, and a Star Fortress is 300
+hit points with 4 x 12 guns for 260. A Mark V outpost is a fortress in deep space, at more than three times the
+price.
+
+- **Weapons techs** are those in the Weapons field (23 in the tree). They are counted whenever you got them, since
+  Outpost Construction is cheap and early, so 3 per mark is about "every 3 new weapons techs" in practice.
+- **One mark at a time.** It is bought with credits and done at once, like a depot upgrade. A depot keeps its mark
+  when built, and an outpost keeps its mark when made into a depot.
+- **A destroyed outpost is gone**, as now. A damaged one repairs at its usual rate up to its mark's hit points.
+- **The empire's colony defense bonuses** (the effects that add defense hit points and damage) apply on top, as they
+  do for colony defenses today.
+- **Clear path needed.** To upgrade, there must be a route along lanes from the outpost to one of your colonies on
+  which no system, the two ends included, holds a known enemy fleet, outpost or colony. An outpost cut off or under
+  siege can't be upgraded until the way is clear. The outpost sheet shows the reason, such as "cut off: enemy fleet
+  at Vega".
+
+## 8. New techs
 
 | Tech | Field | Needs | Cost (approx.) | Effect |
 |---|---|---|---|---|
 | Naval Staff College | Logistics | Supply Lines | 400 | +4 points per command |
-| Fleet Admiralty | Science | Fleet Command | 1300 | +8 points per command |
 | Officer Academy | Science | Battle Computers | 450 | +1 officer per command |
-| Combined Fleet Doctrine | Science | Officer Academy, Fleet Command | 1600 | +1 officer per command |
 | Command Ship Analysis | Sensors | Electronic Warfare | 700 | Unlocks the Flagship target priority |
 | Subspace Command | Sensors | Deep Space Arrays | 900 | Fleets change course in flight and take any order anywhere |
+| Fleet Admiralty | Science | Fleet Command | 1300 | +8 points per command |
+| Combined Fleet Doctrine | Science | Officer Academy, Fleet Command | 1600 | +1 officer per command |
+| Chain of Command | Science | Combined Fleet Doctrine | 2000 | A fleet that loses its flagship holds together |
 
-Final costs follow the depth scaling 1.3 introduced. All six are open to every race, with no school restriction.
+Final costs follow the depth scaling 1.3 introduced. All seven are open to every race, with no school restriction.
+Outpost marks need no new techs.
 
-## 8. Saves and the AI
+## 9. Saves and the AI
 
 **Saves (state version 18).** Loading a 1.4 game:
-- Each empire's armed fleets are formed by strength, strongest first, as long as it has officers free.
-- The flagship is the toughest armed ship, and the fleet keeps all its ships even if that is over the point limit.
-- Other fleets become groups. Officers are named from the seeded random generator, so replays still match.
+- Every empire's first command is placed at its capital. Any extra commands it can support are placed at its colonies
+  nearest its other fleets, so nobody is asked to choose on load.
+- Each empire's armed fleets are formed, strongest first, as long as it has officers free.
+  - The flagship is the toughest armed ship.
+  - The fleet keeps all its ships, even if that is over the point limit.
+  - Cohesion starts full.
+- Other fleets become groups.
+- Officers are named with the seeded random generator, so replays still match.
+- Outposts and depots start at the base mark.
 
 **AI.**
-- **Strike forces**: it stages at the command post closest to the target, forms fleets there within its points
-  (using its Command Network ship as the flagship when it has one), and launches only if the formed fleets are
-  strong enough. If they aren't, it picks a weaker target or waits.
-- **Invade, siege and commando raids** go only through formed fleets.
+- **Command homes**: it places each new command at a colony with a shipyard on the side facing its war target, or
+  next to its capital if it is at peace. It moves a displaced command to its nearest safe colony.
+- **Strike forces**:
+  - It gathers warships at the home of the command nearest the target, forms fleets there within that command's
+    points (using a Command Network ship as the flagship when it has one), and lets cohesion build.
+  - It launches when the fleets are strong enough and cohesion is at least 80%, or at once if a target is about to
+    get away. If the fleets aren't strong enough, it picks a weaker target or waits.
+- **Invade, siege and commando raids** go only through formed fleets. With spare officers it splits off a raid or
+  an invasion escort.
 - **Defense**: groups defend colony and outpost systems. Threats elsewhere in its space need a free fleet.
 - **Movement**:
   - It never retargets a fleet in flight without the tech.
   - Fleets stranded away from home go to the nearest command post.
   - After a won battle a fleet stays to invade, bomb or siege, and goes home when that is done.
-- **Breakups**: survivors regroup at home.
-- **Research**: values Staff College, Officer Academy, Subspace Command, then Admiralty, Combined Fleet Doctrine and
-  Command Ship Analysis, more for warlike personalities.
-- **Officers**: with spare officers it splits off a raid or an invasion escort. It uses Flagship targeting when its
-  fleet outguns the enemy's escorts.
+- **Breakups**: survivors regroup at the nearest command home.
+- **Targeting and screening**: it uses Flagship targeting when its fleet outguns the enemy's escorts, and designs a
+  screening ship or two into fleets once rivals have Command Ship Analysis.
+- **Outposts**: it upgrades border outposts and depots when it has credits to spare, the path is clear, and the
+  outpost faces a rival.
+- **Research**: values Staff College, Officer Academy and Subspace Command, then Admiralty, Combined Fleet Doctrine,
+  Command Ship Analysis and Chain of Command, more for warlike personalities.
 - **What stays the same**: the warship cap of 60 and the build rules. Sims will show whether the AI needs to build
   differently.
 
-The AI never sees hidden state: it uses its own command limits and the enemy fleets it knows about, as now.
+The AI never sees hidden state: it uses its own command limits and the enemy fleets, outposts and colonies it knows
+about, as now.
 
-## 9. Screens
+## 10. Screens
 
+- **Placing commands**:
+  - When a new command is available, or one is displaced, an event and a banner say so.
+  - Tapping it opens the map with the systems you can choose highlighted.
+  - Command homes have a mark on the map.
 - **Fleet sheet**:
-  - Shows "Fleet: Admiral Name, flagship X, 18/22 points" or "Group: can't attack".
+  - Shows "Fleet: Veteran Name, flagship X, 2nd Command, cohesion 70%" or "Group: can't attack".
   - New buttons: Form fleet (choose flagship), Dissolve, Set flagship.
   - Says why a move isn't allowed: "needs a fleet to enter enemy space", "committed to its course", "can only return
-    to a colony or outpost".
+    to a colony or outpost", "fleets form at a command's home".
 - **Map**:
   - Destinations a selection can't go to are greyed out when you pick a move.
   - Fleets carry a flag mark that groups don't.
-- **Fleets screen**: one line per command, such as "1st Command: 2 of 2 officers, 18 of 22 points, next officer
-  in 3 turns".
-- **How to play** and first-game tips: a short section on fleets and commands.
+- **Fleets screen**: one line per command, such as "2nd Command at Vega: 2 of 2 officers, 18 of 22 points, next
+  officer in 3 turns".
+- **Outpost sheet**: its mark, the next mark's cost and stats, and the upgrade button, or why it is unavailable.
+- **How to play** and first-game tips: a short section on fleets, commands and outpost marks.
 
-## 10. Build plan
+## 11. Build plan
 
 Each part is committed and pushed, with tests. One PR for 1.5 at the end.
 
 1. **Core rules**:
-   - State: `fleet.command` (command, officer, flagship) and the empire's vacant-officer timers.
-   - Content: hull `commandPoints` and a `combat.command` block, plus the three techs and their effect keys.
-   - Commands `formFleet`, `dissolveFleet`, `setFlagship`, and the movement and attack checks.
+   - State: commands (home, officers, displaced or pending timers) on the empire, and `fleet.command` (command,
+     officer, flagship, cohesion).
+   - Content: hull `commandPoints`, a `combat.command` block, the seven techs and their effect keys, and the
+     outpost marks.
+   - Commands: `placeCommand`, `formFleet`, `dissolveFleet`, `setFlagship` and `upgradeOutpost` (now with marks),
+     plus the movement and attack checks.
    - Save migration to version 18, with tests.
-2. **Combat**: flagship loss, breakup and withdrawal, officer replacement, the network bonus only for formed fleets,
-   and the size penalty only for groups. Tests.
-3. **AI**: as in section 8. Full AI-game tests, and no rejected AI commands in the sims.
+2. **Combat**:
+   - Flagship loss, breakup and withdrawal; Chain of Command; officer replacement and experience; cohesion.
+   - Flagship targeting and screening, the network bonus only for formed fleets, and the size penalty only for
+     groups.
+   - Outpost marks in battle.
+   - Tests.
+3. **AI**: as in section 9. Full AI-game tests, and no rejected AI commands in the sims.
 4. **Screens** and the How to play section. Screenshots checked on an iPhone 13 size.
 5. **Balance**:
    - Before/after sims with the same seeds: 60 small games, plus medium games.
-   - Reported by personality and race: win rates, game length, battles, invasions, ships lost.
+   - Reported by personality and race: win rates, game length, battles, invasions, ships lost, outpost marks bought.
    - Then the changelog and roadmap.
 
-## 11. Defaults I picked (say if you disagree)
+## 12. Defaults I picked (say if you disagree)
 
 1. Unarmed groups (scouts, colony ships and the like) go anywhere. Only armed groups are barred from enemy systems.
 2. Groups pass through a hostile system only when there is no other route to your own colony or outpost, and can't
@@ -229,24 +338,10 @@ Each part is committed and pushed, with tests. One PR for 1.5 at the end.
    would be stuck forever.
 4. Losing the flagship kills the officer, and that place stays empty for 5 turns.
 5. Population growth: +1 point per command per 10 population.
-6. Fleets over their limits after losses are never broken up by force.
+6. Fleets over their limits are never broken up by force. The exception is a lost command its empire can't support,
+   whose fleets become groups.
 7. Command Network flagship: +6 points.
 8. Points are shared within a command rather than set per fleet, so extra officers add flexibility, not strength.
-
-## 12. More ideas to consider
-
-My picks for 1.5 are marked ★. The rest can go to the roadmap.
-
-| Idea | What it does | Why it's interesting | Size |
-|---|---|---|---|
-| ★ Officer experience | Officers earn experience from battles: Veteran, then Seasoned, then Legendary, each +3% accuracy and evasion for their fleet. | Officers become worth protecting, so losing one hurts. A light first step toward Admirals. | Small |
-| ★ Cohesion | A newly formed fleet starts at 50% cohesion and gains 10% a turn. Each ship added drops it 10% (minimum 50%). Below 100% the fleet loses up to 10% accuracy. | Rewards keeping fleets together and planning before a strike. Stops merging everything at the last moment. | Small |
-| ★ Chain of Command (tech, late) | When the flagship dies, the officer is still lost, but the fleet holds together: the toughest ship left becomes flagship and cohesion falls to 50%. | A late answer to flagship targeting. | Small |
-| ★ Flagship screening | Ships in the Screen formation guard the flagship: a flagship-targeted shot has a 30% chance to hit a screening ship instead. Holographic Decoys (existing tech) hide which ship is the flagship from enemies 50% of the time. | Counterplay to Command Ship Analysis, using existing systems. | Small |
-| Escape pods (tech) | The officer survives losing the flagship half the time. The fleet still breaks up, but the place doesn't go empty. | A softer alternative to Chain of Command. | Small |
-| Command relays | A depot upgrade that counts as a command post: fleets stopped there take any order, and fleets can form there. | Gives forward bases a purpose before Subspace Command. Raids on relays become a target. | Medium |
-| Doctrines per command | Each command picks Assault (+accuracy in round 1), Defensive (+evasion), Rapid (+speed) or Siege (+bombing and troops). Changing takes 5 turns. | A choice per command that shapes how you fight. | Medium |
-| Officer traits | Instead of ranks only, each officer has a random trait (Aggressive, Cautious, Logistician, Raider...). | Makes picking who leads which fleet a decision. This is the full Admirals idea. | Medium |
-| Patrol orders for groups | A group loops between your colonies and outposts on its own. | Uses the "groups move freely at home" rule; less tapping on phones. | Small |
-| Officer upkeep | Each officer costs 1 credit a turn. | Officer techs become an economic choice. Probably unneeded friction. | Tiny |
-| Battle honors | Fleets keep a short record (battles won, colonies taken) shown on the fleet sheet. | Flavor that makes named fleets feel like yours. | Small |
+9. Command homes: colony systems only, one command per system. A new command is ready in 3 turns, a moved one in 5.
+10. Outpost marks: 3 weapons techs per mark, counted whenever you got them; 5 marks; bought at once with credits.
+11. Clear path: no known enemy fleet, outpost or colony anywhere on the route, the outpost's own system included.
