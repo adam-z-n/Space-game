@@ -206,7 +206,7 @@ weapons research after Outpost Construction.
 
 | Mark | Unlocks at (weapons techs known) | Cost (credits) | Hit points | Guns | Upkeep |
 |---|---|---|---|---|---|
-| Base | Outpost Construction | 30 (outpost ship) | 60 | 2 x 5 damage, 70% accuracy | 1 |
+| Base | Outpost Construction | an outpost ship | 60 | 2 x 5 damage, 70% accuracy | 1 |
 | I | 3 | 150 | 100 | 3 x 6, 70% | 1 |
 | II | 6 | 250 | 150 | 3 x 8, 72% | 2 |
 | III | 9 | 400 | 220 | 4 x 9, 75% | 2 |
