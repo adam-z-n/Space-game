@@ -218,6 +218,12 @@ const Component = z.object({
   maneuver: z.number().int().nonnegative().default(0),
   /** Bombs: damage dealt to a colony per turn of bombardment. */
   bombard: z.number().int().nonnegative().default(0),
+  /** Plague bombs: their bombardment kills three times the population, and a colony they wipe out leaves the planet blighted. */
+  plague: z.boolean().default(false),
+  /** Planet crackers: destroy a colony outright once its orbital defenses are down. */
+  cracker: z.boolean().default(false),
+  /** Slots the component takes up. */
+  size: z.number().int().min(1).max(12).default(1),
   /** Armor: extra hit points. */
   hp: z.number().int().nonnegative().default(0),
   /** Shields: damage blocked per hit. */
@@ -277,7 +283,7 @@ const Building = z.object({
 });
 
 /** Special rules a tech switches on, handled in code (see hasFlag). */
-export const TECH_FLAGS = ["hitAndRun", "tractorBeams", "solarSails", "stealthHulls", "tachyonScanners", "galacticSurvey", "sensorSpoofing", "gasMining", "fieldRepair"] as const;
+export const TECH_FLAGS = ["hitAndRun", "tractorBeams", "solarSails", "stealthHulls", "tachyonScanners", "galacticSurvey", "sensorSpoofing", "gasMining", "fieldRepair", "cureBlight"] as const;
 export type TechFlag = (typeof TECH_FLAGS)[number];
 
 const Tech = z.object({
@@ -312,6 +318,8 @@ const Combat = z.object({
   defenseRepairPercent: z.number().int().min(0).max(100),
   /** Population lost when a colony changes hands, in percent. */
   captureLossPercent: z.number().int().min(0).max(100),
+  /** Turns a planet stays blighted after plague bombs wipe out its colony. */
+  blightTurns: z.number().int().nonnegative(),
   /** A normal invasion lands troops until they reach this percent of the defenders, and waits if it can't. */
   invasionMarginPercent: z.number().int().min(100),
   /** Each hostile ship in a minefield has this chance per turn to hit a mine, which deals mineDamage. */
@@ -736,7 +744,7 @@ export const ContentPackSchema = z
     pack.startingDesigns.forEach((d, i) => {
       const hull = hullById.get(d.hull);
       if (!hull) issue(["startingDesigns", i, "hull"], `unknown hull "${d.hull}"`);
-      else if (d.components.length > hull.slots) issue(["startingDesigns", i], `${d.id}: ${d.components.length} components but ${hull.slots} slots`);
+      else if (d.components.reduce((n, c) => n + (pack.components.find((x) => x.id === c)?.size ?? 1), 0) > hull.slots) issue(["startingDesigns", i], `${d.id}: ${d.components.length} components but ${hull.slots} slots`);
       for (const c of d.components) if (!componentIds.has(c)) issue(["startingDesigns", i, "components"], `unknown component "${c}"`);
     });
     const buildingIds = new Set(pack.buildings.map((b) => b.id));

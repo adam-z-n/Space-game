@@ -21,6 +21,13 @@ Combat:
 - No fleet can hold orbit under a colony's standing guns: after a battle that leaves any of its guns working,
   every enemy fleet there pulls back the way it came. Knocking out a colony's defenses now takes a fleet strong
   enough to do it in one battle (damage still carries over, and repairs stop under siege).
+- Bombardment kept up long enough wipes a colony out, freeing the planet for settlers. The AI bombs a colony it
+  wants to take down to two colonists, not out, except in its endgame drive.
+- Bioweapons (Growth): the Plague Bomb (cruiser or larger) kills three times as many people, and a colony it wipes
+  out leaves the planet blighted, unfit to settle, for 100 turns. Planetary Restoration (a late Growth tech) lets
+  you settle blighted worlds, curing them. The AI uses plague bombs only in its endgame drive.
+- Planet Cracker (Weapons): a dreadnought weapon taking 6 slots that destroys a colony outright once its orbital
+  defenses are down. Ship parts can now take more than one slot.
 
 ## 1.3.0
 

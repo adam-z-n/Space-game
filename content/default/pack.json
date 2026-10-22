@@ -1726,6 +1726,44 @@
       "description": "Unlocks the Orbital Bomb Bay for cruisers and larger."
     },
     {
+      "id": "bioweapons",
+      "name": "Bioweapons",
+      "field": "growth",
+      "cost": 1300,
+      "requires": [
+        "planetary_medicine",
+        "orbital_bombardment"
+      ],
+      "effects": {},
+      "description": "Unlocks the Plague Bomb for cruisers and larger: bombardment that kills three times as many people, and leaves a planet it empties blighted for 100 turns."
+    },
+    {
+      "id": "planetary_restoration",
+      "name": "Planetary Restoration",
+      "field": "growth",
+      "cost": 1800,
+      "requires": [
+        "cloning_centers"
+      ],
+      "effects": {},
+      "flags": [
+        "cureBlight"
+      ],
+      "description": "Cleanses plague-blighted worlds: you can settle a blighted planet, which cures it."
+    },
+    {
+      "id": "planet_cracker",
+      "name": "Planet Cracker",
+      "field": "weapons",
+      "cost": 2600,
+      "requires": [
+        "orbital_bombardment",
+        "dreadnought_hulls"
+      ],
+      "effects": {},
+      "description": "Unlocks the Planet Cracker: a dreadnought weapon taking 6 slots that destroys a colony outright once its orbital defenses are down."
+    },
+    {
       "id": "weapon_calibration",
       "name": "Weapon Calibration",
       "field": "weapons",
@@ -2376,6 +2414,7 @@
     "garrisonRegenPercent": 10,
     "defenseRepairPercent": 15,
     "captureLossPercent": 25,
+    "blightTurns": 100,
     "invasionMarginPercent": 125,
     "mineHitPercent": 30,
     "mineDamage": 6,
@@ -2822,6 +2861,29 @@
       "requires": "orbital_bombardment"
     },
     {
+      "id": "plague_bomb",
+      "name": "Plague Bomb",
+      "kind": "bomb",
+      "description": "Bombards a colony whose orbital defenses are down, killing three times the people a bomb bay does. A colony it wipes out leaves its planet blighted for 100 turns. Cruiser or larger.",
+      "cost": 25,
+      "bombard": 10,
+      "plague": true,
+      "minSlots": 5,
+      "requires": "bioweapons"
+    },
+    {
+      "id": "planet_cracker",
+      "name": "Planet Cracker",
+      "kind": "bomb",
+      "description": "Destroys a colony outright once its orbital defenses are down. Takes 6 slots; dreadnoughts only.",
+      "cost": 250,
+      "bombard": 40,
+      "cracker": true,
+      "size": 6,
+      "minSlots": 12,
+      "requires": "planet_cracker"
+    },
+    {
       "id": "outpost_kit",
       "name": "Outpost Kit",
       "kind": "outpost",
@@ -3052,7 +3114,11 @@
       }
     ],
     "dominationMinTurn": 50,
-    "coalition": { "turn": 175, "startPercent": 50, "endPercent": 40 },
+    "coalition": {
+      "turn": 175,
+      "startPercent": 50,
+      "endPercent": 40
+    },
     "score": {
       "population": 10,
       "colony": 25,

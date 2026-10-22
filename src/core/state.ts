@@ -40,6 +40,8 @@ export interface Body {
   planetType?: string;
   size?: string;
   richness?: string;
+  /** Turns left until the plague dies out; a blighted planet can't be colonized (absent: clean). */
+  blight?: number;
 }
 
 export interface StarSystem {
@@ -315,6 +317,8 @@ export type GameEvent =
     }
   /** AI empires band together against the human players (active), or stand down (sent to every human). */
   | { type: "coalition"; turn: number; empireId: EmpireId; active: boolean }
+  /** A colony wiped out by bombardment (sent to its owner and the attacker). */
+  | { type: "colonyDestroyed"; turn: number; empireId: EmpireId; attackerId: EmpireId; ownerId: EmpireId; colonyId: ColonyId; systemId: SystemId; name: string; blighted: boolean }
   /** Troops in orbit fall short of what a safe landing needs; they wait (sent to the attacker only). */
   | { type: "invasionWaiting"; turn: number; empireId: EmpireId; colonyId: ColonyId; systemId: SystemId; troops: number; needed: number }
   | { type: "defensesDown"; turn: number; empireId: EmpireId; colonyId: ColonyId; systemId: SystemId }

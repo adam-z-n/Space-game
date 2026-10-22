@@ -486,6 +486,11 @@ function startGame(game: Game): void {
         return e.active
           ? "The AI empires have united against you: you hold too much of the galaxy"
           : "The AI coalition against you has broken up";
+      case "colonyDestroyed": {
+        const how = e.blighted ? ", and the plague has blighted the planet" : "";
+        if (e.ownerId === game.playerId) return `${e.name} was wiped out by ${empire(e.attackerId).name}'s bombardment${how}`;
+        return `Our bombardment wiped out ${e.name}${how}`;
+      }
       case "invasionWaiting":
         return `Troops at ${colonyName(e.colonyId)} are waiting for more: ${e.troops} of ${e.needed} needed`;
       case "defensesDown":

@@ -11,6 +11,7 @@ import {
   fleetMaxStores,
   componentFits,
   hullSlots,
+  slotsUsed,
   rankOf,
   veteranBonus,
   fleetShipStats,
@@ -152,7 +153,9 @@ export function designerPanel(ctx: ShipContext): HTMLElement {
   for (const option of pack.hulls.filter((x) => hullAvailable(pack, empire, x.id))) {
     const b = button(`${option.name} (${hullSlots(pack, empire, option.id)})`, () => {
         d.hull = option.id;
-        d.components = d.components.slice(0, hullSlots(pack, empire, option.id));
+        // Keep parts from the front while they fit the new hull.
+        const room = hullSlots(pack, empire, option.id);
+        while (slotsUsed(pack, d.components) > room) d.components.pop();
         ctx.rerender();
       }, { className: `hull-option${option.id === d.hull ? " on" : ""}` });
     b.prepend(spriteIcon(pack, option.id, empire.color, 2));
@@ -165,7 +168,7 @@ export function designerPanel(ctx: ShipContext): HTMLElement {
       h(
         "li",
         {},
-        h("span", { className: "grow", textContent: getComponent(pack, id).name }),
+        h("span", { className: "grow", textContent: getComponent(pack, id).size > 1 ? `${getComponent(pack, id).name} (${getComponent(pack, id).size} slots)` : getComponent(pack, id).name }),
         button("✕", () => {
           d.components.splice(i, 1);
           ctx.rerender();
@@ -174,19 +177,20 @@ export function designerPanel(ctx: ShipContext): HTMLElement {
     );
   });
   const slotCount = hullSlots(pack, empire, hull.id);
-  for (let i = d.components.length; i < slotCount; i++) slots.append(h("li", {}, h("span", { className: "muted", textContent: "Empty slot" })));
+  const used = slotsUsed(pack, d.components);
+  for (let i = used; i < slotCount; i++) slots.append(h("li", {}, h("span", { className: "muted", textContent: "Empty slot" })));
 
   const parts = h("ul");
   for (const c of pack.components.filter((x) => componentAvailable(pack, empire, x.id))) {
     const fits = componentFits(pack, empire, hull.id, c.id);
     const li = h(
       "li",
-      { className: d.components.length < slotCount && fits ? "tappable" : "muted" },
-      h("span", { className: "grow" }, h("div", { textContent: c.name }), h("div", { className: "muted small", textContent: fits ? c.description : `${c.description} Needs a bigger hull.` })),
+      { className: used + c.size <= slotCount && fits ? "tappable" : "muted" },
+      h("span", { className: "grow" }, h("div", { textContent: c.size > 1 ? `${c.name} (${c.size} slots)` : c.name }), h("div", { className: "muted small", textContent: fits ? c.description : `${c.description} Needs a bigger hull.` })),
       h("span", { textContent: `${c.cost} ⚙` }),
     );
     li.onclick = () => {
-      if (d.components.length >= slotCount || !fits) return;
+      if (used + c.size > slotCount || !fits) return;
       d.components.push(c.id);
       ctx.rerender();
     };
@@ -237,7 +241,7 @@ export function designerPanel(ctx: ShipContext): HTMLElement {
     hulls,
     h("div", { className: "muted small", textContent: `${hull.description} ${slotCount} slots, maneuver ${hull.maneuver}, sensors ${stats.sensorRange}, evasion ${stats.evasion + stats.maneuver * pack.combat.maneuverEvasion}%.${d.components.length ? ` As designed: a ${ROLE_LABELS[stats.role]}.` : ""}` }),
     summary,
-    h("h3", { textContent: `Slots (${d.components.length}/${slotCount})` }),
+    h("h3", { textContent: `Slots (${used}/${slotCount})` }),
     slots,
     h("h3", { textContent: "Formation" }),
     formation,

@@ -118,6 +118,7 @@ export function planetStats(pack: ContentPack, body: Body) {
 /** Why `empire` can't colonize `body`, or null if it can (ignoring who is there). */
 export function colonizeBlocker(pack: ContentPack, empire: Empire, body: Body): string | null {
   if (body.kind !== "planet") return "only planets can be colonized";
+  if ((body.blight ?? 0) > 0 && !hasFlag(pack, empire, "cureBlight")) return `blighted by plague (${body.blight} more turns)`;
   const minimum = pack.economy.minHabitability + empireEffects(pack, empire).minHabitability;
   if (planetStats(pack, body).habitability < minimum) return `too hostile (needs habitability ${minimum})`;
   return null;
@@ -414,6 +415,9 @@ export function bodyName(system: StarSystem, bodyId: number): string {
 }
 
 export function newColony(state: GameState, empire: Empire, systemId: number, bodyId: number, population: number, capital: boolean): Colony {
+  // Settling a blighted world (Planetary Restoration) cures it.
+  const body = findBody(state, systemId, bodyId);
+  if (body) delete body.blight;
   return {
     id: state.nextId++,
     empireId: empire.id,

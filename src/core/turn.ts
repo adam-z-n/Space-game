@@ -17,6 +17,7 @@ import type { EmpireId, GameEvent, GameState, SystemId } from "./state";
  */
 export function resolveTurn(state: GameState, pack: ContentPack): void {
   const events: GameEvent[] = [];
+  wearOffBlight(state);
   resolveMovement(state, pack, events);
   resolveSupply(state, pack, events);
   resolveMines(state, pack, events);
@@ -96,3 +97,14 @@ function resolveMovement(state: GameState, pack: ContentPack, events: GameEvent[
 
 
 
+
+/** Plague blight dies out a turn at a time. */
+function wearOffBlight(state: GameState): void {
+  for (const system of state.galaxy.systems) {
+    for (const body of system.bodies) {
+      if (body.blight === undefined) continue;
+      if (body.blight > 1) body.blight -= 1;
+      else delete body.blight;
+    }
+  }
+}

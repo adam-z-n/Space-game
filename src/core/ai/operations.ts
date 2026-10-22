@@ -16,7 +16,7 @@ export function planOperations(ctx: AiContext, strategy: Strategy): void {
   scout(ctx);
   defend(ctx, strategy);
   invade(ctx);
-  siege(ctx);
+  siege(ctx, strategy);
   raid(ctx, strategy);
   depots(ctx, strategy);
   attack(ctx, strategy);
@@ -288,10 +288,11 @@ const landed = (ctx: AiContext, raw: number) => Math.floor((raw * (100 + ctx.fx.
 
 /**
  * Siege: over a rival colony whose orbital defenses are down, bombers pound it while the troops in
- * orbit are too few for a safe landing, and stop once they are enough (its people are the prize).
+ * orbit are too few for a safe landing, and stop once they are enough, or once it is down to a couple
+ * of colonists (its people are the prize; in the endgame drive they bomb on regardless).
  * Without bombers, a landing that is close to even goes in all-out rather than waiting forever.
  */
-function siege(ctx: AiContext): void {
+function siege(ctx: AiContext, strategy: Strategy): void {
   const inOrbit = new Map<SystemId, FleetInfo[]>();
   for (const info of ctx.fleets) {
     // Fleets already ordered away this turn (say, home to resupply) take no part.
@@ -308,7 +309,9 @@ function siege(ctx: AiContext): void {
     const bombers = fleets.filter((f) => f.bombard > 0);
     for (const info of bombers) {
       handled.add(info.fleet.id);
-      const want = short && colony.defenseHp <= 0 ? colony.colonyId : null;
+      // Bomb the prize down, not out: stop at a couple of colonists unless this is the endgame drive.
+      const spare = strategy.endgame || colony.population > SIEGE.minPopulation;
+      const want = short && spare && colony.defenseHp <= 0 ? colony.colonyId : null;
       if (info.fleet.bombardColonyId !== want) ctx.commands.push({ type: "bombard", empireId: ctx.id, fleetId: info.fleet.id, colonyId: want });
     }
     if (short && bombers.length === 0 && troops * 100 >= colony.troops * SIEGE.allOutPercent) {
@@ -321,7 +324,7 @@ function siege(ctx: AiContext): void {
 }
 
 /** Troops, in percent of the defenders, worth an all-out landing when no bombers can soften the target. */
-export const SIEGE = { allOutPercent: 110 };
+export const SIEGE = { allOutPercent: 110, minPopulation: 2 };
 
 /** Commandos (cloaked infiltrators) go ahead of the strike force: they knock out the defenses, then thin the garrison. */
 function raid(ctx: AiContext, strategy: Strategy): void {

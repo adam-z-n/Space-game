@@ -529,6 +529,8 @@ function stationStats(defense: ColonyDefense): DesignStats {
     cyber: 0,
     cyberDefense: 0,
     bombard: 0,
+    plague: 0,
+    cracker: false,
     outpost: false,
     commandos: 0,
     stealth: false,

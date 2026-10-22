@@ -273,27 +273,43 @@ function captureColony(state: GameState, pack: ContentPack, colony: Colony, newO
     explored.push(colony.systemId);
     explored.sort((a, b) => a - b);
   }
-  if (wasCapital) {
-    // The largest remaining colony becomes the new seat of government.
-    const remaining = state.colonies.filter((c) => c.empireId === oldOwner).sort((a, b) => b.population - a.population || a.id - b.id);
-    const next = remaining[0];
-    if (next) {
-      next.capital = true;
-      for (const id of capitalOnly) if (!next.buildings.includes(id)) next.buildings.push(id);
-      state.empires[oldOwner]!.homeSystemId = next.systemId;
-      events.push({ type: "capitalMoved", turn: state.turn, empireId: oldOwner, colonyId: next.id, systemId: next.systemId });
-    }
+  if (wasCapital) moveCapital(state, pack, oldOwner, events);
+}
+
+/** The largest remaining colony becomes the new seat of government. */
+function moveCapital(state: GameState, pack: ContentPack, empireId: EmpireId, events: GameEvent[]): void {
+  const capitalOnly = pack.start.capitalBuildings.filter((id) => !getBuilding(pack, id).buildable);
+  const remaining = state.colonies.filter((c) => c.empireId === empireId).sort((a, b) => b.population - a.population || a.id - b.id);
+  const next = remaining[0];
+  if (!next) return;
+  next.capital = true;
+  for (const id of capitalOnly) if (!next.buildings.includes(id)) next.buildings.push(id);
+  state.empires[empireId]!.homeSystemId = next.systemId;
+  events.push({ type: "capitalMoved", turn: state.turn, empireId, colonyId: next.id, systemId: next.systemId });
+}
+
+/** A colony bombed out of existence: the planet is free to settle again (unless the plague killed it). */
+function destroyColony(state: GameState, pack: ContentPack, colony: Colony, attackerId: EmpireId, blighted: boolean, events: GameEvent[]): void {
+  state.colonies = state.colonies.filter((c) => c.id !== colony.id);
+  if (blighted) {
+    const body = findBody(state, colony.systemId, colony.bodyId);
+    if (body) body.blight = pack.combat.blightTurns;
   }
+  for (const empireId of [attackerId, colony.empireId]) {
+    events.push({ type: "colonyDestroyed", turn: state.turn, empireId, attackerId, ownerId: colony.empireId, colonyId: colony.id, systemId: colony.systemId, name: colony.name, blighted });
+  }
+  if (colony.capital) moveCapital(state, pack, colony.empireId, events);
 }
 
 /**
  * Bombardment phase (after combat, before invasions): fleets ordered to bombard a
  * colony whose orbital defenses are down hit its population, garrison, militia and
- * buildings. It softens a colony for invasion but never wipes it out.
+ * buildings, softening it for invasion. Kept up long enough it wipes the colony out. Plague bombs kill
+ * three times as fast and leave the planet blighted; a planet cracker destroys the colony at once.
  */
 export function resolveBombardment(state: GameState, pack: ContentPack, events: GameEvent[]): void {
   const rng = new Rng(state.rngState);
-  const damage = new Map<number, { attackerId: EmpireId; amount: number }>();
+  const damage = new Map<number, { attackerId: EmpireId; amount: number; plague: number; cracker: boolean }>();
   for (const fleet of state.fleets.slice().sort((a, b) => a.id - b.id)) {
     const targetId = fleet.bombardColonyId;
     if (targetId === null) continue;
@@ -303,16 +319,28 @@ export function resolveBombardment(state: GameState, pack: ContentPack, events: 
       continue;
     }
     if (fleet.progress > 0 || fleet.systemId !== colony.systemId || colony.defenseHp > 0) continue;
-    const amount = fleetShipStats(pack, state, fleet).reduce((n, s) => n + s.bombard, 0);
+    const stats = fleetShipStats(pack, state, fleet);
+    const amount = stats.reduce((n, s) => n + s.bombard, 0);
     if (amount === 0) continue;
+    const plague = stats.reduce((n, s) => n + s.plague, 0);
+    const cracker = stats.some((s) => s.cracker);
     const entry = damage.get(colony.id);
-    if (!entry) damage.set(colony.id, { attackerId: fleet.empireId, amount });
-    else if (entry.attackerId === fleet.empireId) entry.amount += amount;
+    if (!entry) damage.set(colony.id, { attackerId: fleet.empireId, amount, plague, cracker });
+    else if (entry.attackerId === fleet.empireId) {
+      entry.amount += amount;
+      entry.plague += plague;
+      entry.cracker ||= cracker;
+    }
   }
-  for (const [colonyId, { attackerId, amount }] of [...damage].sort((a, b) => a[0] - b[0])) {
+  for (const [colonyId, { attackerId, amount, plague, cracker }] of [...damage].sort((a, b) => a[0] - b[0])) {
     const colony = state.colonies.find((c) => c.id === colonyId)!;
     const cfg = pack.combat;
-    const populationLost = Math.min(colony.population - 1, Math.max(1, Math.floor(amount / cfg.bombardDamagePerPop)));
+    // Plague bombs count three times over against the population.
+    const populationLost = cracker ? colony.population : Math.max(1, Math.floor((amount + plague * 2) / cfg.bombardDamagePerPop));
+    if (populationLost >= colony.population) {
+      destroyColony(state, pack, colony, attackerId, plague > 0 && !cracker, events);
+      continue;
+    }
     colony.population -= populationLost;
     colony.growth = 0;
     colony.troops = Math.max(0, colony.troops - Math.floor(amount / 4));

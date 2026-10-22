@@ -71,6 +71,10 @@ export interface DesignStats {
   cyberDefense: number;
   /** Damage per turn to a colony under bombardment. */
   bombard: number;
+  /** The part of `bombard` from plague bombs. */
+  plague: number;
+  /** Carries a planet cracker. */
+  cracker: boolean;
   /** Carries an outpost kit. */
   outpost: boolean;
   commandos: number;
@@ -149,6 +153,8 @@ export function designStats(pack: ContentPack, design: Pick<ShipDesign, "hull" |
     cyber: sum("cyber"),
     cyberDefense: sum("cyberDefense"),
     bombard: Math.floor((sum("bombard") * (100 + fx.damagePercent)) / 100),
+    plague: Math.floor((parts.filter((c) => c.plague).reduce((n, c) => n + c.bombard, 0) * (100 + fx.damagePercent)) / 100),
+    cracker: parts.some((c) => c.cracker),
     outpost,
     commandos: sum("commandos"),
     stealth: sum("stealth") > 0,
@@ -184,7 +190,7 @@ export function designBlocker(pack: ContentPack, empire: Empire, design: Omit<De
   if (!hullAvailable(pack, empire, design.hull)) return "hull not available";
   const hull = getHull(pack, design.hull);
   const slots = hullSlots(pack, empire, hull.id);
-  if (design.components.length > slots) return `only ${slots} slots`;
+  if (slotsUsed(pack, design.components) > slots) return `only ${slots} slots`;
   for (const id of design.components) {
     if (!componentAvailable(pack, empire, id)) return `component "${id}" not available`;
     const part = getComponent(pack, id);
@@ -197,6 +203,11 @@ export function designBlocker(pack: ContentPack, empire: Empire, design: Omit<De
 }
 
 /** Component slots on a hull for this empire (Miniaturization adds one). */
+/** Slots a list of components takes up (most take one; some big ones more). */
+export function slotsUsed(pack: ContentPack, components: readonly string[]): number {
+  return components.reduce((n, id) => n + getComponent(pack, id).size, 0);
+}
+
 export function hullSlots(pack: ContentPack, empire: Empire, hullId: string): number {
   return getHull(pack, hullId).slots + empireEffects(pack, empire).slots;
 }

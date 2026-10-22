@@ -72,7 +72,10 @@ export function planProduction(ctx: AiContext, strategy: Strategy, warshipId: st
   }
   let troopShortfall = troopsWanted - carriedTroops;
   // Siege ships and commandos ride with strike forces once researched.
-  const bomberDesign = designWhere(ctx, (s) => s.bombard > 0 && s.armed);
+  // In the endgame drive plague bombers take over from ordinary ones once available.
+  const plainBomber = designWhere(ctx, (s) => s.bombard > 0 && s.armed && !s.cracker && s.plague === 0);
+  const plagueBomber = strategy.endgame ? designWhere(ctx, (s) => s.plague > 0 && s.armed) : null;
+  const bomberDesign = plagueBomber ?? plainBomber;
   const infiltratorDesign = designWhere(ctx, (s) => s.commandos > 0 && s.stealth && !s.armed);
   const atWar = strategy.posture === "attack" && strategy.targetColony !== null;
   let bombers = afloat((s) => s.bombard > 0) + queuedOf((q) => isShip(q, (s) => s.bombard > 0));

@@ -1,6 +1,6 @@
 import { chartAll } from "./helpers";
 import { describe, expect, it } from "vitest";
-import { applyCommand, combatShipCount, createInitialState, defendingTroops, newFleet, type BattleReport, type Command, type Formation, type GameState } from "../src/core";
+import { applyCommand, colonizeBlocker, combatShipCount, createInitialState, slotsUsed, defendingTroops, newFleet, type BattleReport, type Command, type Formation, type GameState } from "../src/core";
 import { defaultPack } from "../src/content/defaultPack";
 
 const pack = defaultPack();
@@ -174,23 +174,64 @@ describe("ground war", () => {
     expect(defendingTroops(s, pack, after)).toBeLessThan(before);
   });
 
-  it("bombardment kills population once the defenses are down, but never the last of it", () => {
-    let s = line();
-    design(s, "bomber", "cruiser", ["bomb_bay", "bomb_bay", "bomb_bay", "laser", "laser"]);
+  /** Empire 0 bombers (of `design`) over empire 1's colony at system 6, whose defenses are down. */
+  function bombing(parts: string[], hull = "cruiser", count = 3) {
+    const s = line();
+    s.empires[0]!.designs.push({ id: "bomber", name: "Bomber", hull, components: parts, formation: "front", obsolete: false });
     const cap = s.colonies.find((c) => c.empireId === 1)!;
     cap.buildings = ["capitol"];
     cap.defenseHp = 0;
     s.empires[0]!.colonySightings = [{ colonyId: cap.id, empireId: 1, systemId: 6, bodyId: cap.bodyId, name: cap.name, population: 5, defenseHp: 0, troops: 5, turn: 1 }];
-    const bombers = newFleet(s, pack, s.empires[0]!, ["bomber", "bomber", "bomber"], 6);
+    const bombers = newFleet(s, pack, s.empires[0]!, Array.from({ length: count }, () => "bomber"), 6);
     bombers.orders = { ...bombers.orders, mission: "engage", retreatPercent: 100 };
     s.fleets.push(bombers);
+    return { s, cap, bombers };
+  }
+
+  it("bombardment kills population once the defenses are down, and kept up wipes the colony out", () => {
+    let { s, cap, bombers } = bombing(["bomb_bay", "laser"], "cruiser", 1);
     s = run(s, { type: "bombard", empireId: 0, fleetId: bombers.id, colonyId: cap.id }, end);
-    const hit = s.colonies.find((c) => c.id === cap.id)!;
-    expect(hit.population).toBeLessThan(5);
+    expect(s.colonies.find((c) => c.id === cap.id)!.population).toBeLessThan(5);
     expect(s.lastTurnEvents).toContainEqual(expect.objectContaining({ type: "bombarded", empireId: 1, colonyId: cap.id }));
-    for (let i = 0; i < 5; i++) s = run(s, end);
-    expect(s.colonies.find((c) => c.id === cap.id)!.population).toBeGreaterThanOrEqual(1);
-    expect(applyCommand(s, { type: "bombard", empireId: 0, fleetId: s.fleets.find((f) => f.empireId === 0 && f.ships.length > 0)!.id, colonyId: null }, pack).ok).toBe(true);
+    for (let i = 0; i < 8 && s.colonies.some((c) => c.id === cap.id); i++) s = run(s, end);
+    expect(s.colonies.some((c) => c.id === cap.id)).toBe(false);
+    expect(s.lastTurnEvents).toContainEqual(expect.objectContaining({ type: "colonyDestroyed", empireId: 1, colonyId: cap.id, blighted: false }));
+    // The planet is free to settle again.
+    const body = s.galaxy.systems[6]!.bodies.find((x) => x.id === cap.bodyId)!;
+    expect(body.blight).toBeUndefined();
+    expect(s.empires[1]!.eliminated).toBe(true); // it was empire 1's only colony
+  });
+
+  it("plague bombs kill three times as fast and leave the planet blighted until it wears off or is cured", () => {
+    const plain = bombing(["bomb_bay", "laser"], "cruiser", 1);
+    const plague = bombing(["plague_bomb", "laser"], "cruiser", 1);
+    const after = (x: ReturnType<typeof bombing>) => run(x.s, { type: "bombard", empireId: 0, fleetId: x.bombers.id, colonyId: x.cap.id }, end).colonies.find((c) => c.id === x.cap.id)!.population;
+    expect(5 - after(plague)).toBe(3 * (5 - after(plain)));
+
+    let { s, cap, bombers } = bombing(["plague_bomb", "plague_bomb", "laser", "laser", "laser"]);
+    s = run(s, { type: "bombard", empireId: 0, fleetId: bombers.id, colonyId: cap.id }, end);
+    for (let i = 0; i < 4 && s.colonies.some((c) => c.id === cap.id); i++) s = run(s, end);
+    expect(s.lastTurnEvents).toContainEqual(expect.objectContaining({ type: "colonyDestroyed", blighted: true }));
+    const body = s.galaxy.systems[6]!.bodies.find((x) => x.id === cap.bodyId)!;
+    expect(body.blight).toBe(pack.combat.blightTurns);
+    expect(colonizeBlocker(pack, s.empires[0]!, body)).toMatch(/blighted/);
+    s.empires[0]!.techs.push("planetary_restoration");
+    expect(colonizeBlocker(pack, s.empires[0]!, body)).toBeNull();
+    // It wears off a turn at a time (in a game still going: this one is over).
+    let t = line();
+    const spot = t.galaxy.systems[3]!.bodies[0]!;
+    spot.blight = 2;
+    t = run(t, end);
+    expect(t.galaxy.systems[3]!.bodies[0]!.blight).toBe(1);
+    t = run(t, end);
+    expect(t.galaxy.systems[3]!.bodies[0]!.blight).toBeUndefined();
+  });
+
+  it("a planet cracker destroys a colony outright once its defenses are down", () => {
+    let { s, cap, bombers } = bombing(["planet_cracker", "laser", "laser", "laser", "laser", "laser", "laser"], "dreadnought", 1);
+    s = run(s, { type: "bombard", empireId: 0, fleetId: bombers.id, colonyId: cap.id }, end);
+    expect(s.colonies.some((c) => c.id === cap.id)).toBe(false);
+    expect(slotsUsed(pack, ["planet_cracker", "laser"])).toBe(7);
   });
 });
 
