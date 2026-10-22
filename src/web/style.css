@@ -981,3 +981,27 @@ svg.sprite.dim {
 .row-actions.batch button.small-button {
   min-width: 52px;
 }
+
+/* ---------- tips and help ---------- */
+
+.sheet.coach {
+  border-color: var(--warn);
+  max-height: none;
+}
+
+.sheet.coach .coach-text {
+  margin-bottom: 8px;
+  line-height: 1.35;
+}
+
+.sheet.coach .row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.sheet li.help-body p {
+  margin: 0 0 8px;
+  line-height: 1.4;
+  color: var(--text);
+}

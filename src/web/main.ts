@@ -48,6 +48,7 @@ import { spriteIcon } from "./sprites";
 import { button, h, turnsText } from "./dom";
 import { colonyPanel, empirePanel, gameOverPanel, planetsPanel, queueEverywhere, researchPanel, resourceBar, type PanelContext } from "./economyPanels";
 import { planetPlans, plannerLabels, plannerPanel, techTreePanel } from "./planningPanels";
+import { Coach, coachCard, helpPanel } from "./help";
 import { battlePanel, designerPanel, designsPanel, fleetDetail, startDraft, type ShipContext } from "./shipPanels";
 
 const AUTOSAVE = "autosave";
@@ -58,6 +59,7 @@ const ARCHIVE = import.meta.env.VITE_ARCHIVE;
 // Archived releases (served at /vX.Y/) keep their own saves, so playing an old
 // version never upgrades or overwrites the save of the current one.
 const store = new LocalSaveStore(ARCHIVE ? `space4x:v${ARCHIVE}:save:` : undefined);
+const coach = new Coach(ARCHIVE ? `space4x:v${ARCHIVE}:coach` : "space4x:coach");
 const root = document.getElementById("app")!;
 
 // ---------- helpers ----------
@@ -212,7 +214,7 @@ interface UiState {
   /** A destination being considered for the selected fleet, waiting for confirmation. */
   preview: (RoutePreview & { destinationId: SystemId }) | null;
   report: GameEvent[] | null;
-  panel: "none" | "menu" | "fleets" | "research" | "techtree" | "planner" | "planets" | "empire" | "colony" | "designs" | "designer" | "battle" | "gameover";
+  panel: "none" | "menu" | "help" | "fleets" | "research" | "techtree" | "planner" | "planets" | "empire" | "colony" | "designs" | "designer" | "battle" | "gameover";
   /** Show the colonization planner's planet values on the map. */
   showPlanetValues: boolean;
   /** Battle shown when panel is "battle", and the replay round. */
@@ -220,6 +222,8 @@ interface UiState {
   battleRound: number;
   /** Colony shown when panel is "colony". */
   colonyId: ColonyId | null;
+  /** Open topic on the How to play screen. */
+  helpTopic: string | null;
   contextMenu: { target: MapTarget; x: number; y: number } | null;
   revealMap: boolean;
   /** The attention item the "to do" button showed last, so the next press moves on from it. */
@@ -236,6 +240,7 @@ function startGame(game: Game): void {
     selectedSystem: lastReport ? null : game.state.empires[game.playerId]!.homeSystemId,
     selectedFleet: null,
     preview: null,
+    helpTopic: null,
     report: lastReport,
     panel: "none",
     colonyId: null,
@@ -591,8 +596,13 @@ function startGame(game: Game): void {
       "div",
       { className: "menu" },
       button("Ship designs", () => openPanel("designs")),
+      button("How to play", () => openPanel("help")),
       button("Planets", () => openPanel("planets")),
       button("Colonization planner", () => openPanel("planner")),
+      button(coach.enabled ? "Turn tips off" : "Turn tips on (from the start)", () => {
+        coach.setEnabled(!coach.enabled);
+        openPanel("none");
+      }),
       button("Export save file", () => download(`space4x-turn${game.state.turn}.json`, serializeSave(game))),
       button(ui.revealMap ? "Hide map (debug)" : "Reveal map (debug)", () => {
         ui.revealMap = !ui.revealMap;
@@ -1027,9 +1037,17 @@ function startGame(game: Game): void {
         update();
       }, { className: "primary" }),
     );
+    // First-game tips sit above the bottom sheet while no full panel is open.
+    const tip =
+      ui.panel === "none" && !ui.preview
+        ? coachCard(coach, game, (id) => {
+            ui.helpTopic = id;
+            openPanel("help");
+          }, update)
+        : null;
     // A full panel replaces the bottom sheet; the preview bar always shows.
     const sheet = previewBar() ?? (ui.panel === "none" || ui.panel === "menu" ? (fleetSheet() ?? systemSheet() ?? reportSheet()) : null);
-    return h("div", { className: "bottombar" }, sheet, actions);
+    return h("div", { className: "bottombar" }, tip, sheet, actions);
   }
 
   function battleView(): HTMLElement | null {
@@ -1062,6 +1080,11 @@ function startGame(game: Game): void {
                   })
             : ui.panel === "planets"
               ? planetsPanel(ctx)
+            : ui.panel === "help"
+              ? helpPanel(ui.helpTopic, (id) => {
+                  ui.helpTopic = id;
+                  update();
+                }, () => openPanel("none"))
             : ui.panel === "empire"
               ? empirePanel(ctx)
               : ui.panel === "colony" && ui.colonyId !== null

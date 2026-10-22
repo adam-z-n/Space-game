@@ -12,6 +12,14 @@ Fixes and screens:
   a colony's knocked-out defenses stay down while any enemy ship is in orbit. The fleet sheet says when warships
   must knock out a colony's defenses before troops can land.
 
+Help:
+
+- How to play (menu): short topics on the map and fleets, colonies and workers, building, research, ship design,
+  combat and retreat, supply, invasion and bombardment, outposts and special operations, and how to win.
+- First-game tips: a small card offers a tip at key moments (the first turn, your colony ship, a new colony, an idle
+  build queue, meeting a rival, the first battle, low supply, troop ships), at most one a turn, each with a link to
+  its help topic. Turn them off from the card or the menu; turning them back on starts them over.
+
 Research and expansion:
 
 - Gas Giant Habitats (Engineering): a costly Habitat Ship founds a floating colony on a gas giant, up to 5 people
