@@ -4,6 +4,16 @@ Ideas for future versions, roughly grouped. Version 1.3 (released with 1.1 and 1
 logistics, ship experience, a larger research tree with race-specific schools, invasion handling, build batches, a
 planets screen, galaxy types, research pacing, and AI siege tactics and coalition; the rest waits here.
 
+## Version 1.5 (agreed, next)
+
+- **Fleet command overhaul.** Ships act on their own unless formed into a fleet, which needs an officer and a
+  designated flagship; if the flagship dies the fleet breaks up (retreating in battle). Only ships assigned to a
+  naval command may attack (enter systems with known enemy fleets or colonies, invade, bombard, sabotage).
+  Empires start with one command and gain one per 5 colonies; each command holds a number of points (escort 1,
+  frigate 2, freighter 1, cruiser 4, battleship 8, dreadnought 12), starting at 12 and growing with population and
+  two techs. Fleets can't change course in transit until a Subspace Command tech. Open questions: whether a fleet
+  stopped away from a colony or outpost can take new orders, and whether support ships use command points.
+
 ## Future versions (requested)
 
 - **Diplomacy:** relations with each AI empire, treaties (non-aggression, alliance, open borders), and AI
@@ -31,6 +41,10 @@ planets screen, galaxy types, research pacing, and AI siege tactics and coalitio
   and supply depots).
 - AI debt in collapsing empires: an empire losing colonies to conquest keeps its fleet and runs deep into debt
   (seen in long Total domination games); it should scrap ships faster as its income shrinks.
+- Weapon ideas not taken up in 1.4: Siphon Beam (damage recharges the firer's shields), Decoy Drones (draw fire
+  away from the carrier).
+- AI use of the 1.4 weapons beyond picking its best gun: graviton lances to stop retreats, EMP and ion cannons in
+  mixed designs, hunter-killer satellites at border colonies, planet crackers.
 - Mothballing fleets: lower upkeep while docked, slow to reactivate.
 - Mobile app builds (Capacitor for iOS and Android), performance, and polish.
 - Update the GitHub Actions workflows to action versions that run on Node.js 24 (checkout, setup-node,
