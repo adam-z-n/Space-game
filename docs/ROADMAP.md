@@ -13,8 +13,9 @@ habitats, warp gates, nine new weapons and in-game help; the rest waits here.
   naval command may attack (enter systems with known enemy fleets or colonies, invade, bombard, sabotage).
   Empires start with one command and gain one per 5 colonies; each command holds a number of points (escort 1,
   frigate 2, freighter 1, cruiser 4, battleship 8, dreadnought 12), starting at 12 and growing with population and
-  two techs. Fleets can't change course in transit until a Subspace Command tech. Open questions: whether a fleet
-  stopped away from a colony or outpost can take new orders, and whether support ships use command points.
+  two techs. Fleets can't change course in transit until a Subspace Command tech. Answered: a fleet stopped away from a
+  colony or outpost takes new orders only with Subspace Command; support ships cost 1 point each. Full proposal:
+  `docs/FLEET_COMMAND.md` (awaiting approval).
 
 ## Future versions (requested)
 
