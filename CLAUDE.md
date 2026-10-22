@@ -12,10 +12,12 @@ state, all changes through commands); the rules data lives in `content/default/p
 
 ## Where things stand
 
-- **Released:** v1.0.0; v1.3.0 (which includes 1.1 and 1.2, never released on their own) once its release PR
-  merges and the owner tags it. The owner publishes
-  releases through the GitHub UI. To release: bump `version` (`npm version X.Y.Z --no-git-tag-version`), retitle the
-  changelog section, merge, then the owner creates the release/tag (tag pushes from sessions get a 403).
+- **Released:** v1.0.0 and v1.3.0 (which includes 1.1 and 1.2). The owner publishes releases through the GitHub UI.
+  To release: a small PR that bumps `version` (`npm version X.Y.Z --no-git-tag-version`) and retitles the changelog
+  section; after it merges the owner creates the release and tag (tag pushes from sessions get a 403), and the
+  deploy archives that build under `/vX.Y/`.
+- **Merged to `main` but not yet released:** 1.4 (PR #13). `package.json` still says `1.3.0`; `CHANGELOG.md` has a
+  `1.4.0 (in progress)` section.
 - **1.2 contents:** resupply only at colonies, depots and supply ships; ship experience and ranks; Fleet Command
   Network; 118-tech tree with rival schools, race research access and affinities (balance-tested); conquest tech
   capture; missile ammo, component knock-outs, pursuit, fleet size limit (warships only); supply ships rearm and
@@ -27,15 +29,17 @@ state, all changes through commands); the rules data lives in `content/default/p
   screen; resupply points shown when a fleet is selected; galaxy types (content `galaxyTypes`: standard, sparse,
   dense, clusters, spiral, ring); AI siege bombing, commando raids, depots; AI coalition against a leading human
   in open-ended games (`state.coalition`, content `victory.coalition`); research costs scaled by tree depth.
-- **1.4 (in progress on the session branch):** scroll kept on redraw, planet details on the colony screen,
+- **1.4 contents:** scroll kept on redraw, planet details on the colony screen,
   Planets population column, stalled-invasion fix; combat: retreat the way you came (`fleet.cameFrom`),
   unescorted freighters destroyed (hull `freighter`), no holding orbit under working colony guns; bombing can
   destroy colonies, plague bombs and blight (`body.blight`, flag `cureBlight`), planet cracker (component `size`);
   gas giant habitats, Microfabrication / Molecular Assembly slots, warp gates (`fleet.warp`); four research-boost
   techs repurposed; nine new weapons (specials pin/emp/nanite/area/ion/phase, flak, heavy mines, satellites);
   How to play screen and first-game tips (`src/web/help.ts`). State version 17.
-- **Planned for 1.5:** the fleet command overhaul (flagships and officers, naval commands with points, orders only
-  when stopped); see `docs/ROADMAP.md`.
+- **Planned for 1.5 (agreed, not started):** the fleet command overhaul; the draft rules are in `docs/ROADMAP.md`.
+  Before designing it in detail, get the owner's answers to the two open questions there (can a fleet stopped away
+  from a colony or combat outpost take new orders; do support ships use command points). It changes how the whole
+  game plays, the AI included, so propose the full design with numbers first.
 - **Next ideas** (`docs/ROADMAP.md`): diplomacy, espionage, trade, pass-and-play multiplayer; combat terrain,
   ambush, admirals, boarding.
 
@@ -76,6 +80,10 @@ state, all changes through commands); the rules data lives in `content/default/p
   reports by personality and by race (empire 0 rotates through the races). Extra flags: `--victory <mode>`
   (open-ended modes are capped at 1000 turns), `--open-research` (every race gets full research access; a balance
   control). A 60-game small run takes about 15 minutes; run two or three in parallel at most (4 cores).
+- Before/after sims: `git worktree add <scratchpad>/base <commit>`, symlink `node_modules` into it, and run the same
+  sim command in both trees in parallel (same seeds). For a full-tree research check, a probe script playing
+  Total domination games capped at 400 turns logs each empire's tech count over time (8 small and 4 medium games
+  take about 2 hours).
 - `tests/helpers.ts` has `testPack`, `testFleet`, `relocateCapitals`, `chartAll`. Full AI-game tests need a
   `30_000` ms timeout.
 - AI tuning knobs: `ENDGAME` in `src/core/ai/strategy.ts`, `AI_MAX_WARSHIPS` in `src/core/ai/production.ts`,
