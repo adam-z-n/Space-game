@@ -237,11 +237,13 @@ price.
 | Officer Academy | Science | Battle Computers | 450 | +1 officer per command |
 | Command Ship Analysis | Sensors | Electronic Warfare | 700 | Unlocks the Flagship target priority |
 | Subspace Command | Sensors | Deep Space Arrays | 900 | Fleets change course in flight and take any order anywhere |
-| Fleet Admiralty | Science | Fleet Command | 1300 | +8 points per command |
-| Combined Fleet Doctrine | Science | Officer Academy, Fleet Command | 1600 | +1 officer per command |
+| Fleet Admiralty | Science | Naval Staff College, Battleship Hulls | 1300 | +8 points per command |
+| Combined Fleet Doctrine | Science | Officer Academy, Battleship Hulls | 1600 | +1 officer per command |
 | Chain of Command | Science | Combined Fleet Doctrine | 2000 | A fleet that loses its flagship holds together |
 
-Final costs follow the depth scaling 1.3 introduced. All seven are open to every race, with no school restriction.
+Final costs follow the depth scaling 1.3 introduced. All seven are core techs, open to every race. None of them
+needs a school tech, so a race that follows one science school isn't pushed into Command & Control to get them (see
+section 13).
 Outpost marks need no new techs.
 
 ## 9. Saves and the AI
@@ -345,3 +347,47 @@ Each part is committed and pushed, with tests. One PR for 1.5 at the end.
 9. Command homes: colony systems only, one command per system. A new command is ready in 3 turns, a moved one in 5.
 10. Outpost marks: 3 weapons techs per mark, counted whenever you got them; 5 marks; bought at once with credits.
 11. Clear path: no known enemy fleet, outpost or colony anywhere on the route, the outpost's own system included.
+
+## 13. Race impact (predicted from the values, no games played)
+
+**How the races differ in research.**
+- **Full access:** Terrans, Mekkan and Psyrrh can research every school.
+- **Limited access:** the other six follow one school per field, or two in their affinity field and one other.
+
+**Effects that touch the new rules.**
+
+| New rule | Who it helps | Who it hurts |
+|---|---|---|
+| Commands per 5 colonies | Wide empires: Lithari (settle hostile worlds), Saurak | - |
+| Points per 10 population | Saurak (+50% growth) | Psyrrh and Lithari (-15% growth): about 1 point per command less in the midgame |
+| Points per hull, whatever the ship costs | Quality: Felari (+15% damage), Aviari (+5% evasion) | Quantity: Kraal (-10% ship cost, +30% industry), whose edge in numbers is capped in attack; groups at home stay uncapped |
+| Troop ships cost points | Ursoni (+60% troops): an invasion needs about 40% fewer transports, freeing 2-4 points | - |
+| Committed course | Aviari (+30 speed): strike and return to re-order sooner | Slow empires a little |
+| Outpost marks cost credits | Terrans (+25%), Aviari (+15%) | - |
+| Outpost marks use colony defense bonuses | Mekkan (+25% defenses), full-access races (all defense schools) | - |
+| Outpost marks need weapons techs | Felari (+40% weapons research, 2 schools), full-access races (23 reachable) | One-school races: 17 reachable, so Mark V needs 15 of their 17 (88%) against 15 of 23 (65%) |
+| Flagship screening with Holographic Decoys | Full-access races, Aviari (two sensors schools) | Races that pick another sensors school |
+
+**Race by race.**
+
+| Race | Prediction | Why |
+|---|---|---|
+| Terrans | Small gain | Credits pay for outpost marks; all techs. |
+| Mekkan | Gain, the one to watch | +25% defenses on outposts. With every defense tech, a Mark V outpost reaches about 800 hit points and 5 x 24 guns. Defense gets stronger while attack gets harder. |
+| Psyrrh | Gain | +40% research reaches the seven new techs and the outpost marks first. Slower growth costs about a point per command. |
+| Felari | Gain | +15% damage gives more strength per point, and the weapons affinity unlocks marks fastest. |
+| Aviari | Gain | Fast, evasive escorts are the most efficient use of points (2 slots per point, high evasion). Speed softens the course rules. Credits pay for marks. |
+| Ursoni | Small gain | Fewer troop ships per invasion. Their defense affinity helps outposts. |
+| Saurak | Small gain | Growth means more points. Neutral elsewhere. |
+| Lithari | About even | More colonies, so more commands, but slower growth means fewer points. One weapons school slows marks. |
+| Kraal | Loss | Their strength is more ships; points cap each strike, and the -10% cost does nothing against the cap. Still strong defending at home. |
+
+**What I changed and suggest.**
+1. **Fixed in this revision:** Fleet Admiralty, Combined Fleet Doctrine and Chain of Command first needed Fleet
+   Command, which is in the Command & Control school. The six limited races would have had to pick that school over
+   AI or Cyber Warfare to get 3 of the 7 techs. They now need core techs only (section 8).
+2. **Suggest:** unlock marks at 3, 5, 8, 11 and 13 weapons techs instead of 3, 6, 9, 12 and 15. A one-school race
+   then needs 13 of 17 (76%) for Mark V, against 57% for full access. The gap shrinks but doesn't close; it can't
+   while the counting is by tech.
+3. **Watch in the sims:** Mekkan outposts, Aviari escort swarms and Kraal strikes. If Kraal fall behind, one option
+   is a race trait such as "Hive coordination: +2 points per command". I'd only add it if the sims show it is needed.
