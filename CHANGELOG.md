@@ -12,6 +12,15 @@ Fixes and screens:
   a colony's knocked-out defenses stay down while any enemy ship is in orbit. The fleet sheet says when warships
   must knock out a colony's defenses before troops can land.
 
+Research and expansion:
+
+- Gas Giant Habitats (Engineering): a costly Habitat Ship founds a floating colony on a gas giant, up to 5 people
+  and no farming. Gas giants with an outpost on them can't be settled, nor can colony bases reach them. The AI
+  builds a habitat ship when it knows a free gas giant and can afford one.
+- Microfabrication (Engineering): +1 slot on cruisers and larger. Molecular Assembly: +1 slot on every hull.
+- Warp Gates (Propulsion): a Warp Gate building lets a fleet at that colony jump to any other of your gated
+  colonies in one turn, as long as neither end is blockaded. The AI builds gates at its capital and its front.
+
 Combat:
 
 - A beaten fleet retreats the way it came, instead of to the nearest empty system (which could lead deeper into

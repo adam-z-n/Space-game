@@ -24,6 +24,7 @@ export function outpostBlocker(state: GameState, pack: ContentPack, empire: Empi
   const gas = kind === "mining" && body.kind === "gasGiant" && hasFlag(pack, empire, "gasMining");
   if (!config.bodies.includes(body.kind) && !gas) return `a ${config.name} can't be built on that`;
   if (state.outposts.some((o) => o.bodyId === body.id)) return "there is already an outpost there";
+  if (state.colonies.some((c) => c.bodyId === body.id)) return "a colony is there";
   return null;
 }
 

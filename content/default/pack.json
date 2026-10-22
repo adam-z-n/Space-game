@@ -473,7 +473,8 @@
     "capitalSupplyRange": 400,
     "colonyBaseCost": 40,
     "foodSalePercent": 50,
-    "scrapRefundPercent": 25
+    "scrapRefundPercent": 25,
+    "gasGiantCapacity": 5
   },
   "researchFields": [
     {
@@ -875,6 +876,49 @@
       "school": "ship_architecture"
     },
     {
+      "id": "microfabrication",
+      "name": "Microfabrication",
+      "field": "engineering",
+      "cost": 1300,
+      "requires": [
+        "nano_assembly",
+        "capital_ships"
+      ],
+      "effects": {
+        "largeHullSlots": 1
+      },
+      "description": "+1 slot on cruisers and larger."
+    },
+    {
+      "id": "molecular_assembly",
+      "name": "Molecular Assembly",
+      "field": "engineering",
+      "cost": 2100,
+      "requires": [
+        "microfabrication",
+        "dreadnought_hulls"
+      ],
+      "effects": {
+        "slots": 1
+      },
+      "description": "+1 slot on every hull."
+    },
+    {
+      "id": "gas_giant_habitats",
+      "name": "Gas Giant Habitats",
+      "field": "engineering",
+      "cost": 1200,
+      "requires": [
+        "nano_assembly",
+        "controlled_environments"
+      ],
+      "effects": {},
+      "flags": [
+        "gasGiantHabitats"
+      ],
+      "description": "Unlocks the Habitat Module: a costly ship that founds a floating colony on a gas giant (up to 5 people, no farming)."
+    },
+    {
       "id": "damage_control",
       "name": "Damage Control",
       "field": "engineering",
@@ -1171,6 +1215,18 @@
         "speed": 30
       },
       "description": "+30 speed for every ship."
+    },
+    {
+      "id": "warp_gates",
+      "name": "Warp Gates",
+      "field": "propulsion",
+      "cost": 2200,
+      "requires": [
+        "antimatter_drives",
+        "dreadnought_hulls"
+      ],
+      "effects": {},
+      "description": "Unlocks the Warp Gate: a fleet at a colony with one can jump to any other of your gated colonies in a single turn."
     },
     {
       "id": "interceptor_tuning",
@@ -2160,6 +2216,17 @@
       "buildable": true
     },
     {
+      "id": "warp_gate",
+      "name": "Warp Gate",
+      "cost": 150,
+      "upkeep": 4,
+      "effects": {},
+      "requires": "warp_gates",
+      "description": "Fleets here can jump to any of your other gated colonies in one turn (neither end blockaded).",
+      "buildable": true,
+      "warpGate": true
+    },
+    {
       "id": "nano_forge",
       "name": "Nano Forge",
       "cost": 150,
@@ -2665,6 +2732,15 @@
       "cost": 36
     },
     {
+      "id": "habitat_module",
+      "name": "Habitat Module",
+      "kind": "colony",
+      "description": "Founds a floating colony on a gas giant (up to 5 people, no farming); the ship is used up.",
+      "cost": 140,
+      "habitat": true,
+      "requires": "gas_giant_habitats"
+    },
+    {
       "id": "fuel_tank",
       "name": "Fuel Tank",
       "kind": "fuel",
@@ -3016,6 +3092,16 @@
       "hull": "transport",
       "components": [
         "colony_module",
+        "armor_plating"
+      ],
+      "formation": "support"
+    },
+    {
+      "id": "habitat_ship",
+      "name": "Habitat Ship",
+      "hull": "transport",
+      "components": [
+        "habitat_module",
         "armor_plating"
       ],
       "formation": "support"

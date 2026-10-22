@@ -142,6 +142,7 @@ function fight(
       speed: 0,
       sensorRange: 0,
       systemId,
+      warp: false,
       cameFrom: null,
       route: [],
       progress: 0,
@@ -401,6 +402,7 @@ function fight(
   for (const fleet of shipFleets) {
     if (retreated.has(fleet.id) && fleet.ships.length > 0) {
       fleet.route = retreatRoute(state, pack, fleet);
+      fleet.warp = false;
       fleet.holding = false;
       fleet.invadeColonyId = null;
       fleet.invadeAllOut = false;
@@ -531,6 +533,7 @@ function stationStats(defense: ColonyDefense): DesignStats {
     bombard: 0,
     plague: 0,
     cracker: false,
+    habitat: false,
     outpost: false,
     commandos: 0,
     stealth: false,

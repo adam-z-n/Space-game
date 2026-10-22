@@ -86,7 +86,7 @@ function colonize(ctx: AiContext, strategy: Strategy): void {
   for (const info of settlers) {
     if (info.fleet.route.length === 0) continue;
     const dest = info.fleet.route[info.fleet.route.length - 1]!;
-    const target = strategy.colonyTargets.find((t) => t.systemId === dest && !claimed.has(t.bodyId));
+    const target = strategy.colonyTargets.find((t) => t.systemId === dest && !claimed.has(t.bodyId) && t.habitat === info.habitat);
     if (target) {
       claimed.add(target.bodyId);
       ctx.busy.add(info.fleet.id);
@@ -96,7 +96,8 @@ function colonize(ctx: AiContext, strategy: Strategy): void {
     if (ctx.busy.has(info.fleet.id) || info.fleet.progress > 0) continue;
     const at = info.fleet.systemId;
     const here = strategy.colonyTargets
-      .filter((t) => t.systemId === at && !claimed.has(t.bodyId) && !colonyOnBody(ctx.state, t.bodyId))
+      // In orbit the fleet sees any outpost on the body.
+      .filter((t) => t.systemId === at && t.habitat === info.habitat && !claimed.has(t.bodyId) && !colonyOnBody(ctx.state, t.bodyId) && !ctx.state.outposts.some((o) => o.bodyId === t.bodyId))
       .sort((a, b) => b.value - a.value || a.bodyId - b.bodyId)[0];
     if (here) {
       claimed.add(here.bodyId);
@@ -110,7 +111,7 @@ function colonize(ctx: AiContext, strategy: Strategy): void {
     let best: (typeof strategy.colonyTargets)[number] | null = null;
     let bestScore = -1;
     for (const t of strategy.colonyTargets) {
-      if (claimed.has(t.bodyId) || danger.has(t.systemId) || d[t.systemId] === Infinity) continue;
+      if (t.habitat !== info.habitat || claimed.has(t.bodyId) || danger.has(t.systemId) || d[t.systemId] === Infinity) continue;
       if (ctx.routeCrosses(at, t.systemId, danger)) continue;
       const score = Math.floor((t.value * 10000) / (d[t.systemId]! + 100));
       if (score > bestScore) {

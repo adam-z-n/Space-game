@@ -258,6 +258,8 @@ export interface Fleet {
   speed: number;
   /** System the fleet is at, or the one it departed from when in transit. */
   systemId: SystemId;
+  /** Jumping by warp gate to route[0] (its only stop) this turn. */
+  warp: boolean;
   /** The system the fleet last came from (where a beaten fleet falls back to); null if built where it is. */
   cameFrom: SystemId | null;
   /** Systems still to visit; route[0] is the next hop. Empty when idle. */

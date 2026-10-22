@@ -294,6 +294,7 @@ function planetLine(ctx: PanelContext, colony: Colony): HTMLElement | null {
   if (!body) return null;
   const stats = planetStats(pack, body);
   const name = (list: { id: string; name: string }[], id?: string) => list.find((x) => x.id === id)?.name ?? "";
+  if (body.kind === "gasGiant") return h("div", { className: "muted small", textContent: `Gas giant habitat · room for ${pack.economy.gasGiantCapacity} (before bonuses) · no farming` });
   const parts = [
     `${name(pack.planetSizes, body.size)} ${name(pack.planetTypes, body.planetType)}`.trim(),
     `${name(pack.richness, body.richness)} minerals (${stats.yieldPercent}% industry)`,

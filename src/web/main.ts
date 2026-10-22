@@ -14,6 +14,7 @@ import {
   fleetShipStats,
   estimateOdds,
   fleetCanColonize,
+  settlerIndex,
   fleetStrength,
   getTech,
   prospectiveMaxPop,
@@ -349,7 +350,7 @@ function startGame(game: Game): void {
   }
 
   function setPreview(fleetId: FleetId, destinationId: SystemId): void {
-    const plan = planMove(game.state, fleetId, destinationId);
+    const plan = planMove(game.state, fleetId, destinationId, pack);
     ui.preview = typeof plan === "string" ? null : { fleetId, route: plan.route, turns: plan.turns, destinationId };
     update();
   }
@@ -411,8 +412,12 @@ function startGame(game: Game): void {
     if (ships.length === 0) return [];
     const system = game.state.galaxy.systems[systemId]!;
     return system.bodies
-      .filter((b) => !colonyOnBody(game.state, b.id) && colonizeBlocker(pack, empireState, b) === null)
-      .map((b) => ({ fleetId: ships[0]!.id, bodyId: b.id, name: bodyName(system, b.id), maxPop: prospectiveMaxPop(pack, empireState, b) }));
+      .filter((b) => !colonyOnBody(game.state, b.id) && !game.state.outposts.some((o) => o.bodyId === b.id) && colonizeBlocker(pack, empireState, b) === null)
+      .flatMap((b) => {
+        // A habitat ship for a gas giant, a colony ship for a planet.
+        const fleet = ships.find((f) => settlerIndex(pack, game.state, f, b) >= 0);
+        return fleet ? [{ fleetId: fleet.id, bodyId: b.id, name: bodyName(system, b.id), maxPop: prospectiveMaxPop(pack, empireState, b) }] : [];
+      });
   }
 
   function colonize(fleetId: FleetId, bodyId: number): void {
@@ -434,7 +439,7 @@ function startGame(game: Game): void {
     }
     if (fleet.route && fleet.route.length > 0) {
       const dest = fleet.route[fleet.route.length - 1]!;
-      const plan = planMove(game.state, fleet.id, dest);
+      const plan = planMove(game.state, fleet.id, dest, pack);
       return `To ${systemName(dest)} · ${typeof plan === "string" ? "?" : turnsText(plan.turns)}`;
     }
     return `${fleet.holding ? "Holding" : "Idle"} at ${systemName(pos.systemId)}`;

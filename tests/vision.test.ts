@@ -107,8 +107,8 @@ describe("fog of war", () => {
 
 describe("orders", () => {
   it("previews a route with turns to arrive", () => {
-    expect(planMove(lineState(), 100, 3)).toMatchObject({ route: [1, 2, 3], distance: 300, turns: 3 });
-    expect(planMove(lineState(), 100, 0)).toMatchObject({ route: [], distance: 0, turns: 0 });
+    expect(planMove(lineState(), 100, 3, pack)).toMatchObject({ route: [1, 2, 3], distance: 300, turns: 3 });
+    expect(planMove(lineState(), 100, 0, pack)).toMatchObject({ route: [], distance: 0, turns: 0 });
   });
 
   it("holding removes an idle fleet from the attention queue until it moves again", () => {
@@ -162,12 +162,13 @@ describe("save migration", () => {
     for (const fleet of s.fleets) {
       delete (fleet as Partial<typeof fleet>).invadeAllOut;
       delete (fleet as Partial<typeof fleet>).cameFrom;
+      delete (fleet as Partial<typeof fleet>).warp;
     }
     s.version = 15;
     const migrated = migrateState(s, pack);
     expect(migrated.version).toBe(STATE_VERSION);
     expect(migrated.fleets.every((f) => f.invadeAllOut === false)).toBe(true);
-    expect(migrated.fleets.every((f) => f.cameFrom === null)).toBe(true);
+    expect(migrated.fleets.every((f) => f.cameFrom === null && f.warp === false)).toBe(true);
   });
 
   it("loads a real Milestone 2 save and keeps playing", () => {

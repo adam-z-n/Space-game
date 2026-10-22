@@ -16,6 +16,8 @@ export interface ColonyTarget {
   systemId: SystemId;
   bodyId: number;
   value: number;
+  /** A gas giant: only a habitat ship can settle it. */
+  habitat: boolean;
 }
 
 export interface Strategy {
@@ -70,7 +72,8 @@ export function decideStrategy(ctx: AiContext): Strategy {
     for (const body of state.galaxy.systems[systemId]!.bodies) {
       if (taken.has(body.id) || colonizeBlocker(pack, empire, body) !== null) continue;
       if (colonyOnBody(state, body.id)?.empireId === ctx.id) continue;
-      colonyTargets.push({ systemId, bodyId: body.id, value: prospectiveMaxPop(pack, empire, body) });
+      if (state.outposts.some((o) => o.empireId === ctx.id && o.bodyId === body.id)) continue; // our own outpost holds it
+      colonyTargets.push({ systemId, bodyId: body.id, value: prospectiveMaxPop(pack, empire, body), habitat: body.kind === "gasGiant" });
     }
   }
 

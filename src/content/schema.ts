@@ -114,6 +114,8 @@ export const EffectsSchema = z
     maneuver: z.number().int(),
     /** Extra component slots on every hull. */
     slots: z.number().int(),
+    /** Extra slots on cruisers and larger (hulls of 5+ slots). */
+    largeHullSlots: z.number().int(),
     /** Ship build cost and upkeep, in percent (negative is cheaper). */
     shipCostPercent: z.number().int(),
     shipUpkeepPercent: z.number().int(),
@@ -222,6 +224,8 @@ const Component = z.object({
   plague: z.boolean().default(false),
   /** Planet crackers: destroy a colony outright once its orbital defenses are down. */
   cracker: z.boolean().default(false),
+  /** Colony modules: founds a colony on a gas giant (Gas Giant Habitats) instead of a planet. */
+  habitat: z.boolean().default(false),
   /** Slots the component takes up. */
   size: z.number().int().min(1).max(12).default(1),
   /** Armor: extra hit points. */
@@ -278,12 +282,14 @@ const Building = z.object({
   requires: id.optional(),
   /** Only granted to capitals at game start, never built. */
   buildable: z.boolean().default(true),
+  /** A warp gate: fleets jump between colonies that have one. */
+  warpGate: z.boolean().default(false),
   /** Experience new ships built at this colony start with. */
   trainingXp: z.number().int().nonnegative().default(0),
 });
 
 /** Special rules a tech switches on, handled in code (see hasFlag). */
-export const TECH_FLAGS = ["hitAndRun", "tractorBeams", "solarSails", "stealthHulls", "tachyonScanners", "galacticSurvey", "sensorSpoofing", "gasMining", "fieldRepair", "cureBlight"] as const;
+export const TECH_FLAGS = ["hitAndRun", "tractorBeams", "solarSails", "stealthHulls", "tachyonScanners", "galacticSurvey", "sensorSpoofing", "gasMining", "fieldRepair", "cureBlight", "gasGiantHabitats"] as const;
 export type TechFlag = (typeof TECH_FLAGS)[number];
 
 const Tech = z.object({
@@ -571,6 +577,8 @@ const Economy = z.object({
   capitalSupplyRange: z.number().int().nonnegative(),
   /** Industry to found a colony on another planet in the same system (a colony base). */
   colonyBaseCost: z.number().int().positive(),
+  /** Population room on a gas giant habitat (before bonuses); habitats grow no food. */
+  gasGiantCapacity: z.number().int().positive(),
   capitalSensorRange: z.number().int().nonnegative(),
   foodStockCap: z.number().int().nonnegative(),
   /** Share of industry turned into credits when a colony has nothing to build. */

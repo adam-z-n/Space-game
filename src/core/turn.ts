@@ -7,7 +7,7 @@ import { colonyDefense, regenerateDefenses, resolveBombardment, resolveInvasions
 import { resolveCombat } from "./combat";
 import { fleetArmed, fleetStealthy } from "./ships";
 import { regenerateOutposts, resolveOutpostRaids } from "./outposts";
-import { resolveSupply, updateBlockades } from "./supply";
+import { resolveSupply, updateBlockades, warpGateAt } from "./supply";
 import type { EmpireId, GameEvent, GameState, SystemId } from "./state";
 
 /**
@@ -66,6 +66,19 @@ function resolveMovement(state: GameState, pack: ContentPack, events: GameEvent[
   const fleets = state.fleets.slice().sort((a, b) => a.id - b.id);
   for (const fleet of fleets) {
     if (fleet.route.length === 0) continue;
+    if (fleet.warp) {
+      // A warp gate jump: there in one go if both gates still work, otherwise the fleet stays put.
+      const dest = fleet.route[0]!;
+      fleet.warp = false;
+      fleet.route = [];
+      if (warpGateAt(state, pack, fleet.empireId, fleet.systemId) && warpGateAt(state, pack, fleet.empireId, dest)) {
+        fleet.cameFrom = fleet.systemId;
+        fleet.systemId = dest;
+        markExplored(state, fleet.empireId, dest, events);
+        events.push({ type: "fleetArrived", turn: state.turn, empireId: fleet.empireId, fleetId: fleet.id, systemId: dest });
+      }
+      continue;
+    }
     // Cloaked fleets slip past guards.
     const cloaked = fleetStealthy(pack, state, fleet);
     let budget = fleet.speed;

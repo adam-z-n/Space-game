@@ -29,9 +29,9 @@ import {
   type QueueItem,
   type SystemId,
 } from "./state";
-import { buildBlocker, buyCost, colonizeBlocker, empireEffects, itemCost, newColony, techAvailable } from "./economy";
-import { designBlocker, designStats, fleetCanColonize, fleetMaxSupply, fleetShipStats, getDesign, refreshFleetStats } from "./ships";
-import { fleetMaxStores, suppliedSystems } from "./supply";
+import { buildBlocker, buyCost, colonizeBlocker, empireEffects, findBody, itemCost, newColony, techAvailable } from "./economy";
+import { designBlocker, designStats, fleetCanColonize, fleetMaxSupply, fleetShipStats, getDesign, refreshFleetStats, settlerIndex } from "./ships";
+import { fleetMaxStores, suppliedSystems, warpGateAt } from "./supply";
 import { outpostBlocker, outpostDefense, outpostTechOk } from "./outposts";
 import { colonyDefense, fleetTroops } from "./defense";
 import { resolveTurn } from "./turn";
@@ -100,6 +100,8 @@ export type CommandResult = { ok: true; state: GameState } | { ok: false; error:
 export interface RoutePlan {
   systemId: SystemId;
   route: SystemId[];
+  /** A one-turn warp gate jump to route[0]. */
+  warp?: boolean;
   progress: number;
   /** Distance left to travel. */
   distance: number;
@@ -108,7 +110,7 @@ export interface RoutePlan {
 }
 
 /** Work out a fleet's route to a destination, choosing whether to continue or turn back if mid-lane. */
-export function planMove(state: GameState, fleetId: FleetId, destinationId: SystemId): RoutePlan | string {
+export function planMove(state: GameState, fleetId: FleetId, destinationId: SystemId, pack: ContentPack): RoutePlan | string {
   const fleet = findFleet(state, fleetId);
   if (!fleet) return `no fleet ${fleetId}`;
   if (!state.galaxy.systems[destinationId]) return `no system ${destinationId}`;
@@ -124,6 +126,9 @@ export function planMove(state: GameState, fleetId: FleetId, destinationId: Syst
 
   if (!isInTransit(fleet)) {
     const found = findPath(adj, fleet.systemId, destinationId);
+    // Between two of our gated colonies, jump if that beats the lanes.
+    const gated = destinationId !== fleet.systemId && warpGateAt(state, pack, fleet.empireId, fleet.systemId) && warpGateAt(state, pack, fleet.empireId, destinationId);
+    if (gated && (!found || Math.ceil(found.length / fleet.speed) > 1)) return { systemId: fleet.systemId, route: [destinationId], warp: true, progress: 0, distance: 0, turns: 1 };
     if (!found) return "destination unreachable";
     return plan(fleet.systemId, found.path, 0, found.length);
   }
@@ -161,7 +166,7 @@ export function validateCommand(state: GameState, command: Command, pack: Conten
       const fleet = ownFleet(state, command.empireId, command.fleetId);
       if (typeof fleet === "string") return fleet;
       if (fleet.speed <= 0) return "fleet cannot move";
-      const plan = planMove(state, command.fleetId, command.destinationId);
+      const plan = planMove(state, command.fleetId, command.destinationId, pack);
       return typeof plan === "string" ? plan : null;
     }
     case "setHold": {
@@ -178,6 +183,8 @@ export function validateCommand(state: GameState, command: Command, pack: Conten
       const body = state.galaxy.systems[fleet.systemId]!.bodies.find((b) => b.id === command.bodyId);
       if (!body) return "planet is not in the fleet's system";
       if (colonyOnBody(state, body.id)) return "planet already colonized";
+      if (state.outposts.some((o) => o.bodyId === body.id)) return "an outpost holds it";
+      if (settlerIndex(pack, state, fleet, body) < 0) return body.kind === "gasGiant" ? "gas giants need a habitat ship" : "habitat ships settle gas giants only";
       return colonizeBlocker(pack, state.empires[command.empireId]!, body);
     }
     case "setFocus": {
@@ -339,10 +346,11 @@ export function applyCommand(state: GameState, command: Command, pack: ContentPa
   const next = cloneState(state);
   switch (command.type) {
     case "moveFleet": {
-      const plan = planMove(next, command.fleetId, command.destinationId) as RoutePlan;
+      const plan = planMove(next, command.fleetId, command.destinationId, pack) as RoutePlan;
       const fleet = findFleet(next, command.fleetId)!;
       fleet.systemId = plan.systemId;
       fleet.route = plan.route;
+      fleet.warp = plan.warp ?? false;
       fleet.progress = plan.progress;
       fleet.holding = false;
       fleet.invadeColonyId = null; // re-issue after moving
@@ -358,9 +366,9 @@ export function applyCommand(state: GameState, command: Command, pack: ContentPa
       const fleet = findFleet(next, command.fleetId)!;
       const empire = next.empires[command.empireId]!;
       next.colonies.push(newColony(next, empire, fleet.systemId, command.bodyId, pack.economy.colonyPopulation, false));
-      // The first colony ship in the fleet is used up.
-      const stats = fleetShipStats(pack, next, fleet);
-      const used = fleet.ships[stats.findIndex((s) => s.colonize)]!;
+      // The first colony ship in the fleet that suits the body is used up.
+      const body = findBody(next, fleet.systemId, command.bodyId)!;
+      const used = fleet.ships[settlerIndex(pack, next, fleet, body)]!;
       fleet.ships = fleet.ships.filter((s) => s.id !== used.id);
       if (fleet.ships.length === 0) next.fleets = next.fleets.filter((f) => f.id !== fleet.id);
       else refreshFleetStats(pack, next, fleet);
