@@ -114,6 +114,8 @@ export const EffectsSchema = z
     maneuver: z.number().int(),
     /** Extra component slots on every hull. */
     slots: z.number().int(),
+    /** Added to the accuracy of every ship weapon. */
+    weaponAccuracy: z.number().int(),
     /** Extra slots on cruisers and larger (hulls of 5+ slots). */
     largeHullSlots: z.number().int(),
     /** Ship build cost and upkeep, in percent (negative is cheaper). */

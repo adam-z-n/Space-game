@@ -26,6 +26,9 @@ Research and expansion:
   and no farming. Gas giants with an outpost on them can't be settled, nor can colony bases reach them. The AI
   builds a habitat ship when it knows a free gas giant and can afford one.
 - Microfabrication (Engineering): +1 slot on cruisers and larger. Molecular Assembly: +1 slot on every hull.
+- Fewer techs speed up research: Neural Implants now gives +10% industry, Uplifted Workers +20% industry, Planetary
+  Databanks +2 credits per colony and Quantum Computing +5% weapon accuracy. Research Methods, Neural Networks,
+  Expert Systems and Sentient Computers still boost research (+65% in all, was +85% and +5 per colony).
 - Warp Gates (Propulsion): a Warp Gate building lets a fleet at that colony jump to any other of your gated
   colonies in one turn, as long as neither end is blockaded. The AI builds gates at its capital and its front.
 

@@ -120,7 +120,7 @@ export function designStats(pack: ContentPack, design: Pick<ShipDesign, "hull" |
     .flatMap((c) =>
       Array.from({ length: c.shots + (c.kind === "hangar" ? fx.hangarShots : 0) }, () => ({
         damage: Math.floor((c.damage * (100 + fx.damagePercent)) / 100),
-        accuracy: Math.min(100, c.accuracy + aim),
+        accuracy: Math.min(100, c.accuracy + aim + fx.weaponAccuracy),
         range: c.range,
         ammo: c.ammo,
         ...(c.special ? { special: c.special } : {}),

@@ -37,6 +37,7 @@ const EFFECT_KEYS = [
   "maneuver",
   "slots",
   "largeHullSlots",
+  "weaponAccuracy",
   "shipCostPercent",
   "shipUpkeepPercent",
   "structurePercent",

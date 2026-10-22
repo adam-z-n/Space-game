@@ -626,10 +626,9 @@
         "adaptive_physiology"
       ],
       "effects": {
-        "industryPercent": 10,
-        "researchPercent": 10
+        "industryPercent": 20
       },
-      "description": "+10% industry and research.",
+      "description": "+20% industry.",
       "school": "genetic_engineering"
     },
     {
@@ -683,9 +682,9 @@
         "hydroponics"
       ],
       "effects": {
-        "researchPercent": 10
+        "industryPercent": 10
       },
-      "description": "+10% research.",
+      "description": "+10% industry.",
       "school": "cybernetics"
     },
     {
@@ -1015,9 +1014,9 @@
         "neural_networks"
       ],
       "effects": {
-        "research": 2
+        "credits": 2
       },
-      "description": "+2 research on every colony."
+      "description": "+2 credits on every colony."
     },
     {
       "id": "quantum_computing",
@@ -1028,9 +1027,9 @@
         "neural_networks"
       ],
       "effects": {
-        "research": 3
+        "weaponAccuracy": 5
       },
-      "description": "+3 research on every colony."
+      "description": "+5% accuracy for every ship weapon."
     },
     {
       "id": "expert_systems",
