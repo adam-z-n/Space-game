@@ -321,6 +321,8 @@ export type GameEvent =
   | { type: "coalition"; turn: number; empireId: EmpireId; active: boolean }
   /** A colony wiped out by bombardment (sent to its owner and the attacker). */
   | { type: "colonyDestroyed"; turn: number; empireId: EmpireId; attackerId: EmpireId; ownerId: EmpireId; colonyId: ColonyId; systemId: SystemId; name: string; blighted: boolean }
+  /** A colony's hunter-killer satellites fired on `targetEmpireId`'s ships in orbit (sent to both sides). */
+  | { type: "satelliteStrikes"; turn: number; empireId: EmpireId; colonyId: ColonyId; systemId: SystemId; targetEmpireId: EmpireId; shipsLost: number }
   /** Troops in orbit fall short of what a safe landing needs; they wait (sent to the attacker only). */
   | { type: "invasionWaiting"; turn: number; empireId: EmpireId; colonyId: ColonyId; systemId: SystemId; troops: number; needed: number }
   | { type: "defensesDown"; turn: number; empireId: EmpireId; colonyId: ColonyId; systemId: SystemId }
@@ -364,6 +366,10 @@ export interface BattleShot {
   intercepted?: boolean;
   /** Name of the component this hit knocked out. */
   knockedOut?: string;
+  /** Special weapons: pinned the fleet, knocked out a part (emp), nanites (and their later corrosion), area blast, shield wear (ion). */
+  effect?: "pin" | "emp" | "nanite" | "corrode" | "area" | "ion";
+  /** Ion hits: shield points worn away. */
+  shieldDamage?: number;
 }
 
 export interface BattleReport {

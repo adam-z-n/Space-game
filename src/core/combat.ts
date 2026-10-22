@@ -53,7 +53,8 @@ function commandBonus(fleet: Fleet, combatants: Map<number, Combatant>): number 
   return fleet.ships.reduce((n, s) => Math.max(n, s.hp > 0 ? combatants.get(s.id)!.stats.command : 0), 0);
 }
 
-export function resolveCombat(state: GameState, pack: ContentPack, events: GameEvent[]): void {
+/** `pinnedByMines`: fleets that mass accelerator mines hit this turn, which can't withdraw from a battle. */
+export function resolveCombat(state: GameState, pack: ContentPack, events: GameEvent[], pinnedByMines: ReadonlySet<FleetId> = new Set()): void {
   const rng = new Rng(state.rngState);
   state.lastBattles = [];
   const bySystem = new Map<SystemId, Fleet[]>();
@@ -98,7 +99,7 @@ export function resolveCombat(state: GameState, pack: ContentPack, events: GameE
     const fleetTriggers = fleets.some((f) => f.orders.mission === "engage" && fleetArmed(pack, state, f));
     const guns = defended.filter((d) => d.defense.weapons.length > 0 && fleets.some((f) => f.empireId !== d.empireId));
     if (!fleetTriggers && guns.length === 0) continue;
-    fight(state, pack, rng, systemId, fleets, defended, events);
+    fight(state, pack, rng, systemId, fleets, defended, events, pinnedByMines);
   }
   state.rngState = rng.state;
   state.fleets = state.fleets.filter((f) => f.ships.length > 0);
@@ -124,6 +125,7 @@ function fight(
   shipFleets: Fleet[],
   defended: Station[],
   events: GameEvent[],
+  pinnedByMines: ReadonlySet<FleetId>,
 ): void {
   const cfg = pack.combat;
   const combatants = new Map<number, Combatant>();
@@ -220,18 +222,31 @@ function fight(
   const tractor = new Set(report.empires.filter((e) => hasFlag(pack, state.empires[e]!, "tractorBeams")));
   const hitAndRun = new Set(report.empires.filter((e) => hasFlag(pack, state.empires[e]!, "hitAndRun")));
 
+  // Special weapons' lasting effects within this battle.
+  const pinned = new Set<FleetId>(pinnedByMines);
+  const shieldLoss = new Map<number, number>();
+  const nanites = new Map<number, { attacker: number; damage: number; rounds: number }>();
+
   /** Apply a volley: damage, battle damage to components, kills. */
   const land = (volley: BattleShot[]) => {
     for (const shot of volley) {
+      if (shot.effect === "ion") {
+        shieldLoss.set(shot.target, (shieldLoss.get(shot.target) ?? 0) + (shot.shieldDamage ?? 0));
+        continue;
+      }
       if (shot.damage === 0) continue;
       const target = combatants.get(shot.target)!;
+      if (shot.effect === "pin") pinned.add(target.fleet.id);
+      if (shot.effect === "nanite") nanites.set(shot.target, { attacker: shot.attacker, damage: shot.damage, rounds: cfg.naniteRounds });
       const wasAlive = target.ship.hp > 0;
       target.ship.hp -= shot.damage;
       if (wasAlive && target.ship.hp <= 0) shot.destroyed = true;
       const attackerEmpire = combatants.get(shot.attacker)!.fleet.empireId;
       damageDealt.set(attackerEmpire, (damageDealt.get(attackerEmpire) ?? 0) + shot.damage);
       // Heavy hits can knock out a component until the ship is repaired at a colony or depot.
-      if (target.ship.hp > 0 && target.empire && rng.int(1, 100) <= Math.min(cfg.criticalMaxPercent, Math.floor((shot.damage * 100) / target.stats.maxHp))) {
+      // EMP hits always do.
+      const critical = shot.effect === "emp" || rng.int(1, 100) <= Math.min(cfg.criticalMaxPercent, Math.floor((shot.damage * 100) / target.stats.maxHp));
+      if (target.ship.hp > 0 && target.empire && critical) {
         const working = target.parts.map((id, i) => ({ id, i })).filter(({ id, i }) => !target.ship.damaged.includes(i) && DAMAGEABLE_KINDS.has(getComponent(pack, id).kind));
         if (working.length > 0) {
           const hit = rng.pick(working);
@@ -255,7 +270,16 @@ function fight(
         if (weapon.range < range) continue; // out of reach at this range
         if (weapon.ammo > 0 && ship.salvos >= weapon.ammo) continue; // magazines empty
         if (weapon.ammo > 0) launched = true;
-        shots.push(fire(pack, rng, fleet, attacker, weapon, targets, pointDefense, command, oversize));
+        const shot = fire(pack, rng, fleet, attacker, weapon, targets, pointDefense, command, oversize, shieldLoss);
+        shots.push(shot);
+        // An area blast strikes every other ship of the target's fleet too.
+        if (shot.effect === "area" && shot.damage > 0) {
+          const hit = combatants.get(shot.target)!;
+          for (const other of hit.fleet.ships) {
+            if (other.id === shot.target || other.hp <= 0) continue;
+            shots.push({ attacker: shot.attacker, target: other.id, damage: shot.damage, destroyed: false, effect: "area" });
+          }
+        }
       }
       if (launched) ship.salvos += 1;
     }
@@ -296,6 +320,12 @@ function fight(
     // Command networks coordinate their whole fleet while the command ship lives.
     const command = new Map(fighting.map((f) => [f.id, commandBonus(f, combatants)]));
     const shots: BattleShot[] = [];
+    // Nanites keep eating the ships they hit, a few rounds more.
+    for (const [shipId, swarm] of [...nanites].sort((a, b) => a[0] - b[0])) {
+      if ((combatants.get(shipId)?.ship.hp ?? 0) > 0) shots.push({ attacker: swarm.attacker, target: shipId, damage: swarm.damage, destroyed: false, effect: "corrode" });
+      swarm.rounds -= 1;
+      if (swarm.rounds <= 0) nanites.delete(shipId);
+    }
     for (const fleet of fighting) {
       const enemies = living(fighting.filter((f) => f.empireId !== fleet.empireId));
       if (enemies.length > 0) shots.push(...volley(fleet, enemies, disrupted, pointDefense, command, range));
@@ -314,7 +344,7 @@ function fight(
       // Unarmed fleets (transports, supply ships...) hang back behind their own side's warships
       // while any of those are still fighting, instead of fleeing at the first shot.
       const screened = !armed(fleet) && active().some((f) => f.empireId === fleet.empireId && !stations.has(f.id) && f.orders.mission === "engage" && armed(f));
-      if (trapped.has(fleet.id)) continue;
+      if (trapped.has(fleet.id) || pinned.has(fleet.id)) continue; // held in the fight
       const evading = !screened && (fleet.orders.mission === "evade" || !armed(fleet));
       if (evading || (fleet.orders.retreatPercent < 100 && lostPercent >= fleet.orders.retreatPercent)) {
         retreated.add(fleet.id);
@@ -424,16 +454,18 @@ function fire(
   pointDefense: Map<FleetId, number>,
   command: Map<FleetId, number>,
   oversize: Map<FleetId, number>,
+  shieldLoss: Map<number, number>,
 ): BattleShot {
   const cfg = pack.combat;
-  const fighters = weapon.special === "fighters";
+  // Phase torpedoes hunt like fighters, but nothing shoots them down.
+  const fighters = weapon.special === "fighters" || weapon.special === "phase";
   let target = rng.weighted(enemies, (e) => targetWeight(pack, fleet, e, fighters));
   // Screens move in to take fire meant for the support ships behind them (fighters slip past).
   if (!fighters && target.formation === "support") {
     const screens = enemies.filter((e) => e.fleet.empireId === target.fleet.empireId && e.formation === "screen");
     if (screens.length > 0 && rng.int(1, 100) <= cfg.screenInterceptPercent) target = rng.pick(screens);
   }
-  const guided = weapon.special === "missile" || fighters;
+  const guided = weapon.special === "missile" || weapon.special === "fighters";
   // Point defense anywhere in the target's fleet can shoot down missiles and fighters.
   if (guided) {
     const pd = pointDefense.get(target.fleet.id) ?? 0;
@@ -451,15 +483,19 @@ function fire(
   const accuracy = weapon.accuracy + attacker.veteran + (command.get(fleet.id) ?? 0) - (oversize.get(fleet.id) ?? 0);
   const chance = Math.max(5, accuracy - evasion);
   let damage = 0;
-  if (rng.int(1, 100) <= chance) {
-    const shield = weapon.special === "pierce" ? 0 : target.stats.shield;
+  const hit = rng.int(1, 100) <= chance;
+  if (hit && weapon.special === "ion") return { attacker: attacker.ship.id, target: target.ship.id, damage: 0, destroyed: false, effect: "ion", shieldDamage: weapon.damage };
+  if (hit) {
+    const worn = Math.max(0, target.stats.shield - (shieldLoss.get(target.ship.id) ?? 0));
+    const shield = weapon.special === "pierce" || weapon.special === "nanite" ? 0 : worn;
     damage = Math.max(1, weapon.damage - shield);
     damage = Math.floor((damage * cfg.stanceDamage[fleet.orders.stance]) / 100);
     damage = Math.floor((damage * cfg.stanceDefense[target.fleet.orders.stance]) / 100);
     if (attacker.depleted) damage = Math.floor((damage * (100 - cfg.outOfSupplyDamagePercent)) / 100);
     damage = Math.max(1, damage);
   }
-  return { attacker: attacker.ship.id, target: target.ship.id, damage, destroyed: false };
+  const effect = damage > 0 && (weapon.special === "pin" || weapon.special === "emp" || weapon.special === "nanite" || weapon.special === "area") ? weapon.special : undefined;
+  return { attacker: attacker.ship.id, target: target.ship.id, damage, destroyed: false, ...(effect ? { effect } : {}) };
 }
 
 /**
@@ -474,7 +510,8 @@ function nextRange(pack: ContentPack, range: number, fighting: Fleet[], combatan
     fighting
       .filter((f) => f.empireId === side)
       .flatMap((f) => f.ships.map((s) => combatants.get(s.id)!))
-      .reduce((n, c) => n + c.stats.weapons.filter((w) => w.range >= at).reduce((m, w) => m + (w.damage * w.accuracy) / 100, 0), 0);
+      // Ion cannons do no hull damage, so they don't count as firepower.
+      .reduce((n, c) => n + c.stats.weapons.filter((w) => w.range >= at && w.special !== "ion").reduce((m, w) => m + (w.damage * w.accuracy) / 100, 0), 0);
   const plans = sides.map((side) => {
     let best = range;
     let bestEdge = -Infinity;

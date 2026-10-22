@@ -464,6 +464,7 @@ function defensePanel(ctx: PanelContext, colony: Colony): HTMLElement {
   }
   lines.push(h("div", { className: "small", textContent: `Ground troops ${troops} (garrison ${colony.troops}/${d.maxTroops} + militia ${colony.population * pack.combat.militiaPerPop}, with terrain and tech)` }));
   if (mines > 0) lines.push(h("div", { className: "small", textContent: `Minefield strength ${mines}` }));
+  if (d.satellites > 0) lines.push(h("div", { className: "small", textContent: `Hunter-killer satellites: ${d.satellites} shots a turn at enemy ships in orbit` }));
   if (colony.blockaded) lines.push(h("div", { className: "danger-text small", textContent: "Under siege: no repairs, supply or trade until the blockade is broken." }));
   return h("div", { className: "defense-box" }, h("h3", { textContent: "Defenses" }), ...lines);
 }

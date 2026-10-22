@@ -24,7 +24,8 @@ export function planWarship(ctx: AiContext): WarshipPlan {
   const hulls = pack.hulls.filter((h) => hullAvailable(pack, empire, h.id) && h.slots >= 2);
   const parts = pack.components.filter((c) => componentAvailable(pack, empire, c.id));
   const punch = (c: (typeof parts)[number]) => c.damage * c.accuracy * c.shots;
-  const weapons = parts.filter((c) => c.kind === "weapon" && c.minSlots <= 2).sort((a, b) => punch(b) - punch(a) || a.id.localeCompare(b.id));
+  // Main guns only: ion cannons do no hull damage.
+  const weapons = parts.filter((c) => c.kind === "weapon" && c.minSlots <= 2 && c.special !== "ion").sort((a, b) => punch(b) - punch(a) || a.id.localeCompare(b.id));
   const weapon = weapons[0];
   const armor = parts.filter((c) => c.kind === "armor").sort((a, b) => b.hp - a.hp || a.id.localeCompare(b.id))[0];
   const shield = parts.filter((c) => c.kind === "shield").sort((a, b) => b.shield - a.shield || a.id.localeCompare(b.id))[0];

@@ -1819,6 +1819,118 @@
       "description": "Unlocks the Planet Cracker: a dreadnought weapon taking 6 slots that destroys a colony outright once its orbital defenses are down."
     },
     {
+      "id": "flak_batteries",
+      "name": "Flak Batteries",
+      "field": "weapons",
+      "cost": 320,
+      "requires": [
+        "heavy_lasers",
+        "point_defense"
+      ],
+      "effects": {},
+      "description": "Unlocks the Flak Battery: a short-range gun that doubles as point defense."
+    },
+    {
+      "id": "ion_cannons",
+      "name": "Ion Cannons",
+      "field": "weapons",
+      "cost": 360,
+      "requires": [
+        "heavy_lasers",
+        "deflector_shields"
+      ],
+      "effects": {},
+      "description": "Unlocks the Ion Cannon, which wears down enemy shields for the rest of a battle."
+    },
+    {
+      "id": "emp_torpedoes",
+      "name": "EMP Torpedoes",
+      "field": "weapons",
+      "cost": 650,
+      "requires": [
+        "guided_torpedoes",
+        "electronic_warfare"
+      ],
+      "effects": {},
+      "description": "Unlocks the EMP Torpedo: light damage, but every hit knocks out a part of the target."
+    },
+    {
+      "id": "graviton_weapons",
+      "name": "Graviton Weapons",
+      "field": "weapons",
+      "cost": 1300,
+      "requires": [
+        "weapon_calibration",
+        "inertial_dampers"
+      ],
+      "effects": {},
+      "description": "Unlocks the Graviton Lance: its hits hold the enemy fleet in the battle, unable to withdraw."
+    },
+    {
+      "id": "nanite_weapons",
+      "name": "Nanite Weapons",
+      "field": "weapons",
+      "cost": 1300,
+      "requires": [
+        "weapon_calibration",
+        "nano_assembly"
+      ],
+      "effects": {},
+      "description": "Unlocks the Nanite Swarm: nanites keep eating a ship they hit for three more rounds, through its shields."
+    },
+    {
+      "id": "phase_torpedoes",
+      "name": "Phase Torpedoes",
+      "field": "weapons",
+      "cost": 1400,
+      "requires": [
+        "guided_torpedoes",
+        "long_range_probes",
+        "weapon_calibration"
+      ],
+      "effects": {},
+      "description": "Unlocks the Phase Torpedo, which slips past point defense and screens to strike support ships."
+    },
+    {
+      "id": "singularity_charges",
+      "name": "Singularity Charges",
+      "field": "weapons",
+      "cost": 2200,
+      "requires": [
+        "graviton_weapons",
+        "capital_ships"
+      ],
+      "effects": {},
+      "description": "Unlocks the Singularity Charge for battleships and larger: a hit strikes every ship in the target's fleet."
+    },
+    {
+      "id": "mass_accelerator_mines",
+      "name": "Mass Accelerator Mines",
+      "field": "logistics",
+      "cost": 1100,
+      "requires": [
+        "mine_warfare",
+        "weapon_calibration"
+      ],
+      "effects": {},
+      "flags": [
+        "heavyMines"
+      ],
+      "description": "Your mines hit twice as hard, each hit knocks out a part, and a fleet they hit can't withdraw from a battle that turn."
+    },
+    {
+      "id": "hunter_killer_satellites",
+      "name": "Hunter-Killer Satellites",
+      "field": "defense",
+      "cost": 1200,
+      "requires": [
+        "orbital_fortresses",
+        "long_range_probes"
+      ],
+      "effects": {},
+      "description": "Unlocks Hunter-Killer Satellites: a colony's swarm keeps firing on enemy ships in orbit even after its main defenses fall."
+    },
+    {
       "id": "weapon_calibration",
       "name": "Weapon Calibration",
       "field": "weapons",
@@ -2226,6 +2338,19 @@
       "warpGate": true
     },
     {
+      "id": "hunter_killer_satellites",
+      "name": "Hunter-Killer Satellites",
+      "cost": 60,
+      "upkeep": 1,
+      "effects": {},
+      "requires": "hunter_killer_satellites",
+      "description": "4 shots a turn (6 damage each) at enemy ships in orbit, even after the orbital defenses fall.",
+      "buildable": true,
+      "defense": {
+        "satellites": 4
+      }
+    },
+    {
       "id": "nano_forge",
       "name": "Nano Forge",
       "cost": 150,
@@ -2481,6 +2606,8 @@
     "defenseRepairPercent": 15,
     "captureLossPercent": 25,
     "blightTurns": 100,
+    "naniteRounds": 3,
+    "satelliteDamage": 6,
     "invasionMarginPercent": 125,
     "mineHitPercent": 30,
     "mineDamage": 6,
@@ -2957,6 +3084,95 @@
       "size": 6,
       "minSlots": 12,
       "requires": "planet_cracker"
+    },
+    {
+      "id": "flak_battery",
+      "name": "Flak Battery",
+      "kind": "weapon",
+      "description": "2 damage, 70% accuracy, short range; also counts as 2 point defense mounts against missiles and fighters.",
+      "cost": 8,
+      "damage": 2,
+      "accuracy": 70,
+      "range": 1,
+      "pointDefense": 2,
+      "requires": "flak_batteries"
+    },
+    {
+      "id": "ion_cannon",
+      "name": "Ion Cannon",
+      "kind": "weapon",
+      "description": "No hull damage: each hit cuts the target's shields by 5 for the rest of the battle. 75% accuracy, medium range.",
+      "cost": 9,
+      "damage": 5,
+      "accuracy": 75,
+      "range": 2,
+      "special": "ion",
+      "requires": "ion_cannons"
+    },
+    {
+      "id": "emp_torpedo",
+      "name": "EMP Torpedo",
+      "kind": "weapon",
+      "description": "3 damage, 60% accuracy, long range; every hit knocks out one of the target's parts until repaired. 3 salvos, then it must rearm.",
+      "cost": 12,
+      "damage": 3,
+      "accuracy": 60,
+      "range": 3,
+      "special": "emp",
+      "ammo": 3,
+      "requires": "emp_torpedoes"
+    },
+    {
+      "id": "graviton_lance",
+      "name": "Graviton Lance",
+      "kind": "weapon",
+      "description": "8 damage, 70% accuracy, medium range; a hit holds the target's fleet in the battle, unable to withdraw.",
+      "cost": 14,
+      "damage": 8,
+      "accuracy": 70,
+      "range": 2,
+      "special": "pin",
+      "requires": "graviton_weapons"
+    },
+    {
+      "id": "nanite_swarm",
+      "name": "Nanite Swarm",
+      "kind": "weapon",
+      "description": "4 damage, 75% accuracy, medium range, through shields; the nanites do it again for three more rounds.",
+      "cost": 14,
+      "damage": 4,
+      "accuracy": 75,
+      "range": 2,
+      "special": "nanite",
+      "requires": "nanite_weapons"
+    },
+    {
+      "id": "phase_torpedo",
+      "name": "Phase Torpedo",
+      "kind": "weapon",
+      "description": "14 damage, 60% accuracy, long range; hunts support ships past screens, and point defense can't stop it. 3 salvos, then it must rearm.",
+      "cost": 16,
+      "damage": 14,
+      "accuracy": 60,
+      "range": 3,
+      "special": "phase",
+      "ammo": 3,
+      "requires": "phase_torpedoes"
+    },
+    {
+      "id": "singularity_charge",
+      "name": "Singularity Charge",
+      "kind": "weapon",
+      "description": "10 damage, 60% accuracy, medium range, to every ship in the target's fleet. 2 salvos, then it must rearm. Takes 2 slots; battleship or larger.",
+      "cost": 30,
+      "damage": 10,
+      "accuracy": 60,
+      "range": 2,
+      "special": "area",
+      "ammo": 2,
+      "size": 2,
+      "minSlots": 8,
+      "requires": "singularity_charges"
     },
     {
       "id": "outpost_kit",

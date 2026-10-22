@@ -433,12 +433,24 @@ export function battlePanel(ctx: ShipContext, report: BattleReport, round: numbe
     if (current.disrupted.length > 0) {
       log.append(h("li", {}, h("span", { className: "warn-text small", textContent: `Cyber attack shut down ${current.disrupted.map(label).join(", ")}` })));
     }
-    const hits = current.shots.filter((s) => s.damage > 0);
+    const hits = current.shots.filter((s) => s.damage > 0 || s.effect === "ion");
     const intercepted = current.shots.filter((s) => s.intercepted).length;
     const misses = current.shots.length - hits.length - intercepted;
     if (intercepted > 0) log.append(h("li", {}, h("span", { className: "small accent-text", textContent: `Point defense shot down ${intercepted} missile${intercepted > 1 ? "s" : ""} or fighter${intercepted > 1 ? "s" : ""}` })));
+    const how: Record<NonNullable<BattleShot["effect"]>, string> = {
+      pin: " — pinned in the battle",
+      emp: "",
+      nanite: " — nanites at work",
+      corrode: "",
+      area: " (blast)",
+      ion: "",
+    };
     const describe = (shot: BattleShot) =>
-      `${label(shot.attacker)} hit ${label(shot.target)} for ${shot.damage}${shot.destroyed ? " — destroyed" : shot.knockedOut ? ` — ${shot.knockedOut} knocked out` : ""}`;
+      shot.effect === "ion"
+        ? `${label(shot.attacker)} wore down ${label(shot.target)}'s shields by ${shot.shieldDamage ?? 0}`
+        : shot.effect === "corrode"
+          ? `Nanites ate ${shot.damage} from ${label(shot.target)}${shot.destroyed ? " — destroyed" : ""}`
+          : `${label(shot.attacker)} hit ${label(shot.target)} for ${shot.damage}${shot.destroyed ? " — destroyed" : shot.knockedOut ? ` — ${shot.knockedOut} knocked out` : shot.effect ? how[shot.effect] : ""}`;
     for (const shot of hits) log.append(h("li", {}, h("span", { className: "small", textContent: describe(shot) })));
     if (misses > 0) log.append(h("li", {}, h("span", { className: "muted small", textContent: `${misses} shot${misses > 1 ? "s" : ""} missed` })));
     for (const fleetId of current.retreated) {

@@ -501,6 +501,12 @@ function startGame(game: Game): void {
         if (e.ownerId === game.playerId) return `${e.name} was wiped out by ${empire(e.attackerId).name}'s bombardment${how}`;
         return `Our bombardment wiped out ${e.name}${how}`;
       }
+      case "satelliteStrikes": {
+        const losses = e.shipsLost ? `, ${e.shipsLost} ship${e.shipsLost > 1 ? "s" : ""} lost` : "";
+        return e.targetEmpireId === game.playerId
+          ? `Hunter-killer satellites at ${colonyName(e.colonyId)} hit our ships${losses}`
+          : `Our hunter-killer satellites at ${colonyName(e.colonyId)} hit ${empire(e.targetEmpireId).name}'s ships${losses}`;
+      }
       case "invasionWaiting":
         return `Troops at ${colonyName(e.colonyId)} are waiting for more: ${e.troops} of ${e.needed} needed`;
       case "defensesDown":

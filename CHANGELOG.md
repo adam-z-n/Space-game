@@ -12,6 +12,22 @@ Fixes and screens:
   a colony's knocked-out defenses stay down while any enemy ship is in orbit. The fleet sheet says when warships
   must knock out a colony's defenses before troops can land.
 
+New weapons:
+
+- Graviton Lance: its hits hold the enemy fleet in the battle, unable to withdraw.
+- EMP Torpedo: light damage, but every hit knocks out a part of the target.
+- Nanite Swarm: damage through shields that keeps eating the target for three more rounds.
+- Singularity Charge (battleship or larger, 2 slots): a hit strikes every ship in the target's fleet.
+- Flak Battery: a short-range gun that also counts as two point defense mounts.
+- Ion Cannon: no hull damage; each hit wears the target's shields down for the rest of the battle.
+- Phase Torpedo: hunts support ships past screens, and point defense can't stop it.
+- Mass Accelerator Mines (tech): your mines hit twice as hard, knock out a part with each hit, and a fleet they
+  hit can't withdraw from a battle that turn.
+- Hunter-Killer Satellites (colony building): 4 shots a turn at enemy ships in orbit, even after the orbital
+  defenses fall.
+- Battle replays describe the new effects. The AI arms its warships with the new guns when they are its best,
+  but never with ion cannons alone.
+
 Help:
 
 - How to play (menu): short topics on the map and fleets, colonies and workers, building, research, ship design,

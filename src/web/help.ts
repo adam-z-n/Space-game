@@ -66,6 +66,7 @@ export const HELP_TOPICS: HelpTopic[] = [
       "Ship designs (menu) combine a hull with parts: weapons, armor, shields, engines and special equipment. Bigger hulls have more slots but cost more and maneuver worse. A few parts take several slots.",
       "Formation matters in battle: front-line ships draw most fire, screens shield the support ships behind them, and support ships hang back.",
       "Weapons have ranges: missiles reach long range, beams medium, mass drivers and gauss cannons short. The more maneuverable side sets the range each round.",
+      "Special weapons bend the rules: graviton lances stop a fleet from withdrawing, EMP torpedoes knock out parts, nanites keep eating a ship, singularity charges hit a whole fleet, ion cannons wear shields down, phase torpedoes slip past point defense, and flak batteries double as point defense. Each part's description says what it does.",
     ],
   },
   {
