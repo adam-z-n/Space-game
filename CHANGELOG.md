@@ -1,6 +1,6 @@
 # Changelog
 
-## 1.4.0 (in progress)
+## 1.4.0
 
 Fixes and screens:
 

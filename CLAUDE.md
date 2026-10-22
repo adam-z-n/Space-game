@@ -12,12 +12,11 @@ state, all changes through commands); the rules data lives in `content/default/p
 
 ## Where things stand
 
-- **Released:** v1.0.0 and v1.3.0 (which includes 1.1 and 1.2). The owner publishes releases through the GitHub UI.
+- **Released:** v1.0.0, v1.3.0 (which includes 1.1 and 1.2) and v1.4.0 (once its release PR merges and the owner
+  tags it). The owner publishes releases through the GitHub UI.
   To release: a small PR that bumps `version` (`npm version X.Y.Z --no-git-tag-version`) and retitles the changelog
   section; after it merges the owner creates the release and tag (tag pushes from sessions get a 403), and the
   deploy archives that build under `/vX.Y/`.
-- **Merged to `main` but not yet released:** 1.4 (PR #13). `package.json` still says `1.3.0`; `CHANGELOG.md` has a
-  `1.4.0 (in progress)` section.
 - **1.2 contents:** resupply only at colonies, depots and supply ships; ship experience and ranks; Fleet Command
   Network; 118-tech tree with rival schools, race research access and affinities (balance-tested); conquest tech
   capture; missile ammo, component knock-outs, pursuit, fleet size limit (warships only); supply ships rearm and
