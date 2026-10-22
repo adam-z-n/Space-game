@@ -1,4 +1,5 @@
 import {
+  defensesDown,
   Game,
   MAX_AI,
   MIN_AI,
@@ -13,6 +14,7 @@ import {
   fleetShipStats,
   estimateOdds,
   fleetCanColonize,
+  settlerIndex,
   fleetStrength,
   getTech,
   prospectiveMaxPop,
@@ -46,6 +48,7 @@ import { spriteIcon } from "./sprites";
 import { button, h, turnsText } from "./dom";
 import { colonyPanel, empirePanel, gameOverPanel, planetsPanel, queueEverywhere, researchPanel, resourceBar, type PanelContext } from "./economyPanels";
 import { planetPlans, plannerLabels, plannerPanel, techTreePanel } from "./planningPanels";
+import { Coach, coachCard, helpPanel } from "./help";
 import { battlePanel, designerPanel, designsPanel, fleetDetail, startDraft, type ShipContext } from "./shipPanels";
 
 const AUTOSAVE = "autosave";
@@ -56,6 +59,7 @@ const ARCHIVE = import.meta.env.VITE_ARCHIVE;
 // Archived releases (served at /vX.Y/) keep their own saves, so playing an old
 // version never upgrades or overwrites the save of the current one.
 const store = new LocalSaveStore(ARCHIVE ? `space4x:v${ARCHIVE}:save:` : undefined);
+const coach = new Coach(ARCHIVE ? `space4x:v${ARCHIVE}:coach` : "space4x:coach");
 const root = document.getElementById("app")!;
 
 // ---------- helpers ----------
@@ -210,7 +214,7 @@ interface UiState {
   /** A destination being considered for the selected fleet, waiting for confirmation. */
   preview: (RoutePreview & { destinationId: SystemId }) | null;
   report: GameEvent[] | null;
-  panel: "none" | "menu" | "fleets" | "research" | "techtree" | "planner" | "planets" | "empire" | "colony" | "designs" | "designer" | "battle" | "gameover";
+  panel: "none" | "menu" | "help" | "fleets" | "research" | "techtree" | "planner" | "planets" | "empire" | "colony" | "designs" | "designer" | "battle" | "gameover";
   /** Show the colonization planner's planet values on the map. */
   showPlanetValues: boolean;
   /** Battle shown when panel is "battle", and the replay round. */
@@ -218,6 +222,8 @@ interface UiState {
   battleRound: number;
   /** Colony shown when panel is "colony". */
   colonyId: ColonyId | null;
+  /** Open topic on the How to play screen. */
+  helpTopic: string | null;
   contextMenu: { target: MapTarget; x: number; y: number } | null;
   revealMap: boolean;
   /** The attention item the "to do" button showed last, so the next press moves on from it. */
@@ -234,6 +240,7 @@ function startGame(game: Game): void {
     selectedSystem: lastReport ? null : game.state.empires[game.playerId]!.homeSystemId,
     selectedFleet: null,
     preview: null,
+    helpTopic: null,
     report: lastReport,
     panel: "none",
     colonyId: null,
@@ -348,7 +355,7 @@ function startGame(game: Game): void {
   }
 
   function setPreview(fleetId: FleetId, destinationId: SystemId): void {
-    const plan = planMove(game.state, fleetId, destinationId);
+    const plan = planMove(game.state, fleetId, destinationId, pack);
     ui.preview = typeof plan === "string" ? null : { fleetId, route: plan.route, turns: plan.turns, destinationId };
     update();
   }
@@ -410,8 +417,12 @@ function startGame(game: Game): void {
     if (ships.length === 0) return [];
     const system = game.state.galaxy.systems[systemId]!;
     return system.bodies
-      .filter((b) => !colonyOnBody(game.state, b.id) && colonizeBlocker(pack, empireState, b) === null)
-      .map((b) => ({ fleetId: ships[0]!.id, bodyId: b.id, name: bodyName(system, b.id), maxPop: prospectiveMaxPop(pack, empireState, b) }));
+      .filter((b) => !colonyOnBody(game.state, b.id) && !game.state.outposts.some((o) => o.bodyId === b.id) && colonizeBlocker(pack, empireState, b) === null)
+      .flatMap((b) => {
+        // A habitat ship for a gas giant, a colony ship for a planet.
+        const fleet = ships.find((f) => settlerIndex(pack, game.state, f, b) >= 0);
+        return fleet ? [{ fleetId: fleet.id, bodyId: b.id, name: bodyName(system, b.id), maxPop: prospectiveMaxPop(pack, empireState, b) }] : [];
+      });
   }
 
   function colonize(fleetId: FleetId, bodyId: number): void {
@@ -433,7 +444,7 @@ function startGame(game: Game): void {
     }
     if (fleet.route && fleet.route.length > 0) {
       const dest = fleet.route[fleet.route.length - 1]!;
-      const plan = planMove(game.state, fleet.id, dest);
+      const plan = planMove(game.state, fleet.id, dest, pack);
       return `To ${systemName(dest)} · ${typeof plan === "string" ? "?" : turnsText(plan.turns)}`;
     }
     return `${fleet.holding ? "Holding" : "Idle"} at ${systemName(pos.systemId)}`;
@@ -485,6 +496,17 @@ function startGame(game: Game): void {
         return e.active
           ? "The AI empires have united against you: you hold too much of the galaxy"
           : "The AI coalition against you has broken up";
+      case "colonyDestroyed": {
+        const how = e.blighted ? ", and the plague has blighted the planet" : "";
+        if (e.ownerId === game.playerId) return `${e.name} was wiped out by ${empire(e.attackerId).name}'s bombardment${how}`;
+        return `Our bombardment wiped out ${e.name}${how}`;
+      }
+      case "satelliteStrikes": {
+        const losses = e.shipsLost ? `, ${e.shipsLost} ship${e.shipsLost > 1 ? "s" : ""} lost` : "";
+        return e.targetEmpireId === game.playerId
+          ? `Hunter-killer satellites at ${colonyName(e.colonyId)} hit our ships${losses}`
+          : `Our hunter-killer satellites at ${colonyName(e.colonyId)} hit ${empire(e.targetEmpireId).name}'s ships${losses}`;
+      }
       case "invasionWaiting":
         return `Troops at ${colonyName(e.colonyId)} are waiting for more: ${e.troops} of ${e.needed} needed`;
       case "defensesDown":
@@ -580,8 +602,13 @@ function startGame(game: Game): void {
       "div",
       { className: "menu" },
       button("Ship designs", () => openPanel("designs")),
+      button("How to play", () => openPanel("help")),
       button("Planets", () => openPanel("planets")),
       button("Colonization planner", () => openPanel("planner")),
+      button(coach.enabled ? "Turn tips off" : "Turn tips on (from the start)", () => {
+        coach.setEnabled(!coach.enabled);
+        openPanel("none");
+      }),
       button("Export save file", () => download(`space4x-turn${game.state.turn}.json`, serializeSave(game))),
       button(ui.revealMap ? "Hide map (debug)" : "Reveal map (debug)", () => {
         ui.revealMap = !ui.revealMap;
@@ -785,7 +812,12 @@ function startGame(game: Game): void {
         .filter((f) => f.empireId === game.playerId && f.invadeColonyId === pending.colonyId && f.systemId === real.systemId && f.progress === 0)
         .reduce((n, f) => n + fleetTroops(game.state, pack, f), 0);
       const needed = Math.ceil((pending.troops * margin) / 100);
-      const text = real.invadeAllOut
+      // In orbit the colony is in plain sight, so its real defenses can be shown.
+      const colonyNow = game.state.colonies.find((c) => c.id === pending.colonyId);
+      const guarded = real.progress === 0 && real.systemId === where && !!colonyNow && !defensesDown(game.state, pack, colonyNow);
+      const text = guarded
+        ? `Orbital defenses of ${pending.name} are up: warships must knock them out before the troops can land.`
+        : real.invadeAllOut
         ? `All-out: every troop ship lands on ${pending.name} once its orbital defenses are down (defenders ~${pending.troops}).`
         : `Will land the troops needed on ${pending.name} (~${needed} for ~${pending.troops} defenders) once its orbital defenses are down; spare transports stay in orbit.` +
           (real.progress === 0 && real.systemId === where && committed < needed ? ` Waiting: ${committed} of ~${needed} troops here.` : "");
@@ -1011,9 +1043,17 @@ function startGame(game: Game): void {
         update();
       }, { className: "primary" }),
     );
+    // First-game tips sit above the bottom sheet while no full panel is open.
+    const tip =
+      ui.panel === "none" && !ui.preview
+        ? coachCard(coach, game, (id) => {
+            ui.helpTopic = id;
+            openPanel("help");
+          }, update)
+        : null;
     // A full panel replaces the bottom sheet; the preview bar always shows.
     const sheet = previewBar() ?? (ui.panel === "none" || ui.panel === "menu" ? (fleetSheet() ?? systemSheet() ?? reportSheet()) : null);
-    return h("div", { className: "bottombar" }, sheet, actions);
+    return h("div", { className: "bottombar" }, tip, sheet, actions);
   }
 
   function battleView(): HTMLElement | null {
@@ -1046,6 +1086,11 @@ function startGame(game: Game): void {
                   })
             : ui.panel === "planets"
               ? planetsPanel(ctx)
+            : ui.panel === "help"
+              ? helpPanel(ui.helpTopic, (id) => {
+                  ui.helpTopic = id;
+                  update();
+                }, () => openPanel("none"))
             : ui.panel === "empire"
               ? empirePanel(ctx)
               : ui.panel === "colony" && ui.colonyId !== null
@@ -1060,12 +1105,39 @@ function startGame(game: Game): void {
                         ? gameOverPanel(ctx)
                         : null;
     const overlays = [panel, contextMenu()].filter((x): x is HTMLElement => x !== null);
+    // Redrawing replaces every element; keep scrolled lists where they were while the same screen is open.
+    const screen = `${ui.panel}:${ui.colonyId}:${ui.selectedFleet}:${ui.selectedSystem}`;
+    const scrolled = screen === lastScreen ? scrollPositions(hud) : [];
     hud.replaceChildren(topBar(), bottomBar(), ...overlays);
+    restoreScroll(hud, scrolled);
+    lastScreen = screen;
   }
+  let lastScreen = "";
 
   update();
   const home = view.systems[game.state.empires[game.playerId]!.homeSystemId]!;
   map.centerOn(home.x, home.y);
+}
+
+/** Scroll offsets of every scrolled element under `root`, keyed by its child-index path. */
+function scrollPositions(root: Element): { path: number[]; top: number; left: number }[] {
+  const out: { path: number[]; top: number; left: number }[] = [];
+  const walk = (el: Element, path: number[]) => {
+    if (el.scrollTop > 0 || el.scrollLeft > 0) out.push({ path, top: el.scrollTop, left: el.scrollLeft });
+    Array.from(el.children).forEach((child, i) => walk(child, [...path, i]));
+  };
+  walk(root, []);
+  return out;
+}
+
+function restoreScroll(root: Element, positions: { path: number[]; top: number; left: number }[]): void {
+  for (const { path, top, left } of positions) {
+    let el: Element | undefined = root;
+    for (const i of path) el = el?.children[i];
+    if (!el) continue;
+    el.scrollTop = top;
+    el.scrollLeft = left;
+  }
 }
 
 void showSetup();

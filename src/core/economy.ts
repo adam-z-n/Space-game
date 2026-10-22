@@ -36,6 +36,8 @@ const EFFECT_KEYS = [
   "defensePercent",
   "maneuver",
   "slots",
+  "largeHullSlots",
+  "weaponAccuracy",
   "shipCostPercent",
   "shipUpkeepPercent",
   "structurePercent",
@@ -103,6 +105,8 @@ export function findBody(state: GameState, systemId: number, bodyId: number): Bo
 }
 
 export function planetStats(pack: ContentPack, body: Body) {
+  // Gas giant habitats: a fixed, small room with no farming.
+  if (body.kind === "gasGiant") return { habitability: 100, foodYield: 0, capacity: pack.economy.gasGiantCapacity, yieldPercent: 100, groundDefense: 0 };
   const type = pack.planetTypes.find((t) => t.id === body.planetType);
   const size = pack.planetSizes.find((s) => s.id === body.size);
   const richness = pack.richness.find((r) => r.id === body.richness);
@@ -117,7 +121,9 @@ export function planetStats(pack: ContentPack, body: Body) {
 
 /** Why `empire` can't colonize `body`, or null if it can (ignoring who is there). */
 export function colonizeBlocker(pack: ContentPack, empire: Empire, body: Body): string | null {
+  if (body.kind === "gasGiant") return hasFlag(pack, empire, "gasGiantHabitats") ? null : "gas giants need Gas Giant Habitats";
   if (body.kind !== "planet") return "only planets can be colonized";
+  if ((body.blight ?? 0) > 0 && !hasFlag(pack, empire, "cureBlight")) return `blighted by plague (${body.blight} more turns)`;
   const minimum = pack.economy.minHabitability + empireEffects(pack, empire).minHabitability;
   if (planetStats(pack, body).habitability < minimum) return `too hostile (needs habitability ${minimum})`;
   return null;
@@ -348,6 +354,7 @@ export function buildBlocker(state: GameState, pack: ContentPack, empire: Empire
   if (item.kind === "colonyBase") {
     const body = item.bodyId === undefined ? undefined : findBody(state, colony.systemId, item.bodyId);
     if (!body) return "no such planet in this system";
+    if (body.kind !== "planet") return "colony bases settle planets only";
     if (colonyOnBody(state, body.id)) return "planet already colonized";
     const blocker = colonizeBlocker(pack, empire, body);
     if (blocker) return blocker;
@@ -414,6 +421,9 @@ export function bodyName(system: StarSystem, bodyId: number): string {
 }
 
 export function newColony(state: GameState, empire: Empire, systemId: number, bodyId: number, population: number, capital: boolean): Colony {
+  // Settling a blighted world (Planetary Restoration) cures it.
+  const body = findBody(state, systemId, bodyId);
+  if (body) delete body.blight;
   return {
     id: state.nextId++,
     empireId: empire.id,

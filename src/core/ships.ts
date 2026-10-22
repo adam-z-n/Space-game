@@ -1,6 +1,6 @@
 import type { ContentPack, DesignData, ShipRole, WeaponSpecial } from "../content/schema";
 import { empireEffects, hasFlag, type Totals } from "./economy";
-import type { Empire, Fleet, FleetOrders, GameState, Ship, ShipDesign } from "./state";
+import type { Body, Empire, Fleet, FleetOrders, GameState, Ship, ShipDesign } from "./state";
 
 /**
  * Ship designs (a hull plus components) and fleets (stacks of ships).
@@ -71,6 +71,12 @@ export interface DesignStats {
   cyberDefense: number;
   /** Damage per turn to a colony under bombardment. */
   bombard: number;
+  /** The part of `bombard` from plague bombs. */
+  plague: number;
+  /** Carries a planet cracker. */
+  cracker: boolean;
+  /** Its colony module founds gas giant habitats (not planetary colonies). */
+  habitat: boolean;
   /** Carries an outpost kit. */
   outpost: boolean;
   commandos: number;
@@ -114,7 +120,7 @@ export function designStats(pack: ContentPack, design: Pick<ShipDesign, "hull" |
     .flatMap((c) =>
       Array.from({ length: c.shots + (c.kind === "hangar" ? fx.hangarShots : 0) }, () => ({
         damage: Math.floor((c.damage * (100 + fx.damagePercent)) / 100),
-        accuracy: Math.min(100, c.accuracy + aim),
+        accuracy: Math.min(100, c.accuracy + aim + fx.weaponAccuracy),
         range: c.range,
         ammo: c.ammo,
         ...(c.special ? { special: c.special } : {}),
@@ -149,6 +155,9 @@ export function designStats(pack: ContentPack, design: Pick<ShipDesign, "hull" |
     cyber: sum("cyber"),
     cyberDefense: sum("cyberDefense"),
     bombard: Math.floor((sum("bombard") * (100 + fx.damagePercent)) / 100),
+    plague: Math.floor((parts.filter((c) => c.plague).reduce((n, c) => n + c.bombard, 0) * (100 + fx.damagePercent)) / 100),
+    cracker: parts.some((c) => c.cracker),
+    habitat: parts.some((c) => c.kind === "colony" && c.habitat),
     outpost,
     commandos: sum("commandos"),
     stealth: sum("stealth") > 0,
@@ -184,7 +193,7 @@ export function designBlocker(pack: ContentPack, empire: Empire, design: Omit<De
   if (!hullAvailable(pack, empire, design.hull)) return "hull not available";
   const hull = getHull(pack, design.hull);
   const slots = hullSlots(pack, empire, hull.id);
-  if (design.components.length > slots) return `only ${slots} slots`;
+  if (slotsUsed(pack, design.components) > slots) return `only ${slots} slots`;
   for (const id of design.components) {
     if (!componentAvailable(pack, empire, id)) return `component "${id}" not available`;
     const part = getComponent(pack, id);
@@ -197,8 +206,15 @@ export function designBlocker(pack: ContentPack, empire: Empire, design: Omit<De
 }
 
 /** Component slots on a hull for this empire (Miniaturization adds one). */
+/** Slots a list of components takes up (most take one; some big ones more). */
+export function slotsUsed(pack: ContentPack, components: readonly string[]): number {
+  return components.reduce((n, id) => n + getComponent(pack, id).size, 0);
+}
+
 export function hullSlots(pack: ContentPack, empire: Empire, hullId: string): number {
-  return getHull(pack, hullId).slots + empireEffects(pack, empire).slots;
+  const hull = getHull(pack, hullId);
+  const fx = empireEffects(pack, empire);
+  return hull.slots + fx.slots + (hull.slots >= 5 ? fx.largeHullSlots : 0);
 }
 
 /** Whether a component suits the hull's size (by its base slots). Stealth Hulls lift the cloaking size limit. */
@@ -254,6 +270,11 @@ export function combatShipCount(pack: ContentPack, state: GameState, fleet: Flee
 
 export function fleetCanColonize(pack: ContentPack, state: GameState, fleet: Fleet): boolean {
   return fleetShipStats(pack, state, fleet).some((s) => s.colonize);
+}
+
+/** The fleet's ship (index) that could settle `body`: a habitat ship for a gas giant, a colony ship for a planet; -1 if none. */
+export function settlerIndex(pack: ContentPack, state: GameState, fleet: Fleet, body: Body): number {
+  return fleetShipStats(pack, state, fleet).findIndex((s) => s.colonize && s.habitat === (body.kind === "gasGiant"));
 }
 
 /**
@@ -322,6 +343,8 @@ export function newFleet(state: GameState, pack: ContentPack, empire: Empire, de
     speed: 0,
     sensorRange: 0,
     systemId,
+    warp: false,
+    cameFrom: null,
     route: [],
     progress: 0,
     holding: false,

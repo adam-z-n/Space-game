@@ -1,5 +1,70 @@
 # Changelog
 
+## 1.4.0 (in progress)
+
+Fixes and screens:
+
+- Screens keep their scroll position when something on them changes (moving workers on the Planets screen,
+  queueing builds, picking research...), so several changes in a row need no scrolling back.
+- The colony screen shows the planet itself: size and type, minerals, habitability, food yield and terrain defense.
+- The Planets screen has a population column, sortable like the others.
+- Fixed: troop ships in orbit could wait forever without landing. A colony with no guns can't stop a landing, and
+  a colony's knocked-out defenses stay down while any enemy ship is in orbit. The fleet sheet says when warships
+  must knock out a colony's defenses before troops can land.
+
+New weapons:
+
+- Graviton Lance: its hits hold the enemy fleet in the battle, unable to withdraw.
+- EMP Torpedo: light damage, but every hit knocks out a part of the target.
+- Nanite Swarm: damage through shields that keeps eating the target for three more rounds.
+- Singularity Charge (battleship or larger, 2 slots): a hit strikes every ship in the target's fleet.
+- Flak Battery: a short-range gun that also counts as two point defense mounts.
+- Ion Cannon: no hull damage; each hit wears the target's shields down for the rest of the battle.
+- Phase Torpedo: hunts support ships past screens, and point defense can't stop it.
+- Mass Accelerator Mines (tech): your mines hit twice as hard, knock out a part with each hit, and a fleet they
+  hit can't withdraw from a battle that turn.
+- Hunter-Killer Satellites (colony building): 4 shots a turn at enemy ships in orbit, even after the orbital
+  defenses fall.
+- Battle replays describe the new effects. The AI arms its warships with the new guns when they are its best,
+  but never with ion cannons alone.
+
+Help:
+
+- How to play (menu): short topics on the map and fleets, colonies and workers, building, research, ship design,
+  combat and retreat, supply, invasion and bombardment, outposts and special operations, and how to win.
+- First-game tips: a small card offers a tip at key moments (the first turn, your colony ship, a new colony, an idle
+  build queue, meeting a rival, the first battle, low supply, troop ships), at most one a turn, each with a link to
+  its help topic. Turn them off from the card or the menu; turning them back on starts them over.
+
+Research and expansion:
+
+- Gas Giant Habitats (Engineering): a costly Habitat Ship founds a floating colony on a gas giant, up to 5 people
+  and no farming. Gas giants with an outpost on them can't be settled, nor can colony bases reach them. The AI
+  builds a habitat ship when it knows a free gas giant and can afford one.
+- Microfabrication (Engineering): +1 slot on cruisers and larger. Molecular Assembly: +1 slot on every hull.
+- Fewer techs speed up research: Neural Implants now gives +10% industry, Uplifted Workers +20% industry, Planetary
+  Databanks +2 credits per colony and Quantum Computing +5% weapon accuracy. Research Methods, Neural Networks,
+  Expert Systems and Sentient Computers still boost research (+65% in all, was +85% and +5 per colony).
+- Warp Gates (Propulsion): a Warp Gate building lets a fleet at that colony jump to any other of your gated
+  colonies in one turn, as long as neither end is blockaded. The AI builds gates at its capital and its front.
+
+Combat:
+
+- A beaten fleet retreats the way it came, instead of to the nearest empty system (which could lead deeper into
+  enemy space). Fleets built where they fight fall back as before.
+- Unescorted freighters (troop, colony, supply and outpost ships, tankers) caught by armed enemy ships are
+  destroyed rather than driven off. Scouts still slip away, and cloaked ships stay out of the fight.
+- No fleet can hold orbit under a colony's standing guns: after a battle that leaves any of its guns working,
+  every enemy fleet there pulls back the way it came. Knocking out a colony's defenses now takes a fleet strong
+  enough to do it in one battle (damage still carries over, and repairs stop under siege).
+- Bombardment kept up long enough wipes a colony out, freeing the planet for settlers. The AI bombs a colony it
+  wants to take down to two colonists, not out, except in its endgame drive.
+- Bioweapons (Growth): the Plague Bomb (cruiser or larger) kills three times as many people, and a colony it wipes
+  out leaves the planet blighted, unfit to settle, for 100 turns. Planetary Restoration (a late Growth tech) lets
+  you settle blighted worlds, curing them. The AI uses plague bombs only in its endgame drive.
+- Planet Cracker (Weapons): a dreadnought weapon taking 6 slots that destroys a colony outright once its orbital
+  defenses are down. Ship parts can now take more than one slot.
+
 ## 1.3.0
 
 Invasions:

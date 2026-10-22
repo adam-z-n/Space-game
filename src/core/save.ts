@@ -234,6 +234,15 @@ export function migrateState(state: GameState, pack: ContentPack): GameState {
     old.version = 16;
   }
 
+  if (old.version === 16) {
+    // v17: fleets remember where they came from, to retreat that way; warp gate jumps.
+    for (const fleet of migrated.fleets) {
+      fleet.cameFrom = null;
+      fleet.warp = false;
+    }
+    old.version = 17;
+  }
+
   if (startVersion !== migrated.version) {
     for (const empire of migrated.empires) refreshEmpireStats(migrated, pack, empire);
     updateSightings(migrated, pack, null, migrated.turn);

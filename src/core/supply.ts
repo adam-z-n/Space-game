@@ -128,3 +128,8 @@ export function resolveSupply(state: GameState, pack: ContentPack, events: GameE
   }
   state.fleets = state.fleets.filter((f) => f.ships.length > 0);
 }
+
+/** Whether `empireId` has a working warp gate in a system: at its colony there, not blockaded. */
+export function warpGateAt(state: GameState, pack: ContentPack, empireId: EmpireId, systemId: SystemId): boolean {
+  return state.colonies.some((c) => c.empireId === empireId && c.systemId === systemId && !c.blockaded && c.buildings.some((id) => pack.buildings.find((b) => b.id === id)?.warpGate));
+}

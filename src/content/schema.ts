@@ -114,6 +114,10 @@ export const EffectsSchema = z
     maneuver: z.number().int(),
     /** Extra component slots on every hull. */
     slots: z.number().int(),
+    /** Added to the accuracy of every ship weapon. */
+    weaponAccuracy: z.number().int(),
+    /** Extra slots on cruisers and larger (hulls of 5+ slots). */
+    largeHullSlots: z.number().int(),
     /** Ship build cost and upkeep, in percent (negative is cheaper). */
     shipCostPercent: z.number().int(),
     shipUpkeepPercent: z.number().int(),
@@ -169,14 +173,22 @@ const Hull = z.object({
   veteranBonus: z.number().int().min(0).max(20),
   /** Turns a ship can operate outside supply. */
   endurance: z.number().int().nonnegative(),
+  /** Cargo hull: unarmed ships on it caught without an escort by armed enemies are destroyed, not driven off. */
+  freighter: z.boolean().default(false),
   requires: id.optional(),
 });
 
 export const COMPONENT_KINDS = ["weapon", "hangar", "armor", "shield", "engine", "sensor", "electronics", "colony", "outpost", "fuel", "supply", "troops", "commandos", "repair", "mines", "bomb"] as const;
 /** Weapon ranges: battles start at long range (3) and close (or open) each round. */
 export const RANGE_NAMES = { 1: "short", 2: "medium", 3: "long" } as const;
-/** missile: point defense and ECM work against it. fighters: also hunt support ships past screens. pierce: ignores shields. */
-export const WEAPON_SPECIALS = ["missile", "fighters", "pierce"] as const;
+/**
+ * missile: point defense and ECM work against it. fighters: also hunt support ships past screens. pierce: ignores shields.
+ * pin: a hit holds the target's fleet in the battle (no withdrawing). emp: a hit always knocks out a component.
+ * nanite: a hit keeps eating the target for 3 more rounds, through shields. area: a hit strikes every ship in the
+ * target's fleet. ion: no hull damage; a hit wears the target's shields down for the rest of the battle.
+ * phase: hunts support ships past screens, and point defense can't stop it.
+ */
+export const WEAPON_SPECIALS = ["missile", "fighters", "pierce", "pin", "emp", "nanite", "area", "ion", "phase"] as const;
 export type WeaponSpecial = (typeof WEAPON_SPECIALS)[number];
 
 const Component = z.object({
@@ -216,6 +228,14 @@ const Component = z.object({
   maneuver: z.number().int().nonnegative().default(0),
   /** Bombs: damage dealt to a colony per turn of bombardment. */
   bombard: z.number().int().nonnegative().default(0),
+  /** Plague bombs: their bombardment kills three times the population, and a colony they wipe out leaves the planet blighted. */
+  plague: z.boolean().default(false),
+  /** Planet crackers: destroy a colony outright once its orbital defenses are down. */
+  cracker: z.boolean().default(false),
+  /** Colony modules: founds a colony on a gas giant (Gas Giant Habitats) instead of a planet. */
+  habitat: z.boolean().default(false),
+  /** Slots the component takes up. */
+  size: z.number().int().min(1).max(12).default(1),
   /** Armor: extra hit points. */
   hp: z.number().int().nonnegative().default(0),
   /** Shields: damage blocked per hit. */
@@ -252,6 +272,8 @@ const DefenseSchema = z
     weapons: z.array(z.object({ damage: z.number().int().positive(), accuracy: z.number().int().min(1).max(100), count: z.number().int().positive() })),
     /** Garrison troops. */
     troops: z.number().int().nonnegative(),
+    /** Hunter-killer satellites: shots a turn at enemy ships in orbit, whether or not the main defenses stand. */
+    satellites: z.number().int().nonnegative(),
     /** Minefield strength kept up in the colony's system. */
     mines: z.number().int().nonnegative(),
   })
@@ -270,12 +292,14 @@ const Building = z.object({
   requires: id.optional(),
   /** Only granted to capitals at game start, never built. */
   buildable: z.boolean().default(true),
+  /** A warp gate: fleets jump between colonies that have one. */
+  warpGate: z.boolean().default(false),
   /** Experience new ships built at this colony start with. */
   trainingXp: z.number().int().nonnegative().default(0),
 });
 
 /** Special rules a tech switches on, handled in code (see hasFlag). */
-export const TECH_FLAGS = ["hitAndRun", "tractorBeams", "solarSails", "stealthHulls", "tachyonScanners", "galacticSurvey", "sensorSpoofing", "gasMining", "fieldRepair"] as const;
+export const TECH_FLAGS = ["hitAndRun", "tractorBeams", "solarSails", "stealthHulls", "tachyonScanners", "galacticSurvey", "sensorSpoofing", "gasMining", "fieldRepair", "cureBlight", "gasGiantHabitats", "heavyMines"] as const;
 export type TechFlag = (typeof TECH_FLAGS)[number];
 
 const Tech = z.object({
@@ -310,6 +334,12 @@ const Combat = z.object({
   defenseRepairPercent: z.number().int().min(0).max(100),
   /** Population lost when a colony changes hands, in percent. */
   captureLossPercent: z.number().int().min(0).max(100),
+  /** Rounds nanites keep eating a ship after the hit. */
+  naniteRounds: z.number().int().nonnegative(),
+  /** Damage per hunter-killer satellite shot. */
+  satelliteDamage: z.number().int().nonnegative(),
+  /** Turns a planet stays blighted after plague bombs wipe out its colony. */
+  blightTurns: z.number().int().nonnegative(),
   /** A normal invasion lands troops until they reach this percent of the defenders, and waits if it can't. */
   invasionMarginPercent: z.number().int().min(100),
   /** Each hostile ship in a minefield has this chance per turn to hit a mine, which deals mineDamage. */
@@ -561,6 +591,8 @@ const Economy = z.object({
   capitalSupplyRange: z.number().int().nonnegative(),
   /** Industry to found a colony on another planet in the same system (a colony base). */
   colonyBaseCost: z.number().int().positive(),
+  /** Population room on a gas giant habitat (before bonuses); habitats grow no food. */
+  gasGiantCapacity: z.number().int().positive(),
   capitalSensorRange: z.number().int().nonnegative(),
   foodStockCap: z.number().int().nonnegative(),
   /** Share of industry turned into credits when a colony has nothing to build. */
@@ -734,7 +766,7 @@ export const ContentPackSchema = z
     pack.startingDesigns.forEach((d, i) => {
       const hull = hullById.get(d.hull);
       if (!hull) issue(["startingDesigns", i, "hull"], `unknown hull "${d.hull}"`);
-      else if (d.components.length > hull.slots) issue(["startingDesigns", i], `${d.id}: ${d.components.length} components but ${hull.slots} slots`);
+      else if (d.components.reduce((n, c) => n + (pack.components.find((x) => x.id === c)?.size ?? 1), 0) > hull.slots) issue(["startingDesigns", i], `${d.id}: ${d.components.length} components but ${hull.slots} slots`);
       for (const c of d.components) if (!componentIds.has(c)) issue(["startingDesigns", i, "components"], `unknown component "${c}"`);
     });
     const buildingIds = new Set(pack.buildings.map((b) => b.id));

@@ -17,6 +17,8 @@ export interface FleetInfo {
   strength: number;
   armed: boolean;
   colonize: boolean;
+  /** Its colony ship is a gas giant habitat ship. */
+  habitat: boolean;
   /** Carries an outpost kit. */
   outpost: boolean;
   /** An unarmed supply ship (stores for the field). */
@@ -96,6 +98,7 @@ export function buildContext(state: GameState, pack: ContentPack, empireId: Empi
         strength: fleetStrength(pack, state, fleet),
         armed: fleetArmed(pack, state, fleet),
         colonize: fleetCanColonize(pack, state, fleet),
+        habitat: stats.some((s) => s.colonize && s.habitat),
         outpost: stats.some((s) => s.outpost),
         supplier: stats.some((s) => s.stores > 0) && !stats.some((s) => s.armed),
         recon: stats.every((s) => s.role === "recon"),

@@ -24,16 +24,17 @@ export function outpostBlocker(state: GameState, pack: ContentPack, empire: Empi
   const gas = kind === "mining" && body.kind === "gasGiant" && hasFlag(pack, empire, "gasMining");
   if (!config.bodies.includes(body.kind) && !gas) return `a ${config.name} can't be built on that`;
   if (state.outposts.some((o) => o.bodyId === body.id)) return "there is already an outpost there";
+  if (state.colonies.some((c) => c.bodyId === body.id)) return "a colony is there";
   return null;
 }
 
 /** A combat outpost's guns and hit points, acting in battle like a colony's defenses. */
 export function outpostDefense(pack: ContentPack, empire: Empire, outpost: Outpost): ColonyDefense {
-  if (outpost.kind !== "combat") return { maxHp: 0, shield: 0, weapons: [], maxTroops: 0, mines: 0 };
+  if (outpost.kind !== "combat") return { maxHp: 0, shield: 0, weapons: [], maxTroops: 0, mines: 0, satellites: 0 };
   const pct = 100 + empireEffects(pack, empire).defensePercent;
   const config = pack.outposts.combat;
   const weapons = config.weapons.flatMap((w) => Array.from({ length: w.count }, () => ({ damage: Math.floor((w.damage * pct) / 100), accuracy: w.accuracy, range: 3, ammo: 0 })));
-  return { maxHp: Math.floor((config.hp * pct) / 100), shield: 0, weapons, maxTroops: 0, mines: 0 };
+  return { maxHp: Math.floor((config.hp * pct) / 100), shield: 0, weapons, maxTroops: 0, mines: 0, satellites: 0 };
 }
 
 export function outpostSensorRange(pack: ContentPack, empire: Empire, outpost: Outpost): number {

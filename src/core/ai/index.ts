@@ -29,6 +29,9 @@ export function planAiTurn(state: GameState, pack: ContentPack, empireId: Empire
   if (strategy.posture === "attack") {
     const bomber = planBomber(ctx);
     if (bomber) ctx.commands.push({ type: "createDesign", empireId, design: bomber });
+    // Plague bombs only for the endgame drive (and the coalition against a human player).
+    const blight = strategy.endgame ? planBomber(ctx, true) : null;
+    if (blight) ctx.commands.push({ type: "createDesign", empireId, design: blight });
   }
 
   planOperations(ctx, strategy);

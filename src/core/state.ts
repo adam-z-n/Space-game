@@ -5,7 +5,7 @@ import type { BodyKind, Formation } from "../content/schema";
  * so it can be cloned, saved, hashed, and sent over a network unchanged.
  */
 
-export const STATE_VERSION = 16;
+export const STATE_VERSION = 17;
 
 export type SystemId = number;
 export type EmpireId = number;
@@ -40,6 +40,8 @@ export interface Body {
   planetType?: string;
   size?: string;
   richness?: string;
+  /** Turns left until the plague dies out; a blighted planet can't be colonized (absent: clean). */
+  blight?: number;
 }
 
 export interface StarSystem {
@@ -256,6 +258,10 @@ export interface Fleet {
   speed: number;
   /** System the fleet is at, or the one it departed from when in transit. */
   systemId: SystemId;
+  /** Jumping by warp gate to route[0] (its only stop) this turn. */
+  warp: boolean;
+  /** The system the fleet last came from (where a beaten fleet falls back to); null if built where it is. */
+  cameFrom: SystemId | null;
   /** Systems still to visit; route[0] is the next hop. Empty when idle. */
   route: SystemId[];
   /** Distance travelled along the lane toward route[0]. 0 means "in system". */
@@ -313,6 +319,10 @@ export type GameEvent =
     }
   /** AI empires band together against the human players (active), or stand down (sent to every human). */
   | { type: "coalition"; turn: number; empireId: EmpireId; active: boolean }
+  /** A colony wiped out by bombardment (sent to its owner and the attacker). */
+  | { type: "colonyDestroyed"; turn: number; empireId: EmpireId; attackerId: EmpireId; ownerId: EmpireId; colonyId: ColonyId; systemId: SystemId; name: string; blighted: boolean }
+  /** A colony's hunter-killer satellites fired on `targetEmpireId`'s ships in orbit (sent to both sides). */
+  | { type: "satelliteStrikes"; turn: number; empireId: EmpireId; colonyId: ColonyId; systemId: SystemId; targetEmpireId: EmpireId; shipsLost: number }
   /** Troops in orbit fall short of what a safe landing needs; they wait (sent to the attacker only). */
   | { type: "invasionWaiting"; turn: number; empireId: EmpireId; colonyId: ColonyId; systemId: SystemId; troops: number; needed: number }
   | { type: "defensesDown"; turn: number; empireId: EmpireId; colonyId: ColonyId; systemId: SystemId }
@@ -356,6 +366,10 @@ export interface BattleShot {
   intercepted?: boolean;
   /** Name of the component this hit knocked out. */
   knockedOut?: string;
+  /** Special weapons: pinned the fleet, knocked out a part (emp), nanites (and their later corrosion), area blast, shield wear (ion). */
+  effect?: "pin" | "emp" | "nanite" | "corrode" | "area" | "ion";
+  /** Ion hits: shield points worn away. */
+  shieldDamage?: number;
 }
 
 export interface BattleReport {

@@ -49,7 +49,8 @@ export function planProduction(ctx: AiContext, strategy: Strategy, warshipId: st
   const warshipsAfloat = ctx.fleets.reduce((n, f) => n + combatShipCount(pack, ctx.state, f.fleet), 0);
   let deficit = strategy.wantedStrength - ctx.ownStrength - queuedWar * perWarship;
 
-  const colonyDesign = designWhere(ctx, (s) => s.colonize);
+  const colonyDesign = designWhere(ctx, (s) => s.colonize && !s.habitat);
+  const habitatDesign = designWhere(ctx, (s) => s.habitat);
   const scoutDesign = designWhere(ctx, (s) => s.role === "recon");
   const troopDesign = designWhere(ctx, (s) => s.troops > 0 && !s.colonize);
   const outpostDesign = designWhere(ctx, (s) => s.outpost);
@@ -72,19 +73,40 @@ export function planProduction(ctx: AiContext, strategy: Strategy, warshipId: st
   }
   let troopShortfall = troopsWanted - carriedTroops;
   // Siege ships and commandos ride with strike forces once researched.
-  const bomberDesign = designWhere(ctx, (s) => s.bombard > 0 && s.armed);
+  // In the endgame drive plague bombers take over from ordinary ones once available.
+  const plainBomber = designWhere(ctx, (s) => s.bombard > 0 && s.armed && !s.cracker && s.plague === 0);
+  const plagueBomber = strategy.endgame ? designWhere(ctx, (s) => s.plague > 0 && s.armed) : null;
+  const bomberDesign = plagueBomber ?? plainBomber;
   const infiltratorDesign = designWhere(ctx, (s) => s.commandos > 0 && s.stealth && !s.armed);
   const atWar = strategy.posture === "attack" && strategy.targetColony !== null;
   let bombers = afloat((s) => s.bombard > 0) + queuedOf((q) => isShip(q, (s) => s.bombard > 0));
   const wantBombers = atWar && bomberDesign ? AI_SIEGE.bombers : 0;
   let infiltrators = afloat((s) => s.commandos > 0 && !s.armed) + queuedOf((q) => isShip(q, (s) => s.commandos > 0 && !s.armed));
   const wantInfiltrators = atWar && infiltratorDesign && strategy.targetColony!.defenseHp > 0 ? AI_SIEGE.infiltrators : 0;
-  let settlers = ctx.fleets.filter((f) => f.colonize).length + queuedOf((q) => isShip(q, (s) => s.colonize));
+  let settlers = ctx.fleets.filter((f) => f.colonize && !f.habitat).length + queuedOf((q) => isShip(q, (s) => s.colonize && !s.habitat));
+  // One habitat ship at a time, when a free gas giant is known and the treasury can stand it.
+  let habitats = ctx.fleets.filter((f) => f.habitat).length + queuedOf((q) => isShip(q, (s) => s.habitat));
+  const wantHabitats = habitatDesign && strategy.colonyTargets.some((t) => t.habitat) && empire.credits > 150 ? 1 : 0;
   let scouts = ctx.fleets.filter((f) => f.recon).length + queuedOf((q) => isShip(q, (s) => s.role === "recon"));
-  const wantSettlers = Math.min(1 + Math.floor(p.expansion / 4), strategy.colonyTargets.length);
+  const wantSettlers = Math.min(1 + Math.floor(p.expansion / 4), strategy.colonyTargets.filter((t) => !t.habitat).length);
   const unexplored = ctx.state.galaxy.systems.length - empire.explored.length;
   const wantScouts = unexplored > 0 ? 1 + (p.expansion >= 7 ? 1 : 0) : 0;
   const urgent = strategy.posture === "defend" || strategy.posture === "attack";
+
+  // Warp gates: the capital and the colony nearest the war target, once researched and affordable.
+  const gate = pack.buildings.find((b) => b.warpGate);
+  const gateItem: QueueItem | null = gate ? { kind: "building", id: gate.id } : null;
+  const gateUpkeep = gate?.upkeep ?? 0;
+  const gateSites = new Set<number>();
+  if (gate && empire.credits > 200 && ctx.capital && ctx.colonies.length >= 4) {
+    gateSites.add(ctx.capital.id);
+    const target = strategy.targetColony;
+    if (target) {
+      const d = ctx.dist(target.systemId);
+      const front = ctx.colonies.filter((c) => c.systemId !== ctx.capital!.systemId).sort((a, b) => d[a.systemId]! - d[b.systemId]! || a.id - b.id)[0];
+      if (front) gateSites.add(front.id);
+    }
+  }
 
   // Planets already being settled this turn (by colony ship or a colony base queued below).
   const settling = new Set(ctx.commands.flatMap((c) => (c.type === "colonize" ? [c.bodyId] : [])));
@@ -112,6 +134,9 @@ export function planProduction(ctx: AiContext, strategy: Strategy, warshipId: st
     else if (settlers < wantSettlers && big && colonyDesign && can({ kind: "ship", id: colonyDesign.id })) {
       pick = { kind: "ship", id: colonyDesign.id };
       settlers++;
+    } else if (habitats < wantHabitats && big && !urgent && habitatDesign && can({ kind: "ship", id: habitatDesign.id })) {
+      pick = { kind: "ship", id: habitatDesign.id };
+      habitats++;
     } else if (troopShortfall > 0 && big && troopDesign && can({ kind: "ship", id: troopDesign.id })) {
       // A batch covers the shortfall in one queue entry.
       const each = Math.max(1, designStats(pack, troopDesign, fx).troops);
@@ -134,6 +159,9 @@ export function planProduction(ctx: AiContext, strategy: Strategy, warshipId: st
     } else if (scouts < wantScouts && colony.capital && scoutDesign && can({ kind: "ship", id: scoutDesign.id })) {
       pick = { kind: "ship", id: scoutDesign.id };
       scouts++;
+    } else if (gateSites.has(colony.id) && can(gateItem) && gateUpkeep <= room.upkeep) {
+      // Warp gates at the capital and the colony nearest the war target, so fleets can jump to the front.
+      pick = gateItem;
     } else {
       pick = bestBuilding(ctx, colony, options, room.upkeep);
       if (!pick && deficit > 0 && big && can(warItem)) pick = warItem;

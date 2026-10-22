@@ -24,7 +24,8 @@ export function planWarship(ctx: AiContext): WarshipPlan {
   const hulls = pack.hulls.filter((h) => hullAvailable(pack, empire, h.id) && h.slots >= 2);
   const parts = pack.components.filter((c) => componentAvailable(pack, empire, c.id));
   const punch = (c: (typeof parts)[number]) => c.damage * c.accuracy * c.shots;
-  const weapons = parts.filter((c) => c.kind === "weapon" && c.minSlots <= 2).sort((a, b) => punch(b) - punch(a) || a.id.localeCompare(b.id));
+  // Main guns only: ion cannons do no hull damage.
+  const weapons = parts.filter((c) => c.kind === "weapon" && c.minSlots <= 2 && c.special !== "ion").sort((a, b) => punch(b) - punch(a) || a.id.localeCompare(b.id));
   const weapon = weapons[0];
   const armor = parts.filter((c) => c.kind === "armor").sort((a, b) => b.hp - a.hp || a.id.localeCompare(b.id))[0];
   const shield = parts.filter((c) => c.kind === "shield").sort((a, b) => b.shield - a.shield || a.id.localeCompare(b.id))[0];
@@ -96,13 +97,13 @@ export function designWhere(ctx: AiContext, test: (s: ReturnType<typeof designSt
 }
 
 /**
- * A siege ship for strike forces once bomb bays are researched: the biggest hull that takes them,
+ * A siege ship for strike forces once bomb bays (or, for the endgame, plague bombs) are researched: the biggest hull that takes them,
  * 40% bomb bays, a weapon or two to count as a warship, the rest armor. Null when we have one already.
  */
-export function planBomber(ctx: AiContext): Extract<Command, { type: "createDesign" }>["design"] | null {
+export function planBomber(ctx: AiContext, plague = false): Extract<Command, { type: "createDesign" }>["design"] | null {
   const { pack, empire } = ctx;
-  if (designWhere(ctx, (s) => s.bombard > 0 && s.armed)) return null;
-  const bomb = pack.components.find((c) => c.bombard > 0 && componentAvailable(pack, empire, c.id));
+  if (designWhere(ctx, (s) => s.bombard > 0 && s.armed && !s.cracker && s.plague > 0 === plague)) return null;
+  const bomb = pack.components.find((c) => c.bombard > 0 && !c.cracker && c.plague === plague && componentAvailable(pack, empire, c.id));
   const current = currentWarship(ctx);
   if (!bomb || !current) return null;
   const hull = pack.hulls
@@ -117,5 +118,5 @@ export function planBomber(ctx: AiContext): Extract<Command, { type: "createDesi
   const components = [...Array.from({ length: bombs }, () => bomb.id), weapon];
   if (slots - components.length >= 3) components.push(weapon);
   while (components.length < slots) components.push(armor?.id ?? weapon);
-  return { name: "Siege Mk 1", hull: hull.id, components, formation: "front" };
+  return { name: plague ? "Blight Mk 1" : "Siege Mk 1", hull: hull.id, components, formation: "front" };
 }

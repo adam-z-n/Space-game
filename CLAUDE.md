@@ -27,6 +27,15 @@ state, all changes through commands); the rules data lives in `content/default/p
   screen; resupply points shown when a fleet is selected; galaxy types (content `galaxyTypes`: standard, sparse,
   dense, clusters, spiral, ring); AI siege bombing, commando raids, depots; AI coalition against a leading human
   in open-ended games (`state.coalition`, content `victory.coalition`); research costs scaled by tree depth.
+- **1.4 (in progress on the session branch):** scroll kept on redraw, planet details on the colony screen,
+  Planets population column, stalled-invasion fix; combat: retreat the way you came (`fleet.cameFrom`),
+  unescorted freighters destroyed (hull `freighter`), no holding orbit under working colony guns; bombing can
+  destroy colonies, plague bombs and blight (`body.blight`, flag `cureBlight`), planet cracker (component `size`);
+  gas giant habitats, Microfabrication / Molecular Assembly slots, warp gates (`fleet.warp`); four research-boost
+  techs repurposed; nine new weapons (specials pin/emp/nanite/area/ion/phase, flak, heavy mines, satellites);
+  How to play screen and first-game tips (`src/web/help.ts`). State version 17.
+- **Planned for 1.5:** the fleet command overhaul (flagships and officers, naval commands with points, orders only
+  when stopped); see `docs/ROADMAP.md`.
 - **Next ideas** (`docs/ROADMAP.md`): diplomacy, espionage, trade, pass-and-play multiplayer; combat terrain,
   ambush, admirals, boarding.
 
@@ -54,7 +63,7 @@ state, all changes through commands); the rules data lives in `content/default/p
 
 - All randomness from the seeded `Rng`; no `Math.random`, clocks, or trig/exp/log/pow in `src/core`.
 - Iterate in a fixed order and break ties by id. Replays must reproduce the final state hash.
-- Changing persisted state means bumping `STATE_VERSION` in `src/core/state.ts` (now 16) and adding a step to
+- Changing persisted state means bumping `STATE_VERSION` in `src/core/state.ts` (now 17) and adding a step to
   `migrateState` in `src/core/save.ts`, with a test.
 - New content fields go in the zod schema (with `superRefine` checks for cross-references). New effect keys must
   also be added to the effect list in `src/core/economy.ts`.
@@ -62,7 +71,7 @@ state, all changes through commands); the rules data lives in `content/default/p
 
 ## Tools and testing
 
-- `npm run typecheck`, `npm test` (vitest; about 280 tests), `npm run build`.
+- `npm run typecheck`, `npm test` (vitest; about 440 tests), `npm run build`.
 - `npm run sim -- --games N --size small|medium|large --ai 4 --turns 150` plays all-AI games, checks replays, and
   reports by personality and by race (empire 0 rotates through the races). Extra flags: `--victory <mode>`
   (open-ended modes are capped at 1000 turns), `--open-research` (every race gets full research access; a balance

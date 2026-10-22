@@ -249,6 +249,37 @@ describe("combat", () => {
     expect(survivor.route.at(-1)).toBe(2); // nearest supplied system
   });
 
+  it("a beaten fleet retreats the way it came, even away from friendly supply", () => {
+    const s = line();
+    const weak = addFleet(s, 0, ["frigate"], 3);
+    weak.orders.retreatPercent = 10;
+    weak.cameFrom = 4; // it came in from the enemy side
+    addFleet(s, 1, ["frigate", "frigate", "frigate", "frigate"], 3);
+    const t = run(s, end);
+    expect(t.fleets.find((f) => f.id === weak.id)!.route).toEqual([4]);
+  });
+
+  it("unescorted freighters caught by enemy warships are destroyed; scouts still get away", () => {
+    const s = line();
+    const freighters = addFleet(s, 0, ["troop_transport", "colony_ship"], 3);
+    const scout = addFleet(s, 0, ["scout"], 3);
+    addFleet(s, 1, ["frigate"], 3);
+    const t = run(s, end);
+    expect(t.fleets.find((f) => f.id === freighters.id)).toBeUndefined();
+    expect(t.fleets.find((f) => f.id === scout.id)!.route.length).toBeGreaterThan(0);
+    expect(t.lastBattles[0]!.results.find((r) => r.empireId === 0)!.shipsLost).toBe(2);
+  });
+
+  it("escorted freighters are not run down", () => {
+    const s = line();
+    const freighters = addFleet(s, 0, ["troop_transport"], 3);
+    const escort = addFleet(s, 0, ["frigate", "frigate", "frigate"], 3);
+    escort.orders.retreatPercent = 100;
+    addFleet(s, 1, ["frigate"], 3);
+    const t = run(s, end);
+    expect(t.fleets.find((f) => f.id === freighters.id)).toBeDefined();
+  });
+
   it("guards stop fleets passing through their system", () => {
     let s = line();
     addFleet(s, 1, ["frigate"], 3);

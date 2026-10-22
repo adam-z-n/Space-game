@@ -922,7 +922,7 @@ svg.sprite.dim {
 
 .sheet ul.planets li.planets-row {
   display: grid;
-  grid-template-columns: minmax(0, 1.7fr) repeat(4, minmax(0, 1fr));
+  grid-template-columns: minmax(0, 1.5fr) repeat(5, minmax(0, 1fr));
   gap: 4px;
   align-items: center;
   font-size: 13px;
@@ -980,4 +980,28 @@ svg.sprite.dim {
 
 .row-actions.batch button.small-button {
   min-width: 52px;
+}
+
+/* ---------- tips and help ---------- */
+
+.sheet.coach {
+  border-color: var(--warn);
+  max-height: none;
+}
+
+.sheet.coach .coach-text {
+  margin-bottom: 8px;
+  line-height: 1.35;
+}
+
+.sheet.coach .row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.sheet li.help-body p {
+  margin: 0 0 8px;
+  line-height: 1.4;
+  color: var(--text);
 }

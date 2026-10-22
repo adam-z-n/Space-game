@@ -16,7 +16,7 @@ export function planOperations(ctx: AiContext, strategy: Strategy): void {
   scout(ctx);
   defend(ctx, strategy);
   invade(ctx);
-  siege(ctx);
+  siege(ctx, strategy);
   raid(ctx, strategy);
   depots(ctx, strategy);
   attack(ctx, strategy);
@@ -86,7 +86,7 @@ function colonize(ctx: AiContext, strategy: Strategy): void {
   for (const info of settlers) {
     if (info.fleet.route.length === 0) continue;
     const dest = info.fleet.route[info.fleet.route.length - 1]!;
-    const target = strategy.colonyTargets.find((t) => t.systemId === dest && !claimed.has(t.bodyId));
+    const target = strategy.colonyTargets.find((t) => t.systemId === dest && !claimed.has(t.bodyId) && t.habitat === info.habitat);
     if (target) {
       claimed.add(target.bodyId);
       ctx.busy.add(info.fleet.id);
@@ -96,7 +96,8 @@ function colonize(ctx: AiContext, strategy: Strategy): void {
     if (ctx.busy.has(info.fleet.id) || info.fleet.progress > 0) continue;
     const at = info.fleet.systemId;
     const here = strategy.colonyTargets
-      .filter((t) => t.systemId === at && !claimed.has(t.bodyId) && !colonyOnBody(ctx.state, t.bodyId))
+      // In orbit the fleet sees any outpost on the body.
+      .filter((t) => t.systemId === at && t.habitat === info.habitat && !claimed.has(t.bodyId) && !colonyOnBody(ctx.state, t.bodyId) && !ctx.state.outposts.some((o) => o.bodyId === t.bodyId))
       .sort((a, b) => b.value - a.value || a.bodyId - b.bodyId)[0];
     if (here) {
       claimed.add(here.bodyId);
@@ -110,7 +111,7 @@ function colonize(ctx: AiContext, strategy: Strategy): void {
     let best: (typeof strategy.colonyTargets)[number] | null = null;
     let bestScore = -1;
     for (const t of strategy.colonyTargets) {
-      if (claimed.has(t.bodyId) || danger.has(t.systemId) || d[t.systemId] === Infinity) continue;
+      if (t.habitat !== info.habitat || claimed.has(t.bodyId) || danger.has(t.systemId) || d[t.systemId] === Infinity) continue;
       if (ctx.routeCrosses(at, t.systemId, danger)) continue;
       const score = Math.floor((t.value * 10000) / (d[t.systemId]! + 100));
       if (score > bestScore) {
@@ -288,10 +289,11 @@ const landed = (ctx: AiContext, raw: number) => Math.floor((raw * (100 + ctx.fx.
 
 /**
  * Siege: over a rival colony whose orbital defenses are down, bombers pound it while the troops in
- * orbit are too few for a safe landing, and stop once they are enough (its people are the prize).
+ * orbit are too few for a safe landing, and stop once they are enough, or once it is down to a couple
+ * of colonists (its people are the prize; in the endgame drive they bomb on regardless).
  * Without bombers, a landing that is close to even goes in all-out rather than waiting forever.
  */
-function siege(ctx: AiContext): void {
+function siege(ctx: AiContext, strategy: Strategy): void {
   const inOrbit = new Map<SystemId, FleetInfo[]>();
   for (const info of ctx.fleets) {
     // Fleets already ordered away this turn (say, home to resupply) take no part.
@@ -308,7 +310,9 @@ function siege(ctx: AiContext): void {
     const bombers = fleets.filter((f) => f.bombard > 0);
     for (const info of bombers) {
       handled.add(info.fleet.id);
-      const want = short && colony.defenseHp <= 0 ? colony.colonyId : null;
+      // Bomb the prize down, not out: stop at a couple of colonists unless this is the endgame drive.
+      const spare = strategy.endgame || colony.population > SIEGE.minPopulation;
+      const want = short && spare && colony.defenseHp <= 0 ? colony.colonyId : null;
       if (info.fleet.bombardColonyId !== want) ctx.commands.push({ type: "bombard", empireId: ctx.id, fleetId: info.fleet.id, colonyId: want });
     }
     if (short && bombers.length === 0 && troops * 100 >= colony.troops * SIEGE.allOutPercent) {
@@ -321,7 +325,7 @@ function siege(ctx: AiContext): void {
 }
 
 /** Troops, in percent of the defenders, worth an all-out landing when no bombers can soften the target. */
-export const SIEGE = { allOutPercent: 110 };
+export const SIEGE = { allOutPercent: 110, minPopulation: 2 };
 
 /** Commandos (cloaked infiltrators) go ahead of the strike force: they knock out the defenses, then thin the garrison. */
 function raid(ctx: AiContext, strategy: Strategy): void {

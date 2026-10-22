@@ -3,11 +3,11 @@ import { laneLength } from "./graph";
 import { updateSightings } from "./vision";
 import { resolveEconomy } from "./economy";
 import { checkVictory } from "./victory";
-import { colonyDefense, regenerateDefenses, resolveBombardment, resolveInvasions, resolveMines, resolveSabotage } from "./defense";
+import { colonyDefense, regenerateDefenses, resolveBombardment, resolveInvasions, resolveMines, resolveSabotage, resolveSatellites } from "./defense";
 import { resolveCombat } from "./combat";
 import { fleetArmed, fleetStealthy } from "./ships";
 import { regenerateOutposts, resolveOutpostRaids } from "./outposts";
-import { resolveSupply, updateBlockades } from "./supply";
+import { resolveSupply, updateBlockades, warpGateAt } from "./supply";
 import type { EmpireId, GameEvent, GameState, SystemId } from "./state";
 
 /**
@@ -17,10 +17,12 @@ import type { EmpireId, GameEvent, GameState, SystemId } from "./state";
  */
 export function resolveTurn(state: GameState, pack: ContentPack): void {
   const events: GameEvent[] = [];
+  wearOffBlight(state);
   resolveMovement(state, pack, events);
   resolveSupply(state, pack, events);
-  resolveMines(state, pack, events);
-  resolveCombat(state, pack, events);
+  const pinned = resolveMines(state, pack, events);
+  resolveCombat(state, pack, events, pinned);
+  resolveSatellites(state, pack, events);
   resolveOutpostRaids(state, pack, events);
   resolveBombardment(state, pack, events);
   resolveSabotage(state, pack, events);
@@ -65,6 +67,19 @@ function resolveMovement(state: GameState, pack: ContentPack, events: GameEvent[
   const fleets = state.fleets.slice().sort((a, b) => a.id - b.id);
   for (const fleet of fleets) {
     if (fleet.route.length === 0) continue;
+    if (fleet.warp) {
+      // A warp gate jump: there in one go if both gates still work, otherwise the fleet stays put.
+      const dest = fleet.route[0]!;
+      fleet.warp = false;
+      fleet.route = [];
+      if (warpGateAt(state, pack, fleet.empireId, fleet.systemId) && warpGateAt(state, pack, fleet.empireId, dest)) {
+        fleet.cameFrom = fleet.systemId;
+        fleet.systemId = dest;
+        markExplored(state, fleet.empireId, dest, events);
+        events.push({ type: "fleetArrived", turn: state.turn, empireId: fleet.empireId, fleetId: fleet.id, systemId: dest });
+      }
+      continue;
+    }
     // Cloaked fleets slip past guards.
     const cloaked = fleetStealthy(pack, state, fleet);
     let budget = fleet.speed;
@@ -76,6 +91,7 @@ function resolveMovement(state: GameState, pack: ContentPack, events: GameEvent[
         budget = 0;
       } else {
         budget -= remaining;
+        fleet.cameFrom = fleet.systemId;
         fleet.systemId = next;
         fleet.route.shift();
         fleet.progress = 0;
@@ -95,3 +111,14 @@ function resolveMovement(state: GameState, pack: ContentPack, events: GameEvent[
 
 
 
+
+/** Plague blight dies out a turn at a time. */
+function wearOffBlight(state: GameState): void {
+  for (const system of state.galaxy.systems) {
+    for (const body of system.bodies) {
+      if (body.blight === undefined) continue;
+      if (body.blight > 1) body.blight -= 1;
+      else delete body.blight;
+    }
+  }
+}
