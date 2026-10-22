@@ -224,6 +224,40 @@ describe("invasion", () => {
     expect(t.invadeColonyId).toBeNull();
   });
 
+  it("transports alone can take a colony with no guns, even with its defense hit points standing", () => {
+    let s = line();
+    const cap = enemyCapital(s);
+    cap.buildings = cap.buildings.filter((b) => b === "capitol");
+    cap.population = pack.combat.colonyPopPerGun - 1; // too small for planetary batteries
+    cap.defenseHp = 8;
+    cap.troops = 0;
+    const transports = newFleet(s, pack, s.empires[0]!, ["troop_transport", "troop_transport"], 4);
+    s.fleets.push(transports);
+    s = run(s, { type: "invade", empireId: 0, fleetId: transports.id, colonyId: cap.id }, end);
+    expect(s.colonies.find((c) => c.id === cap.id)!.empireId).toBe(0);
+  });
+
+  it("knocked-out defenses stay down while enemy transports sit in orbit", () => {
+    let s = besieged(1); // a frigate and a transport over a colony with its defenses down
+    s.fleets[0]!.ships = s.fleets[0]!.ships.filter((x) => x.designId !== "frigate"); // the warship leaves
+    s = run(s, end, end);
+    expect(enemyCapital(s).defenseHp).toBe(0);
+  });
+
+  it("says why troops in orbit can't land while the colony's guns stand", () => {
+    let s = line();
+    const cap = enemyCapital(s);
+    cap.buildings.push("defense_platform");
+    cap.defenseHp = 500; // too much to knock out this turn
+    const warship = newFleet(s, pack, s.empires[0]!, Array.from({ length: 6 }, () => "frigate"), 4);
+    warship.orders.retreatPercent = 100;
+    const transports = newFleet(s, pack, s.empires[0]!, ["troop_transport", "troop_transport"], 4);
+    s.fleets.push(warship, transports);
+    s = run(s, { type: "invade", empireId: 0, fleetId: transports.id, colonyId: cap.id }, end);
+    expect(s.colonies.find((c) => c.id === cap.id)!.empireId).toBe(1);
+    expect(s.lastTurnEvents).toContainEqual(expect.objectContaining({ type: "invasionWaiting", empireId: 0, reason: "defenses" }));
+  });
+
   it("moving cancels the order", () => {
     let s = besieged(2);
     const fleet = s.fleets[0]!;

@@ -65,6 +65,11 @@ export function fleetTroops(state: GameState, pack: ContentPack, fleet: Fleet): 
   return Math.floor((raw * (100 + empireEffects(pack, empire).groundPercent)) / 100);
 }
 
+/** Whether troops can land: the colony's orbital defenses are knocked out, or it has no guns to stop them. */
+export function defensesDown(state: GameState, pack: ContentPack, colony: Colony): boolean {
+  return colony.defenseHp <= 0 || colonyDefense(pack, state.empires[colony.empireId]!, colony).weapons.length === 0;
+}
+
 /** Rough combat strength of a colony's defenses, comparable with fleetStrength. */
 export function defenseStrength(pack: ContentPack, empire: Empire, colony: Colony): number {
   const d = colonyDefense(pack, empire, colony);
@@ -80,7 +85,9 @@ export function regenerateDefenses(state: GameState, pack: ContentPack): void {
     if (d.mines > 0) addMines(state, pack, colony.systemId, colony.empireId, Math.ceil(d.mines / 5), d.mines);
     if (colony.blockaded) continue; // no repairs under siege
     colony.militiaLosses = Math.max(0, colony.militiaLosses - pack.combat.militiaRegenPerTurn);
-    colony.defenseHp = Math.min(d.maxHp, colony.defenseHp + Math.ceil((d.maxHp * pack.combat.defenseRepairPercent) / 100));
+    // Knocked-out defenses stay down while enemy ships of any kind are in orbit (transports left alone, say).
+    const watched = state.fleets.some((f) => f.empireId !== colony.empireId && f.systemId === colony.systemId && f.progress === 0);
+    if (!(watched && colony.defenseHp <= 0)) colony.defenseHp = Math.min(d.maxHp, colony.defenseHp + Math.ceil((d.maxHp * pack.combat.defenseRepairPercent) / 100));
     colony.troops = Math.min(d.maxTroops, colony.troops + Math.ceil((d.maxTroops * pack.combat.garrisonRegenPercent) / 100));
   }
 }
@@ -142,16 +149,24 @@ export function resolveMines(state: GameState, pack: ContentPack, events: GameEv
 export function resolveInvasions(state: GameState, pack: ContentPack, events: GameEvent[]): void {
   const rng = new Rng(state.rngState);
   const landings = new Map<number, Fleet[]>();
+  const blocked = new Set<string>();
   for (const fleet of state.fleets.slice().sort((a, b) => a.id - b.id)) {
     const targetId = fleet.invadeColonyId;
     if (targetId === null) continue;
     const colony = state.colonies.find((c) => c.id === targetId);
-    const ready = colony && colony.empireId !== fleet.empireId && fleet.progress === 0 && fleet.systemId === colony.systemId && colony.defenseHp <= 0;
     if (!colony || colony.empireId === fleet.empireId) {
       fleet.invadeColonyId = null; // target gone or already ours
       continue;
     }
-    if (!ready || fleetTroops(state, pack, fleet) === 0) continue; // keep waiting
+    if (fleet.progress > 0 || fleet.systemId !== colony.systemId || fleetTroops(state, pack, fleet) === 0) continue; // keep waiting
+    if (!defensesDown(state, pack, colony)) {
+      // In orbit, but the colony's guns still stand: say so (once per colony and empire).
+      if (!blocked.has(`${colony.id}:${fleet.empireId}`)) {
+        blocked.add(`${colony.id}:${fleet.empireId}`);
+        events.push({ type: "invasionWaiting", turn: state.turn, empireId: fleet.empireId, colonyId: colony.id, systemId: colony.systemId, troops: 0, needed: 0, reason: "defenses" });
+      }
+      continue;
+    }
     landings.set(colony.id, [...(landings.get(colony.id) ?? []), fleet]);
   }
 
@@ -163,7 +178,7 @@ export function resolveInvasions(state: GameState, pack: ContentPack, events: Ga
     let defense = defendingTroops(state, pack, colony);
     const landing = chooseLanding(state, pack, attackers, defense);
     if (landing.ships.size === 0) {
-      events.push({ type: "invasionWaiting", turn: state.turn, empireId: attackerId, colonyId, systemId: colony.systemId, troops: landing.available, needed: landing.needed });
+      events.push({ type: "invasionWaiting", turn: state.turn, empireId: attackerId, colonyId, systemId: colony.systemId, troops: landing.available, needed: landing.needed, reason: "troops" });
       continue;
     }
     let attack = landing.troops;

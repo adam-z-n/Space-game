@@ -1,4 +1,5 @@
 import {
+  defensesDown,
   Game,
   MAX_AI,
   MIN_AI,
@@ -486,7 +487,9 @@ function startGame(game: Game): void {
           ? "The AI empires have united against you: you hold too much of the galaxy"
           : "The AI coalition against you has broken up";
       case "invasionWaiting":
-        return `Troops at ${colonyName(e.colonyId)} are waiting for more: ${e.troops} of ${e.needed} needed`;
+        return e.reason === "defenses"
+          ? `Troops at ${colonyName(e.colonyId)} can't land: its orbital defenses are up, and warships must knock them out`
+          : `Troops at ${colonyName(e.colonyId)} are waiting for more: ${e.troops} of ${e.needed} needed`;
       case "defensesDown":
         return `${colonyName(e.colonyId)}'s orbital defenses are down`;
       case "mineHits":
@@ -785,7 +788,12 @@ function startGame(game: Game): void {
         .filter((f) => f.empireId === game.playerId && f.invadeColonyId === pending.colonyId && f.systemId === real.systemId && f.progress === 0)
         .reduce((n, f) => n + fleetTroops(game.state, pack, f), 0);
       const needed = Math.ceil((pending.troops * margin) / 100);
-      const text = real.invadeAllOut
+      // In orbit the colony is in plain sight, so its real defenses can be shown.
+      const colonyNow = game.state.colonies.find((c) => c.id === pending.colonyId);
+      const guarded = real.progress === 0 && real.systemId === where && !!colonyNow && !defensesDown(game.state, pack, colonyNow);
+      const text = guarded
+        ? `Orbital defenses of ${pending.name} are up: warships must knock them out before the troops can land.`
+        : real.invadeAllOut
         ? `All-out: every troop ship lands on ${pending.name} once its orbital defenses are down (defenders ~${pending.troops}).`
         : `Will land the troops needed on ${pending.name} (~${needed} for ~${pending.troops} defenders) once its orbital defenses are down; spare transports stay in orbit.` +
           (real.progress === 0 && real.systemId === where && committed < needed ? ` Waiting: ${committed} of ~${needed} troops here.` : "");
@@ -1060,12 +1068,39 @@ function startGame(game: Game): void {
                         ? gameOverPanel(ctx)
                         : null;
     const overlays = [panel, contextMenu()].filter((x): x is HTMLElement => x !== null);
+    // Redrawing replaces every element; keep scrolled lists where they were while the same screen is open.
+    const screen = `${ui.panel}:${ui.colonyId}:${ui.selectedFleet}:${ui.selectedSystem}`;
+    const scrolled = screen === lastScreen ? scrollPositions(hud) : [];
     hud.replaceChildren(topBar(), bottomBar(), ...overlays);
+    restoreScroll(hud, scrolled);
+    lastScreen = screen;
   }
+  let lastScreen = "";
 
   update();
   const home = view.systems[game.state.empires[game.playerId]!.homeSystemId]!;
   map.centerOn(home.x, home.y);
+}
+
+/** Scroll offsets of every scrolled element under `root`, keyed by its child-index path. */
+function scrollPositions(root: Element): { path: number[]; top: number; left: number }[] {
+  const out: { path: number[]; top: number; left: number }[] = [];
+  const walk = (el: Element, path: number[]) => {
+    if (el.scrollTop > 0 || el.scrollLeft > 0) out.push({ path, top: el.scrollTop, left: el.scrollLeft });
+    Array.from(el.children).forEach((child, i) => walk(child, [...path, i]));
+  };
+  walk(root, []);
+  return out;
+}
+
+function restoreScroll(root: Element, positions: { path: number[]; top: number; left: number }[]): void {
+  for (const { path, top, left } of positions) {
+    let el: Element | undefined = root;
+    for (const i of path) el = el?.children[i];
+    if (!el) continue;
+    el.scrollTop = top;
+    el.scrollLeft = left;
+  }
 }
 
 void showSetup();

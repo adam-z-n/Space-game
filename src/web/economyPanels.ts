@@ -13,6 +13,8 @@ import {
   empireEconomy,
   techUnlocks,
   findColony,
+  findBody,
+  planetStats,
   empireScore,
   getDesign,
   getTech,
@@ -203,7 +205,7 @@ function workerControls(ctx: PanelContext, colony: Colony): HTMLElement {
   );
 }
 
-type PlanetSort = "name" | "food" | "industry" | "research" | "credits";
+type PlanetSort = "name" | "population" | "food" | "industry" | "research" | "credits";
 /** The planets screen's sort and expanded row survive re-renders (not saved). */
 const planetsView: { sort: PlanetSort; descending: boolean; open: ColonyId | null } = { sort: "industry", descending: true, open: null };
 
@@ -214,7 +216,7 @@ export function planetsPanel(ctx: PanelContext): HTMLElement {
     .filter((c) => c.empireId === game.playerId)
     .map((colony) => {
       const out = colonyOutput(game.state, pack, colony);
-      return { colony, out, values: { food: out.food, industry: out.industry, research: out.research, credits: out.credits - out.upkeep } };
+      return { colony, out, values: { population: colony.population, food: out.food, industry: out.industry, research: out.research, credits: out.credits - out.upkeep } };
     });
   const { sort, descending } = planetsView;
   rows.sort((a, b) => {
@@ -236,11 +238,12 @@ export function planetsPanel(ctx: PanelContext): HTMLElement {
   const list = h(
     "ul",
     { className: "planets" },
-    h("li", { className: "planets-row planets-heads" }, header("name", "Planet"), header("food", "Food"), header("industry", "Ind."), header("research", "Res."), header("credits", "Cr.")),
+    h("li", { className: "planets-row planets-heads" }, header("name", "Planet"), header("population", "Pop"), header("food", "Food"), header("industry", "Ind."), header("research", "Res."), header("credits", "Cr.")),
     h(
       "li",
       { className: "planets-row planets-total" },
       h("span", { textContent: `All ${rows.length}` }),
+      cell(sum("population")),
       cell(sum("food"), workerSum("farmers")),
       cell(sum("industry"), workerSum("industry")),
       cell(sum("research"), workerSum("research")),
@@ -252,7 +255,8 @@ export function planetsPanel(ctx: PanelContext): HTMLElement {
     const row = h(
       "li",
       { className: `planets-row tappable${open ? " open" : ""}` },
-      h("span", { className: "planets-name" }, h("span", { textContent: `${colony.capital ? "★ " : ""}${colony.name}` }), h("span", { className: "muted small", textContent: ` ${colony.population}/${out.maxPop}${colony.workers ? " · manual" : ""}` })),
+      h("span", { className: "planets-name" }, h("span", { textContent: `${colony.capital ? "★ " : ""}${colony.name}` }), colony.workers ? h("span", { className: "muted small", textContent: " · manual" }) : null),
+      h("span", { className: "planets-cell" }, h("span", { textContent: `${colony.population}` }), h("span", { className: "muted small", textContent: `/${out.maxPop}` })),
       cell(values.food, out.workers.farmers),
       cell(values.industry, out.workers.industry),
       cell(values.research, out.workers.research),
@@ -281,6 +285,23 @@ export function planetsPanel(ctx: PanelContext): HTMLElement {
     h("div", { className: "sub", textContent: "Output per turn (workers). Tap a heading to sort, a planet to place its workers." }),
     list,
   );
+}
+
+/** The planet under a colony: what it is and what it's good for (the colonization planner's view). */
+function planetLine(ctx: PanelContext, colony: Colony): HTMLElement | null {
+  const { game, pack } = ctx;
+  const body = findBody(game.state, colony.systemId, colony.bodyId);
+  if (!body) return null;
+  const stats = planetStats(pack, body);
+  const name = (list: { id: string; name: string }[], id?: string) => list.find((x) => x.id === id)?.name ?? "";
+  const parts = [
+    `${name(pack.planetSizes, body.size)} ${name(pack.planetTypes, body.planetType)}`.trim(),
+    `${name(pack.richness, body.richness)} minerals (${stats.yieldPercent}% industry)`,
+    `habitability ${stats.habitability}`,
+    stats.foodYield > 0 ? `food yield ${stats.foodYield}` : "no farming",
+    stats.groundDefense > 0 ? `+${stats.groundDefense}% ground defense` : null,
+  ].filter((x): x is string => !!x);
+  return h("div", { className: "muted small", textContent: parts.join(" · ") });
 }
 
 export function colonyPanel(ctx: PanelContext, colonyId: ColonyId): HTMLElement | null {
@@ -412,6 +433,7 @@ export function colonyPanel(ctx: PanelContext, colonyId: ColonyId): HTMLElement 
     { className: "sheet panel tall" },
     h("h2", {}, `${colony.capital ? "★ " : ""}${colony.name}`, closeButton(ctx)),
     h("div", { className: "sub", textContent: `Population ${colony.population}/${out.maxPop} · ${growthText}` }),
+    planetLine(ctx, colony),
     focus,
     workers,
     stats,

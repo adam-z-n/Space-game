@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.4.0 (in progress)
+
+Fixes and screens:
+
+- Screens keep their scroll position when something on them changes (moving workers on the Planets screen,
+  queueing builds, picking research...), so several changes in a row need no scrolling back.
+- The colony screen shows the planet itself: size and type, minerals, habitability, food yield and terrain defense.
+- The Planets screen has a population column, sortable like the others.
+- Fixed: troop ships in orbit could wait forever without landing. A colony with no guns can't stop a landing; a
+  colony's knocked-out defenses stay down while any enemy ship is in orbit; and when guns still stand, the turn
+  report and fleet sheet say that warships must knock them out first.
+
 ## 1.3.0
 
 Invasions:

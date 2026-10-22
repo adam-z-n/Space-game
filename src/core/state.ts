@@ -314,7 +314,17 @@ export type GameEvent =
   /** AI empires band together against the human players (active), or stand down (sent to every human). */
   | { type: "coalition"; turn: number; empireId: EmpireId; active: boolean }
   /** Troops in orbit fall short of what a safe landing needs; they wait (sent to the attacker only). */
-  | { type: "invasionWaiting"; turn: number; empireId: EmpireId; colonyId: ColonyId; systemId: SystemId; troops: number; needed: number }
+  | {
+      type: "invasionWaiting";
+      turn: number;
+      empireId: EmpireId;
+      colonyId: ColonyId;
+      systemId: SystemId;
+      troops: number;
+      needed: number;
+      /** troops: too few in orbit; defenses: its guns still stand (absent in older saves: troops). */
+      reason?: "troops" | "defenses";
+    }
   | { type: "defensesDown"; turn: number; empireId: EmpireId; colonyId: ColonyId; systemId: SystemId }
   /** Sent to both sides. */
   | { type: "bombarded"; turn: number; empireId: EmpireId; attackerId: EmpireId; colonyId: ColonyId; systemId: SystemId; populationLost: number; buildingLost: string | null }
