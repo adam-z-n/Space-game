@@ -7,6 +7,7 @@ import { DAMAGEABLE_KINDS, combatShipCount, designStats, fleetArmed, fleetStealt
 import type { BattleReport, BattleShot, Colony, Empire, EmpireId, Fleet, FleetId, GameEvent, GameState, Ship, SystemId } from "./state";
 import { colonyDefense, type ColonyDefense } from "./defense";
 import { outpostDefense, outpostName } from "./outposts";
+import { officerRank, promoteFlagship, releaseOfficer } from "./command";
 
 /**
  * Auto-resolved combat. A battle happens in any system holding ships of two
@@ -48,13 +49,34 @@ export function veteranBonus(pack: ContentPack, hullId: string, xp: number): num
   return rankOf(pack, xp) * (pack.hulls.find((h) => h.id === hullId)?.veteranBonus ?? 0);
 }
 
-/** The best command network alive in a fleet (0 without one). */
+/** The best command network alive in a fleet (0 without one, or if the ships aren't formed into a fleet). */
 function commandBonus(fleet: Fleet, combatants: Map<number, Combatant>): number {
+  if (!fleet.command) return 0;
   return fleet.ships.reduce((n, s) => Math.max(n, s.hp > 0 ? combatants.get(s.id)!.stats.command : 0), 0);
 }
 
-/** `pinnedByMines`: fleets that mass accelerator mines hit this turn, which can't withdraw from a battle. */
-export function resolveCombat(state: GameState, pack: ContentPack, events: GameEvent[], pinnedByMines: ReadonlySet<FleetId> = new Set()): void {
+/** A fleet's officer: rank bonus to accuracy and evasion, and the accuracy it still lacks from cohesion. */
+export function leadership(pack: ContentPack, fleet: Fleet): { bonus: number; drill: number } {
+  if (!fleet.command) return { bonus: 0, drill: 0 };
+  const rules = pack.combat.command;
+  const span = Math.max(1, 100 - rules.cohesionStart);
+  return {
+    bonus: officerRank(pack, fleet.command.officer.xp).bonus,
+    drill: Math.floor((rules.cohesionAccuracy * Math.max(0, 100 - fleet.command.cohesion)) / span),
+  };
+}
+
+/**
+ * `pinnedByMines`: fleets that mass accelerator mines hit this turn, which can't withdraw from a battle.
+ * `formedBefore` (see command.ts): fleets whose officers die in battle are taken off it, so the officer isn't lost twice.
+ */
+export function resolveCombat(
+  state: GameState,
+  pack: ContentPack,
+  events: GameEvent[],
+  pinnedByMines: ReadonlySet<FleetId> = new Set(),
+  formedBefore?: Map<number, unknown>,
+): void {
   const rng = new Rng(state.rngState);
   state.lastBattles = [];
   const bySystem = new Map<SystemId, Fleet[]>();
@@ -99,7 +121,7 @@ export function resolveCombat(state: GameState, pack: ContentPack, events: GameE
     const fleetTriggers = fleets.some((f) => f.orders.mission === "engage" && fleetArmed(pack, state, f));
     const guns = defended.filter((d) => d.defense.weapons.length > 0 && fleets.some((f) => f.empireId !== d.empireId));
     if (!fleetTriggers && guns.length === 0) continue;
-    fight(state, pack, rng, systemId, fleets, defended, events, pinnedByMines);
+    fight(state, pack, rng, systemId, fleets, defended, events, pinnedByMines, formedBefore);
   }
   state.rngState = rng.state;
   state.fleets = state.fleets.filter((f) => f.ships.length > 0);
@@ -126,6 +148,7 @@ function fight(
   defended: Station[],
   events: GameEvent[],
   pinnedByMines: ReadonlySet<FleetId>,
+  formedBefore?: Map<number, unknown>,
 ): void {
   const cfg = pack.combat;
   const combatants = new Map<number, Combatant>();
@@ -153,6 +176,7 @@ function fight(
       invadeAllOut: false,
       bombardColonyId: null,
       sabotage: null,
+      command: null,
     };
     stations.set(fleet.id, station);
     combatants.set(key, {
@@ -210,15 +234,16 @@ function fight(
   const active = () => fleets.filter((f) => !retreated.has(f.id) && f.ships.length > 0);
   const living = (list: Fleet[]) => list.flatMap((f) => f.ships.map((s) => combatants.get(s.id)!));
 
-  // Oversized fleets fight less well together; a command network lets a fleet run larger.
+  // Oversized groups fight less well together; a fleet in a naval command is limited by points instead.
   // Only warships count: support ships ride along free.
   const oversize = new Map(
     fleets.map((f) => {
-      if (stations.has(f.id)) return [f.id, 0];
-      const limit = cfg.fleetSizeLimit + (commandBonus(f, combatants) > 0 ? cfg.commandSizeBonus : 0);
-      return [f.id, Math.min(cfg.oversizePenaltyMax, Math.max(0, combatShipCount(pack, state, f) - limit) * cfg.oversizePenalty)];
+      if (stations.has(f.id) || f.command) return [f.id, 0];
+      return [f.id, Math.min(cfg.oversizePenaltyMax, Math.max(0, combatShipCount(pack, state, f) - cfg.fleetSizeLimit) * cfg.oversizePenalty)];
     }),
   );
+  // Empires whose holographic decoys hide which ship is the flagship.
+  const decoys = new Set(report.empires.filter((e) => hasFlag(pack, state.empires[e]!, "flagshipDecoys")));
   const tractor = new Set(report.empires.filter((e) => hasFlag(pack, state.empires[e]!, "tractorBeams")));
   const hitAndRun = new Set(report.empires.filter((e) => hasFlag(pack, state.empires[e]!, "hitAndRun")));
 
@@ -270,7 +295,7 @@ function fight(
         if (weapon.range < range) continue; // out of reach at this range
         if (weapon.ammo > 0 && ship.salvos >= weapon.ammo) continue; // magazines empty
         if (weapon.ammo > 0) launched = true;
-        const shot = fire(pack, rng, fleet, attacker, weapon, targets, pointDefense, command, oversize, shieldLoss);
+        const shot = fire(pack, rng, fleet, attacker, weapon, targets, pointDefense, command, oversize, shieldLoss, lead, decoys);
         shots.push(shot);
         // An area blast strikes every other ship of the target's fleet too.
         if (shot.effect === "area" && shot.damage > 0) {
@@ -296,6 +321,7 @@ function fight(
 
   // Battles open at long range; each round the more maneuverable side moves the range toward its liking.
   let range = 3;
+  let lead = new Map<FleetId, { bonus: number; drill: number }>();
   for (let round = 0; round < cfg.rounds; round++) {
     const fighting = active();
     const sides = [...new Set(fighting.map((f) => f.empireId))].sort((a, b) => a - b);
@@ -319,6 +345,8 @@ function fight(
     const pointDefense = new Map(fighting.map((f) => [f.id, f.ships.reduce((n, s) => n + combatants.get(s.id)!.stats.pointDefense, 0)]));
     // Command networks coordinate their whole fleet while the command ship lives.
     const command = new Map(fighting.map((f) => [f.id, commandBonus(f, combatants)]));
+    // Officers' ranks and fleets' cohesion, as they stand this round.
+    lead = new Map(fighting.map((f) => [f.id, leadership(pack, f)]));
     const shots: BattleShot[] = [];
     // Nanites keep eating the ships they hit, a few rounds more.
     for (const [shipId, swarm] of [...nanites].sort((a, b) => a[0] - b[0])) {
@@ -335,12 +363,30 @@ function fight(
     land(shots);
     for (const fleet of fighting) fleet.ships = fleet.ships.filter((s) => s.hp > 0);
 
+    // A fleet whose flagship went down loses its officer and breaks up, its ships falling back,
+    // unless Chain of Command puts the toughest ship left in charge.
+    const broken = new Set<FleetId>();
+    for (const fleet of fighting) {
+      if (stations.has(fleet.id) || !fleet.command || fleet.ships.length === 0) continue;
+      if (fleet.ships.some((s) => s.id === fleet.command!.flagshipId)) continue;
+      formedBefore?.delete(fleet.id);
+      if (promoteFlagship(state, pack, fleet, events)) continue;
+      events.push({ type: "flagshipLost", turn: state.turn, empireId: fleet.empireId, fleetId: fleet.id, systemId, officer: fleet.command.officer.name, heldTogether: false });
+      releaseOfficer(state, pack, fleet, true);
+      broken.add(fleet.id);
+    }
+
     const withdrew: FleetId[] = [];
     for (const fleet of active()) {
       const start = startHp.get(fleet.id)!;
       const now = fleet.ships.reduce((n, s) => n + s.hp, 0);
       const lostPercent = start > 0 ? Math.floor(((start - now) * 100) / start) : 0;
       if (stations.has(fleet.id)) continue; // defenses never withdraw
+      if (broken.has(fleet.id) && !pinned.has(fleet.id)) {
+        retreated.add(fleet.id);
+        withdrew.push(fleet.id);
+        continue;
+      }
       // Unarmed fleets (transports, supply ships...) hang back behind their own side's warships
       // while any of those are still fighting, instead of fleeing at the first shot.
       const screened = !armed(fleet) && active().some((f) => f.empireId === fleet.empireId && !stations.has(f.id) && f.orders.mission === "engage" && armed(f));
@@ -410,6 +456,11 @@ function fight(
     const enemiesHolding = survivors.some((f) => f.empireId !== empireId);
     const outcome = holding && !enemiesHolding ? "won" : !holding && enemiesHolding ? "lost" : !holding ? "lost" : "draw";
     events.push({ type: "battle", turn: state.turn, empireId, systemId, battleId: report.id, outcome });
+    // Officers who came through learn from it, more from a win.
+    for (const fleet of mine) {
+      if (!fleet.command || fleet.ships.length === 0 || stations.has(fleet.id)) continue;
+      fleet.command.officer.xp += cfg.command.officerXpPerBattle + (outcome === "won" ? cfg.command.officerXpPerWin : 0);
+    }
   }
   state.lastBattles.push(report);
 
@@ -455,15 +506,29 @@ function fire(
   command: Map<FleetId, number>,
   oversize: Map<FleetId, number>,
   shieldLoss: Map<number, number>,
+  lead: Map<FleetId, { bonus: number; drill: number }>,
+  decoys: ReadonlySet<EmpireId>,
 ): BattleShot {
   const cfg = pack.combat;
   // Phase torpedoes hunt like fighters, but nothing shoots them down.
   const fighters = weapon.special === "fighters" || weapon.special === "phase";
-  let target = rng.weighted(enemies, (e) => targetWeight(pack, fleet, e, fighters));
-  // Screens move in to take fire meant for the support ships behind them (fighters slip past).
-  if (!fighters && target.formation === "support") {
-    const screens = enemies.filter((e) => e.fleet.empireId === target.fleet.empireId && e.formation === "screen");
-    if (screens.length > 0 && rng.int(1, 100) <= cfg.screenInterceptPercent) target = rng.pick(screens);
+  // Flagship targeting: every shot goes for an enemy flagship while one is in the fight. Ships in the
+  // Screen formation may take the shot for it, and decoys may send it at the wrong ship.
+  const flagships = fleet.orders.targetPriority === "flagship" ? enemies.filter((e) => e.fleet.command?.flagshipId === e.ship.id) : [];
+  let target: Combatant;
+  if (flagships.length > 0) {
+    target = rng.pick(flagships);
+    const escorts = enemies.filter((e) => e.fleet.id === target.fleet.id && e !== target);
+    const screens = escorts.filter((e) => e.formation === "screen");
+    if (screens.length > 0 && rng.int(1, 100) <= cfg.command.flagshipScreenPercent) target = rng.pick(screens);
+    else if (escorts.length > 0 && decoys.has(target.fleet.empireId) && rng.int(1, 100) <= cfg.command.decoyPercent) target = rng.pick(escorts);
+  } else {
+    target = rng.weighted(enemies, (e) => targetWeight(pack, fleet, e, fighters));
+    // Screens move in to take fire meant for the support ships behind them (fighters slip past).
+    if (!fighters && target.formation === "support") {
+      const screens = enemies.filter((e) => e.fleet.empireId === target.fleet.empireId && e.formation === "screen");
+      if (screens.length > 0 && rng.int(1, 100) <= cfg.screenInterceptPercent) target = rng.pick(screens);
+    }
   }
   const guided = weapon.special === "missile" || weapon.special === "fighters";
   // Point defense anywhere in the target's fleet can shoot down missiles and fighters.
@@ -478,9 +543,11 @@ function fire(
     (target.formation === "support" ? cfg.supportEvasion : 0) +
     (guided ? target.stats.jamming : 0) +
     target.veteran +
-    Math.floor((command.get(target.fleet.id) ?? 0) / 2) -
+    Math.floor((command.get(target.fleet.id) ?? 0) / 2) +
+    (lead.get(target.fleet.id)?.bonus ?? 0) -
     (oversize.get(target.fleet.id) ?? 0);
-  const accuracy = weapon.accuracy + attacker.veteran + (command.get(fleet.id) ?? 0) - (oversize.get(fleet.id) ?? 0);
+  const own = lead.get(fleet.id);
+  const accuracy = weapon.accuracy + attacker.veteran + (command.get(fleet.id) ?? 0) + (own?.bonus ?? 0) - (own?.drill ?? 0) - (oversize.get(fleet.id) ?? 0);
   const chance = Math.max(5, accuracy - evasion);
   let damage = 0;
   const hit = rng.int(1, 100) <= chance;
@@ -584,7 +651,8 @@ function targetWeight(pack: ContentPack, attacker: Fleet, target: Combatant, fig
   const hunted = fighters && (target.formation === "support" || target.stats.role === "transport" || target.stats.role === "support");
   const base = pack.combat.formationWeight[target.formation] * (hunted ? pack.combat.fighterSupportWeight : 1);
   const priority = attacker.orders.targetPriority;
-  if (priority === "warships" && target.stats.armed) return base * 3;
+  // "flagship" with no flagship in reach (only groups) aims at warships.
+  if ((priority === "warships" || priority === "flagship") && target.stats.armed) return base * 3;
   if (priority === "transports" && (target.stats.role === "transport" || target.stats.role === "support")) return base * 3;
   return base;
 }

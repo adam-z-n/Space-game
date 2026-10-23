@@ -1,4 +1,4 @@
-import { attentionItems, fleetShipStats, fleetTroops, type Game } from "../core";
+import { attentionItems, fleetHasWarships, fleetShipStats, fleetTroops, type Game } from "../core";
 import { button, h } from "./dom";
 
 /**
@@ -19,7 +19,7 @@ export const HELP_TOPICS: HelpTopic[] = [
     title: "Getting started",
     paragraphs: [
       "You lead one empire among several in a galaxy of star systems joined by lanes. Each turn you give orders, then tap End turn: everyone's orders resolve at once, and the turn report says what happened.",
-      "You start with a capital, a scout, two frigates and a colony ship. A good opening: pick a research project, send the scout exploring, and send the colony ship to the best planet nearby.",
+      "You start with a capital, a scout, a fleet of two destroyers and a colony ship. A good opening: pick a research project, send the scout exploring, and send the colony ship to the best planet nearby.",
       "The yellow \"to do\" button walks you through anything waiting for a decision: research to pick, colonies with nothing to build, and fleets without orders.",
     ],
   },
@@ -70,6 +70,16 @@ export const HELP_TOPICS: HelpTopic[] = [
     ],
   },
   {
+    id: "fleets",
+    title: "Fleets and naval commands",
+    paragraphs: [
+      "Ships move about in groups, but only a fleet can attack: enter a system with known enemies, invade, bomb or sabotage. Groups can always move between your own colonies and outposts, and defend them. Cloaked escorts or destroyers carrying commandos are the exception: they can sneak in and sabotage on their own.",
+      "Fleets form at the home of a naval command (⚑ on the map). You start with one at your capital and gain one per 5 colonies, placed at a colony you choose. Each command has points shared by its fleets (escort 1, destroyer 2, cruiser 4, battleship 8, dreadnought 12, support ships 1), more with population and research, and one officer per fleet.",
+      "A fleet commits to its course: it can't turn round in flight, and once stopped away from your colonies and outposts it can only head back to one, until you research Subspace Command. Plan the strike before you send it.",
+      "Each fleet has a flagship and an officer. Lose the flagship and the officer dies with it, the fleet breaks up and falls back, and a new officer takes 5 turns. A new fleet starts at 50% cohesion and drills 10% a turn; officers gain ranks from battles. Ships in the Screen formation protect the flagship from enemies who target flagships.",
+    ],
+  },
+  {
     id: "combat",
     title: "Combat and retreat",
     paragraphs: [
@@ -100,6 +110,7 @@ export const HELP_TOPICS: HelpTopic[] = [
     title: "Outposts, special operations and gates",
     paragraphs: [
       "Outpost ships build combat outposts (guns and sensors) or mining outposts (credits) on asteroid fields and gas giants. A combat outpost can become a supply depot.",
+      "Weapons research unlocks upgrade marks (I to V) for combat outposts and depots: more hit points and guns, for credits. An outpost can be upgraded only while its way home to one of your colonies is clear of known enemies.",
       "Commando ships sabotage a rival colony's defenses, garrison or buildings; cloaked ships are hard to see and slip past blockades.",
       "Warp gates (late research) let a fleet jump between two of your gated colonies in one turn.",
     ],
@@ -167,6 +178,18 @@ const TIPS: Tip[] = [
     topic: "supply",
     text: "A fleet is running low on supply. Bring it back to a colony or depot soon, or send a supply ship with it.",
     when: (game) => own(game).some((f) => f.supply > 0 && f.supply <= 2),
+  },
+  {
+    id: "fleetsOnly",
+    topic: "fleets",
+    text: "Only fleets can attack. Your two destroyers start as a fleet; other warships are groups until you form them into a fleet at a naval command (⚑). Select a group there and tap Form fleet.",
+    when: (game) => game.state.turn >= 3 && own(game).some((f) => !f.command && fleetHasWarships(game.pack, game.state, f)),
+  },
+  {
+    id: "newCommand",
+    topic: "fleets",
+    text: "You can base a new naval command. Tap the \"to do\" button to choose the colony where its fleets will form.",
+    when: (game) => attentionItems(game.state, game.pack, game.playerId).some((a) => a.type === "placeCommand"),
   },
   {
     id: "troops",

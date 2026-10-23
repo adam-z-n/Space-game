@@ -1,5 +1,5 @@
 import type { ContentPack, DesignData } from "../content/schema";
-import { findPath, laneLength } from "./graph";
+import { findPath, laneLength, type Neighbor } from "./graph";
 import { knownAdjacency } from "./vision";
 import {
   FOCUSES,
@@ -29,12 +29,38 @@ import {
   type QueueItem,
   type SystemId,
 } from "./state";
-import { buildBlocker, buyCost, colonizeBlocker, empireEffects, findBody, itemCost, newColony, techAvailable } from "./economy";
+import { buildBlocker, buyCost, colonizeBlocker, empireEffects, findBody, hasFlag, itemCost, newColony, techAvailable } from "./economy";
 import { designBlocker, designStats, fleetCanColonize, fleetMaxSupply, fleetShipStats, getDesign, refreshFleetStats, settlerIndex } from "./ships";
 import { fleetMaxStores, suppliedSystems, warpGateAt } from "./supply";
 import { outpostBlocker, outpostDefense, outpostTechOk } from "./outposts";
 import { colonyDefense, fleetTroops } from "./defense";
 import { resolveTurn } from "./turn";
+import {
+  adjacencyAvoiding,
+  commandAt,
+  commandCapacity,
+  commandReady,
+  commandRules,
+  commandUsed,
+  findCommand,
+  fleetHasWarships,
+  fleetOrderBlocker,
+  fleetPoints,
+  freeOfficers,
+  infiltratorGroup,
+  hasColonyIn,
+  isCommandPost,
+  knownHostileSystems,
+  markTechs,
+  newCommand,
+  outpostPathBlocker,
+  releaseOfficer,
+  shipArmed,
+  supportedCommands,
+  takeOfficer,
+} from "./command";
+
+const NEEDS_COMMAND = "only a fleet in a naval command can attack: form one where a command is based";
 
 /** Most ships one queue entry can batch. */
 export const MAX_BATCH = 10;
@@ -83,6 +109,19 @@ export type Command =
   | { type: "upgradeOutpost"; empireId: EmpireId; outpostId: number }
   /** Send a fleet's commandos against a known rival colony in (or on the way to) its system; null cancels. */
   | { type: "sabotage"; empireId: EmpireId; fleetId: FleetId; colonyId: ColonyId | null; mission: SabotageMission }
+  /** Pay credits to raise a combat outpost or depot to its next mark (needs weapons research and a clear way home). */
+  | { type: "upgradeOutpostMark"; empireId: EmpireId; outpostId: number }
+  /**
+   * Base a naval command at a system with one of your colonies: a new command when you can support one
+   * more (commandId null), or a displaced command moved to a new home.
+   */
+  | { type: "placeCommand"; empireId: EmpireId; commandId: number | null; systemId: SystemId }
+  /** Form a group into a fleet under the command based in its system, led by `flagshipId` (an armed ship). */
+  | { type: "formFleet"; empireId: EmpireId; fleetId: FleetId; flagshipId: ShipId }
+  /** Turn a fleet back into a group; its officer returns to the command's reserve. */
+  | { type: "dissolveFleet"; empireId: EmpireId; fleetId: FleetId }
+  /** Hand a fleet's command to another of its armed ships (at a colony or outpost, or anywhere with Subspace Command). */
+  | { type: "setFlagship"; empireId: EmpireId; fleetId: FleetId; shipId: ShipId }
   /** Scrap a fleet to stop paying its upkeep. Inside supply, part of its build cost comes back as credits. */
   | { type: "disbandFleet"; empireId: EmpireId; fleetId: FleetId }
   /** Demolish a building for part of its cost back; its upkeep stops. */
@@ -109,13 +148,35 @@ export interface RoutePlan {
   turns: number;
 }
 
-/** Work out a fleet's route to a destination, choosing whether to continue or turn back if mid-lane. */
-export function planMove(state: GameState, fleetId: FleetId, destinationId: SystemId, pack: ContentPack): RoutePlan | string {
+/**
+ * Work out a fleet's route to a destination, choosing whether to continue or turn back if mid-lane,
+ * under the command rules: a fleet in a naval command may be committed to its course, and an armed
+ * group can't enter systems with known enemies except to reach one of its own colonies or outposts.
+ */
+export function planMove(state: GameState, fleetId: FleetId, destinationId: SystemId, pack: ContentPack, knownHostile?: Set<SystemId>): RoutePlan | string {
   const fleet = findFleet(state, fleetId);
   if (!fleet) return `no fleet ${fleetId}`;
   if (!state.galaxy.systems[destinationId]) return `no system ${destinationId}`;
   // Fleets can only plan routes along lanes on their empire's star charts.
   const adj = knownAdjacency(state, fleet.empireId);
+  const blocked = fleetOrderBlocker(state, pack, fleet, destinationId);
+  if (blocked) return blocked;
+  if (fleet.command || !fleetHasWarships(pack, state, fleet) || infiltratorGroup(pack, state, fleet)) return planRoute(state, fleet, destinationId, pack, adj);
+
+  const hostile = knownHostile ?? knownHostileSystems(state, pack, fleet.empireId);
+  const home = isCommandPost(state, fleet.empireId, destinationId);
+  if (hostile.has(destinationId) && !home && destinationId !== fleet.systemId) return "only a fleet in a naval command can enter a system with known enemies";
+  const avoid = new Set([...hostile].filter((s) => !isCommandPost(state, fleet.empireId, s)));
+  avoid.delete(fleet.systemId);
+  if (fleet.route.length > 0) avoid.delete(fleet.route[0]!);
+  const safe = planRoute(state, fleet, destinationId, pack, adjacencyAvoiding(adj, avoid, destinationId));
+  if (typeof safe !== "string") return safe;
+  // Home ground: a group may pass through enemies to reach its own colonies and outposts when there is no other way.
+  if (home) return planRoute(state, fleet, destinationId, pack, adj);
+  return planRoute(state, fleet, destinationId, pack, adj) === "destination unreachable" ? "destination unreachable" : "enemies block the way: only a fleet in a naval command can pass";
+}
+
+function planRoute(state: GameState, fleet: Fleet, destinationId: SystemId, pack: ContentPack, adj: Neighbor[][]): RoutePlan | string {
   const plan = (systemId: SystemId, route: SystemId[], progress: number, distance: number): RoutePlan => ({
     systemId,
     route,
@@ -221,6 +282,13 @@ export function validateCommand(state: GameState, command: Command, pack: Conten
       if (typeof into === "string") return into;
       if (from.id === into.id) return "same fleet";
       if (isInTransit(from) || isInTransit(into) || from.systemId !== into.systemId) return "fleets must be stopped in the same system";
+      if (from.command && !into.command) return "merge the group into the fleet instead";
+      if (into.command) {
+        const empire = state.empires[command.empireId]!;
+        const target = findCommand(empire, into.command.commandId)!;
+        const adding = from.command?.commandId === target.id ? 0 : fleetPoints(pack, state, from);
+        if (commandUsed(state, pack, empire, target) + adding > commandCapacity(state, pack, empire, target)) return `not enough points in ${target.name}`;
+      }
       return null;
     }
     case "splitFleet": {
@@ -231,6 +299,7 @@ export function validateCommand(state: GameState, command: Command, pack: Conten
       if (ids.size === 0 || ids.size !== command.shipIds.length) return "pick ships to detach";
       if (![...ids].every((id) => fleet.ships.some((s) => s.id === id))) return "ship not in fleet";
       if (ids.size === fleet.ships.length) return "can't detach every ship";
+      if (fleet.command && ids.has(fleet.command.flagshipId)) return "the flagship can't be detached: pick another flagship first";
       return null;
     }
     case "setFleetOrders": {
@@ -239,6 +308,7 @@ export function validateCommand(state: GameState, command: Command, pack: Conten
       const o = command.orders;
       if (!MISSIONS.includes(o.mission) || !STANCES.includes(o.stance) || !TARGET_PRIORITIES.includes(o.targetPriority)) return "invalid orders";
       if (!Number.isInteger(o.retreatPercent) || o.retreatPercent < 0 || o.retreatPercent > 100) return "retreat threshold must be 0-100";
+      if (o.targetPriority === "flagship" && !hasFlag(pack, state.empires[command.empireId]!, "flagshipTargeting")) return "targeting flagships needs Command Ship Analysis";
       return null;
     }
     case "renameFleet": {
@@ -283,6 +353,7 @@ export function validateCommand(state: GameState, command: Command, pack: Conten
       if (typeof fleet === "string") return fleet;
       if (command.colonyId === null) return null;
       if (fleetTroops(state, pack, fleet) === 0) return "fleet carries no troops";
+      if (!fleet.command) return NEEDS_COMMAND;
       // Only colonies the empire knows about can be targeted (no peeking through fog).
       const known = state.empires[command.empireId]!.colonySightings.find((c) => c.colonyId === command.colonyId);
       if (!known) return "no known rival colony there";
@@ -295,6 +366,7 @@ export function validateCommand(state: GameState, command: Command, pack: Conten
       if (typeof fleet === "string") return fleet;
       if (command.colonyId === null) return null;
       if (!fleetShipStats(pack, state, fleet).some((s) => s.bombard > 0)) return "fleet has no bomb bays";
+      if (!fleet.command) return NEEDS_COMMAND;
       const known = state.empires[command.empireId]!.colonySightings.find((c) => c.colonyId === command.colonyId);
       if (!known) return "no known rival colony there";
       const destination = fleet.route.length > 0 ? fleet.route[fleet.route.length - 1] : fleet.systemId;
@@ -325,10 +397,72 @@ export function validateCommand(state: GameState, command: Command, pack: Conten
       if (command.colonyId === null) return null;
       if (!SABOTAGE_MISSIONS.includes(command.mission)) return `unknown mission ${command.mission}`;
       if (!fleetShipStats(pack, state, fleet).some((s) => s.commandos > 0)) return "fleet carries no commandos";
+      if (!fleet.command && !infiltratorGroup(pack, state, fleet)) return NEEDS_COMMAND;
       const known = state.empires[command.empireId]!.colonySightings.find((c) => c.colonyId === command.colonyId);
       if (!known) return "no known rival colony there";
       const destination = fleet.route.length > 0 ? fleet.route[fleet.route.length - 1] : fleet.systemId;
       if (destination !== known.systemId) return "fleet must be at or heading for that system";
+      return null;
+    }
+    case "upgradeOutpostMark": {
+      const outpost = state.outposts.find((o) => o.id === command.outpostId);
+      if (!outpost || outpost.empireId !== command.empireId) return "no such outpost";
+      if (outpost.kind !== "combat") return "only combat outposts and depots can be upgraded";
+      const mark = pack.outposts.marks[outpost.mark];
+      if (!mark) return "already at the highest mark";
+      const empire = state.empires[command.empireId]!;
+      const known = markTechs(pack, empire);
+      if (known < mark.weaponsTechs) return `needs ${mark.weaponsTechs} weapons techs (you have ${known})`;
+      if (empire.credits < mark.cost) return "not enough credits";
+      return outpostPathBlocker(state, pack, command.empireId, outpost.systemId);
+    }
+    case "placeCommand": {
+      const empire = state.empires[command.empireId];
+      if (!empire) return "no such empire";
+      if (!state.galaxy.systems[command.systemId]) return `no system ${command.systemId}`;
+      if (command.commandId === null && empire.navalCommands.length >= supportedCommands(state, pack, empire.id)) {
+        return `you need ${commandRules(pack).coloniesPerCommand} more colonies for another command`;
+      }
+      if (!hasColonyIn(state, empire.id, command.systemId)) return "a command must be based at one of your colonies";
+      if (commandAt(empire, command.systemId)) return "another command is based there";
+      if (command.commandId === null) return null;
+      const moving = findCommand(empire, command.commandId);
+      if (!moving) return "no such command";
+      return moving.homeSystemId === null ? null : "only a command that lost its home can be moved";
+    }
+    case "formFleet": {
+      const fleet = ownFleet(state, command.empireId, command.fleetId);
+      if (typeof fleet === "string") return fleet;
+      if (fleet.command) return "already a fleet";
+      if (isInTransit(fleet)) return "fleet is between systems";
+      const empire = state.empires[command.empireId]!;
+      const base = commandAt(empire, fleet.systemId);
+      if (!base) return "fleets form only where a naval command is based";
+      if (!commandReady(state, base)) return `${base.name} is still setting up`;
+      if (freeOfficers(state, pack, empire, base) <= 0) return `${base.name} has no free officer`;
+      const flagship = fleet.ships.find((s) => s.id === command.flagshipId);
+      if (!flagship) return "ship not in fleet";
+      if (!shipArmed(pack, empire, flagship)) return "the flagship must be an armed ship";
+      if (commandUsed(state, pack, empire, base) + fleetPoints(pack, state, fleet) > commandCapacity(state, pack, empire, base)) return `not enough points in ${base.name}`;
+      return null;
+    }
+    case "dissolveFleet": {
+      const fleet = ownFleet(state, command.empireId, command.fleetId);
+      if (typeof fleet === "string") return fleet;
+      return fleet.command ? null : "not a fleet";
+    }
+    case "setFlagship": {
+      const fleet = ownFleet(state, command.empireId, command.fleetId);
+      if (typeof fleet === "string") return fleet;
+      if (!fleet.command) return "not a fleet";
+      const empire = state.empires[command.empireId]!;
+      const ship = fleet.ships.find((s) => s.id === command.shipId);
+      if (!ship) return "ship not in fleet";
+      if (ship.id === fleet.command.flagshipId) return "already the flagship";
+      if (!shipArmed(pack, empire, ship)) return "the flagship must be an armed ship";
+      if (isInTransit(fleet) || (!isCommandPost(state, fleet.empireId, fleet.systemId) && !hasFlag(pack, empire, "subspaceCommand"))) {
+        return "change flagships at one of your colonies or outposts (Subspace Command lifts this)";
+      }
       return null;
     }
     case "endTurn":
@@ -404,6 +538,11 @@ export function applyCommand(state: GameState, command: Command, pack: ContentPa
     case "mergeFleets": {
       const from = findFleet(next, command.fleetId)!;
       const into = findFleet(next, command.intoFleetId)!;
+      releaseOfficer(next, pack, from, false);
+      if (into.command) {
+        const rules = commandRules(pack);
+        into.command.cohesion = Math.max(Math.min(into.command.cohesion, rules.cohesionStart), into.command.cohesion - rules.cohesionPerShip * from.ships.length);
+      }
       // Merged fleets carry the lower supply of the two, capped at the new maximum.
       into.ships.push(...from.ships);
       into.supply = Math.min(into.supply, from.supply, fleetMaxSupply(pack, next, into));
@@ -429,6 +568,11 @@ export function applyCommand(state: GameState, command: Command, pack: ContentPa
         route: [],
         holding: false,
         orders: { ...fleet.orders },
+        command: null,
+        invadeColonyId: null,
+        invadeAllOut: false,
+        bombardColonyId: null,
+        sabotage: null,
       };
       created.supply = Math.min(fleet.supply, fleetMaxSupply(pack, next, created));
       fleet.supply = Math.min(fleet.supply, fleetMaxSupply(pack, next, fleet));
@@ -459,6 +603,7 @@ export function applyCommand(state: GameState, command: Command, pack: ContentPa
       break;
     }
     case "disbandFleet":
+      releaseOfficer(next, pack, findFleet(next, command.fleetId)!, false);
       next.empires[command.empireId]!.credits += scrapValue(next, pack, findFleet(next, command.fleetId)!);
       next.fleets = next.fleets.filter((f) => f.id !== command.fleetId);
       break;
@@ -493,7 +638,7 @@ export function applyCommand(state: GameState, command: Command, pack: ContentPa
     case "buildOutpost": {
       const fleet = findFleet(next, command.fleetId)!;
       const empire = next.empires[command.empireId]!;
-      const outpost: Outpost = { id: next.nextId++, empireId: empire.id, systemId: fleet.systemId, bodyId: command.bodyId, kind: command.kind, depot: false, defenseHp: 0 };
+      const outpost: Outpost = { id: next.nextId++, empireId: empire.id, systemId: fleet.systemId, bodyId: command.bodyId, kind: command.kind, depot: false, mark: 0, defenseHp: 0 };
       outpost.defenseHp = outpostDefense(pack, empire, outpost).maxHp;
       next.outposts.push(outpost);
       // The first outpost ship in the fleet is used up.
@@ -508,6 +653,51 @@ export function applyCommand(state: GameState, command: Command, pack: ContentPa
       const outpost = next.outposts.find((o) => o.id === command.outpostId)!;
       outpost.depot = true;
       next.empires[command.empireId]!.credits -= pack.outposts.depot.cost;
+      break;
+    }
+    case "upgradeOutpostMark": {
+      const outpost = next.outposts.find((o) => o.id === command.outpostId)!;
+      const empire = next.empires[command.empireId]!;
+      empire.credits -= pack.outposts.marks[outpost.mark]!.cost;
+      // The new mark's extra hit points come ready; damage already taken stays.
+      const before = outpostDefense(pack, empire, outpost).maxHp;
+      outpost.mark += 1;
+      outpost.defenseHp += outpostDefense(pack, empire, outpost).maxHp - before;
+      break;
+    }
+    case "placeCommand": {
+      const empire = next.empires[command.empireId]!;
+      const rules = commandRules(pack);
+      if (command.commandId === null) newCommand(next, empire, command.systemId, next.turn + rules.newCommandTurns);
+      else {
+        const moving = findCommand(empire, command.commandId)!;
+        moving.homeSystemId = command.systemId;
+        moving.readyTurn = next.turn + rules.relocateTurns;
+      }
+      break;
+    }
+    case "formFleet": {
+      const fleet = findFleet(next, command.fleetId)!;
+      const empire = next.empires[command.empireId]!;
+      const base = commandAt(empire, fleet.systemId)!;
+      fleet.command = { commandId: base.id, officer: takeOfficer(next, pack, base), flagshipId: command.flagshipId, cohesion: commandRules(pack).cohesionStart };
+      fleet.holding = false;
+      break;
+    }
+    case "dissolveFleet": {
+      const fleet = findFleet(next, command.fleetId)!;
+      releaseOfficer(next, pack, fleet, false);
+      // A group can't attack: attack orders lapse with the command.
+      fleet.invadeColonyId = null;
+      fleet.invadeAllOut = false;
+      fleet.bombardColonyId = null;
+      fleet.sabotage = null;
+      break;
+    }
+    case "setFlagship": {
+      const fleet = findFleet(next, command.fleetId)!;
+      fleet.command!.flagshipId = command.shipId;
+      fleet.command!.cohesion = Math.max(0, fleet.command!.cohesion - commandRules(pack).cohesionFlagship);
       break;
     }
     case "sabotage":

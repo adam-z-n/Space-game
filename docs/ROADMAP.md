@@ -13,8 +13,10 @@ habitats, warp gates, nine new weapons and in-game help; the rest waits here.
   naval command may attack (enter systems with known enemy fleets or colonies, invade, bombard, sabotage).
   Empires start with one command and gain one per 5 colonies; each command holds a number of points (escort 1,
   frigate 2, freighter 1, cruiser 4, battleship 8, dreadnought 12), starting at 12 and growing with population and
-  two techs. Fleets can't change course in transit until a Subspace Command tech. Open questions: whether a fleet
-  stopped away from a colony or outpost can take new orders, and whether support ships use command points.
+  two techs. Fleets can't change course in transit until a Subspace Command tech. Answered: a fleet stopped away from a
+  colony or outpost takes new orders only with Subspace Command; support ships cost 1 point each. Later requests: officers per
+  command, flagship targeting, officer experience, cohesion, Chain of Command, command home systems, and outpost
+  marks unlocked by weapons research. Approved design: `docs/FLEET_COMMAND.md`.
 
 ## Future versions (requested)
 
@@ -38,7 +40,9 @@ habitats, warp gates, nine new weapons and in-game help; the rest waits here.
 
 ## Other candidates noted along the way
 
-- AI tuning: the warlord and turtle personalities rarely win; expansionists win most.
+- AI tuning: the warlord and turtle personalities rarely win; expansionists win most. 1.5's command rules halved
+  conquest in all-AI games and hit raiders and warlords hardest; ideas: strikes launched from several commands at
+  once, using spare officers for second fleets, and longer campaigns (pushing on to the next target).
 - Teach the AI the remaining 1.1 tools: minelayers and cloaked raiding (1.3 taught it bombardment, commando raids
   and supply depots).
 - AI debt in collapsing empires: an empire losing colonies to conquest keeps its fleet and runs deep into debt
@@ -47,6 +51,9 @@ habitats, warp gates, nine new weapons and in-game help; the rest waits here.
   away from the carrier).
 - AI use of the 1.4 weapons beyond picking its best gun: graviton lances to stop retreats, EMP and ion cannons in
   mixed designs, hunter-killer satellites at border colonies, planet crackers.
+- Fleet command ideas not taken up in 1.5: escape pods (officer survives losing the flagship half the time),
+  command relays (a depot upgrade that counts as a command post), doctrines per command (Assault, Defensive, Rapid,
+  Siege), officer traits (the full Admirals idea), patrol orders for groups, officer upkeep, battle honors.
 - Mothballing fleets: lower upkeep while docked, slow to reactivate.
 - Mobile app builds (Capacitor for iOS and Android), performance, and polish.
 - Update the GitHub Actions workflows to action versions that run on Node.js 24 (checkout, setup-node,

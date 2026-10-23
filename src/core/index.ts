@@ -17,3 +17,4 @@ export * from "./combat";
 export * from "./victory";
 export * from "./defense";
 export * from "./outposts";
+export * from "./command";

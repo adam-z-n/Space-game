@@ -1,5 +1,62 @@
 # Changelog
 
+## 1.5.0
+
+The fleet command overhaul (design: `docs/FLEET_COMMAND.md`). All five parts are built (rules, combat, AI, screens, balance checks):
+
+- Ships move about in groups; only a fleet, formed under a naval command with an officer and an armed flagship,
+  may enter systems with known enemies, invade, bomb or sabotage. Infiltrators are the exception: groups of cloaked
+  escorts or destroyers carrying commandos sneak in and sabotage on their own. Armed groups halt before systems that turn
+  hostile, but can always go to your own colonies and outposts.
+- Naval commands: one at your capital, one more per 5 colonies, each based at a colony you choose; fleets form only
+  there. A command that loses its home is moved (if you can still support it) or lost. Each command has 12 points
+  plus 1 per 10 population, shared by its fleets (escort 1, destroyer 2, cruiser 4, battleship 8, dreadnought 12,
+  unarmed ships 1), and one officer.
+- Fleets commit to their course; away from your colonies and outposts they can only head back to one.
+- Losing a flagship breaks the fleet up and costs its officer; a replacement comes in 5 turns. Officers keep their
+  experience in reserve. New fleets start at 50% cohesion and gain 10% a turn.
+- In battle, a fleet whose flagship is destroyed breaks up at the end of that round and its ships fall back (with
+  Chain of Command it holds together under its toughest ship and a field-promoted officer).
+- Officers earn experience (2 per battle, 2 more for a win): Veteran, Seasoned and Legendary give their fleet
+  +3/+6/+9% accuracy and evasion. A fleet below full cohesion is up to 10% less accurate.
+- Command Ship Analysis unlocks the Flagship target priority: every shot goes for an enemy flagship. Ships in the
+  Screen formation take 30% of those shots for it, and Holographic Decoys send half of them at the wrong ship.
+- Command networks work only in fleets formed under a command (and add 6 points as a flagship). The size penalty
+  now applies only to groups of more than 8 warships; fleets are limited by points instead.
+- Outpost and depot marks I-V, unlocked by 3, 5, 8, 11 and 13 weapons techs, bought with credits when the outpost
+  has a clear way home.
+- Seven new techs: Naval Staff College, Officer Academy, Command Ship Analysis, Subspace Command, Fleet Admiralty,
+  Combined Fleet Doctrine, Chain of Command.
+- The AI places commands facing its war target (and moves displaced ones), forms its strike fleet at the command
+  home nearest the target as soon as warships gather there, fills it up to the command's points (leaving extra
+  ships behind as a group), and launches once cohesion is back to 80%. Troops and commandos ride inside fleets;
+  cloaked infiltrators still go ahead alone. Stranded fleets head for the nearest colony or outpost, and groups
+  regroup at the nearest command home.
+- The AI researches the command techs (warlike temperaments most), aims at flagships with fleets that outgun what
+  it has seen once it has Command Ship Analysis, builds one warship in three as a Screen-formation Guard twin from
+  then on, and buys outpost marks for its frontier outposts when it has credits to spare.
+- Screens:
+  - The fleet sheet shows a fleet's officer, rank, command, flagship, cohesion and points, with Dissolve and
+    flagship buttons. A group's sheet explains what it can't do and offers Form fleet at a command's home, or
+    says why not.
+  - A destination a fleet can't go to explains why, and such systems are dimmed on the map while it is selected.
+  - Command homes carry a ⚑ on the map and fleets fly a pennant.
+  - The Fleets screen lists each command's officers, points and next officer. When a command can be based or must
+    be moved, the "to do" button offers it and circles the colonies to choose from.
+  - The system sheet shows outpost marks with the next upgrade's cost (or what it needs).
+  - "Join fleet" merges a group into a fleet.
+  - How to play has a Fleets and naval commands topic, and two new first-game tips.
+- The ship designer lists parts by category (beam weapons, missiles and torpedoes, guns, special weapons,
+  fighters, bombs, armor, shields, engines, sensors and electronics, support), one category open at a time.
+- Saves move to state version 18.
+- Balance (all-AI sims against 1.4, same seeds: 60 small games of 150 turns, 20 medium games of 200 turns):
+  - Conquest roughly halves: invasions 5.4 → 2.5 per small game and 11.5 → 4.8 per medium game. Ships lost in
+    battle fall by about a third.
+  - Expansionists win more often (small 45% → 57%, medium 60% → 70%); raiders and warlords win less.
+  - Win rates by race move within the noise of these samples; no race stands out.
+  - No AI orders are rejected. Raising command points (1 per 5 population), two officers per command, or launching
+    at 60% cohesion each changed invasions by under 1 per game: the drop comes from the rules themselves.
+
 ## 1.4.0
 
 Fixes and screens:

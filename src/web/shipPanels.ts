@@ -16,6 +16,7 @@ import {
   veteranBonus,
   fleetShipStats,
   fleetStrength,
+  hasFlag,
   getComponent,
   getDesign,
   getHull,
@@ -139,6 +140,50 @@ export function startDraft(pack: ContentPack, empire: Empire, base?: ShipDesign)
   };
 }
 
+/** Component categories for the designer's parts list, in display order. */
+const PART_CATEGORIES = [
+  { id: "beams", name: "Beam weapons" },
+  { id: "missiles", name: "Missiles and torpedoes" },
+  { id: "guns", name: "Mass drivers and guns" },
+  { id: "special", name: "Special weapons" },
+  { id: "fighters", name: "Fighters and drones" },
+  { id: "bombs", name: "Bombs" },
+  { id: "armor", name: "Armor" },
+  { id: "shields", name: "Shields" },
+  { id: "engines", name: "Engines and thrusters" },
+  { id: "electronics", name: "Sensors and electronics" },
+  { id: "support", name: "Support and cargo" },
+] as const;
+type PartCategory = (typeof PART_CATEGORIES)[number]["id"];
+
+/** The designer category a component is listed under. */
+export function partCategory(c: ReturnType<typeof getComponent>): PartCategory {
+  switch (c.kind) {
+    case "weapon":
+      if (c.special === "missile" || c.special === "emp" || c.special === "phase") return "missiles";
+      if (c.special === "ion" || c.special === "pin" || c.special === "nanite" || c.special === "area") return "special";
+      return c.range <= 1 || c.special === "pierce" ? "guns" : "beams";
+    case "hangar":
+      return "fighters";
+    case "bomb":
+      return "bombs";
+    case "armor":
+      return "armor";
+    case "shield":
+      return "shields";
+    case "engine":
+      return "engines";
+    case "sensor":
+    case "electronics":
+      return "electronics";
+    default:
+      return "support";
+  }
+}
+
+/** The parts category open in the designer (kept while the screen redraws). */
+let openPartCategory: PartCategory | null = "beams";
+
 export function designerPanel(ctx: ShipContext): HTMLElement {
   const { game, pack } = ctx;
   const empire = game.state.empires[game.playerId]!;
@@ -180,21 +225,36 @@ export function designerPanel(ctx: ShipContext): HTMLElement {
   const used = slotsUsed(pack, d.components);
   for (let i = used; i < slotCount; i++) slots.append(h("li", {}, h("span", { className: "muted", textContent: "Empty slot" })));
 
-  const parts = h("ul");
-  for (const c of pack.components.filter((x) => componentAvailable(pack, empire, x.id))) {
-    const fits = componentFits(pack, empire, hull.id, c.id);
-    const li = h(
-      "li",
-      { className: used + c.size <= slotCount && fits ? "tappable" : "muted" },
-      h("span", { className: "grow" }, h("div", { textContent: c.size > 1 ? `${c.name} (${c.size} slots)` : c.name }), h("div", { className: "muted small", textContent: fits ? c.description : `${c.description} Needs a bigger hull.` })),
-      h("span", { textContent: `${c.cost} ⚙` }),
-    );
-    li.onclick = () => {
-      if (used + c.size > slotCount || !fits) return;
-      d.components.push(c.id);
+  // Parts by category, one category open at a time (tap a heading to open it).
+  const parts = h("div", { className: "part-groups" });
+  const available = pack.components.filter((x) => componentAvailable(pack, empire, x.id));
+  for (const category of PART_CATEGORIES) {
+    const members = available.filter((c) => partCategory(c) === category.id);
+    if (members.length === 0) continue;
+    const open = openPartCategory === category.id;
+    const head = button(`${open ? "▾" : "▸"} ${category.name} (${members.length})`, () => {
+      openPartCategory = open ? null : category.id;
       ctx.rerender();
-    };
-    parts.append(li);
+    }, { className: `part-group-head${open ? " on" : ""}` });
+    parts.append(head);
+    if (!open) continue;
+    const list = h("ul");
+    for (const c of members) {
+      const fits = componentFits(pack, empire, hull.id, c.id);
+      const li = h(
+        "li",
+        { className: used + c.size <= slotCount && fits ? "tappable" : "muted" },
+        h("span", { className: "grow" }, h("div", { textContent: c.size > 1 ? `${c.name} (${c.size} slots)` : c.name }), h("div", { className: "muted small", textContent: fits ? c.description : `${c.description} Needs a bigger hull.` })),
+        h("span", { textContent: `${c.cost} ⚙` }),
+      );
+      li.onclick = () => {
+        if (used + c.size > slotCount || !fits) return;
+        d.components.push(c.id);
+        ctx.rerender();
+      };
+      list.append(li);
+    }
+    parts.append(list);
   }
 
   const formation = h("div", { className: "segmented" });
@@ -265,7 +325,7 @@ let ordersOpenFor: FleetId | null = null;
 const ORDER_LABELS = {
   mission: { engage: "Engage", evade: "Evade" },
   stance: { aggressive: "Aggressive", balanced: "Balanced", cautious: "Cautious" },
-  targetPriority: { warships: "warships first", transports: "transports first", any: "any target" },
+  targetPriority: { warships: "warships first", transports: "transports first", any: "any target", flagship: "flagships first" },
 } as const;
 
 /** Ships, supply and standing orders for one of the player's fleets. */
@@ -324,7 +384,14 @@ export function fleetDetail(ctx: ShipContext, fleetId: FleetId): HTMLElement | n
   const inSystem = fleet.progress === 0;
   const others = game.state.fleets.filter((f) => f.empireId === game.playerId && f.id !== fleet.id && inSystem && f.progress === 0 && f.systemId === fleet.systemId);
   const actions = h("div", { className: "column" });
-  for (const other of others) actions.append(button(`Merge ${other.name} into this fleet`, () => ctx.issue({ type: "mergeFleets", empireId: game.playerId, fleetId: other.id, intoFleetId: fleet.id })));
+  for (const other of others) {
+    // A group joins a fleet (in a naval command), not the other way round.
+    if (other.command && !fleet.command) {
+      actions.append(button(`Join fleet ${other.name}`, () => ctx.issue({ type: "mergeFleets", empireId: game.playerId, fleetId: fleet.id, intoFleetId: other.id })));
+    } else {
+      actions.append(button(`Merge ${other.name} into this ${fleet.command ? "fleet" : "group"}`, () => ctx.issue({ type: "mergeFleets", empireId: game.playerId, fleetId: other.id, intoFleetId: fleet.id })));
+    }
+  }
   if (inSystem && selectedShips.size > 0 && selectedShips.size < fleet.ships.length) {
     actions.append(
       button(`Detach ${selectedShips.size} selected ship${selectedShips.size > 1 ? "s" : ""}`, () => {
@@ -335,20 +402,21 @@ export function fleetDetail(ctx: ShipContext, fleetId: FleetId): HTMLElement | n
     );
   }
 
-  const limit = pack.combat.fleetSizeLimit + (stats.some((s) => s.command > 0) ? pack.combat.commandSizeBonus : 0);
+  // Only groups suffer from size: a fleet in a naval command is limited by its points instead.
+  const limit = pack.combat.fleetSizeLimit;
   const warships = combatShipCount(pack, game.state, fleet);
-  const over = warships - limit;
+  const over = fleet.command ? 0 : warships - limit;
   const sizeWarning =
     over > 0
       ? h("div", {
           className: "warn-text small",
-          textContent: `Too big to fight as one: ${warships} warships, limit ${limit}. −${Math.min(pack.combat.oversizePenaltyMax, over * pack.combat.oversizePenalty)}% accuracy and evasion. Split it, or add a command network.`,
+          textContent: `Too big to fight as one: ${warships} warships, limit ${limit}. −${Math.min(pack.combat.oversizePenaltyMax, over * pack.combat.oversizePenalty)}% accuracy and evasion. Split it, or form it into a fleet at a naval command.`,
         })
       : null;
   return h(
     "div",
     {},
-    h("div", { className: "muted small", textContent: `${fleet.ships.length} ship${fleet.ships.length > 1 ? "s" : ""} (${warships} of ${limit} warships) · strength ${fleetStrength(pack, game.state, fleet)} · speed ${fleet.speed}` }),
+    h("div", { className: "muted small", textContent: `${fleet.ships.length} ship${fleet.ships.length > 1 ? "s" : ""} (${fleet.command ? `${warships} warships` : `${warships} of ${limit} warships`}) · strength ${fleetStrength(pack, game.state, fleet)} · speed ${fleet.speed}` }),
     sizeWarning,
     supply,
     ships,
@@ -361,7 +429,16 @@ export function fleetDetail(ctx: ShipContext, fleetId: FleetId): HTMLElement | n
           segment<FleetOrders["mission"]>([["engage", "Engage"], ["evade", "Evade"]], orders.mission, (mission) => setOrders({ mission })),
           segment<FleetOrders["stance"]>([["aggressive", "Aggressive"], ["balanced", "Balanced"], ["cautious", "Cautious"]], orders.stance, (stance) => setOrders({ stance })),
           h("div", { className: "muted small", textContent: "Target first" }),
-          segment<FleetOrders["targetPriority"]>([["warships", "Warships"], ["transports", "Transports"], ["any", "Anything"]], orders.targetPriority, (targetPriority) => setOrders({ targetPriority })),
+          segment<FleetOrders["targetPriority"]>(
+            [
+              ["warships", "Warships"],
+              ["transports", "Transports"],
+              ["any", "Anything"],
+              ...(hasFlag(pack, empire, "flagshipTargeting") ? [["flagship", "Flagships"] as ["flagship", string]] : []),
+            ],
+            orders.targetPriority,
+            (targetPriority) => setOrders({ targetPriority }),
+          ),
           h("div", { className: "muted small", textContent: "Retreat after losing" }),
           segment<number>([[25, "25%"], [50, "50%"], [75, "75%"], [100, "Never"]], orders.retreatPercent, (retreatPercent) => setOrders({ retreatPercent })),
           button("Done", () => ((ordersOpenFor = null), ctx.rerender())),

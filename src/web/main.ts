@@ -1,4 +1,5 @@
 import {
+  knownHostileSystems,
   defensesDown,
   Game,
   MAX_AI,
@@ -50,6 +51,7 @@ import { colonyPanel, empirePanel, gameOverPanel, planetsPanel, queueEverywhere,
 import { planetPlans, plannerLabels, plannerPanel, techTreePanel } from "./planningPanels";
 import { Coach, coachCard, helpPanel } from "./help";
 import { battlePanel, designerPanel, designsPanel, fleetDetail, startDraft, type ShipContext } from "./shipPanels";
+import { commandLine, commandSites, commandsList, fleetCommandSection, markLabel, outpostHp, outpostMarkControl, placingText, type CommandContext } from "./commandPanels";
 
 const AUTOSAVE = "autosave";
 const pack = defaultPack();
@@ -228,6 +230,10 @@ interface UiState {
   revealMap: boolean;
   /** The attention item the "to do" button showed last, so the next press moves on from it. */
   lastAttention: string | null;
+  /** Choosing a home system for a naval command: a new one (null) or a displaced one. */
+  placing: { commandId: number | null } | null;
+  /** Why the destination just tapped for the selected fleet isn't allowed. */
+  moveBlocked: { fleetId: FleetId; destinationId: SystemId; reason: string } | null;
 }
 
 function startGame(game: Game): void {
@@ -250,6 +256,8 @@ function startGame(game: Game): void {
     revealMap: false,
     showPlanetValues: false,
     lastAttention: null,
+    placing: null,
+    moveBlocked: null,
   };
 
   const save = () => store.write(AUTOSAVE, serializeSave(game)).catch(() => {});
@@ -267,6 +275,11 @@ function startGame(game: Game): void {
         ui.contextMenu = null;
         ui.panel = "none";
         return update();
+      }
+      if (ui.placing && target?.kind === "system") {
+        const placing = ui.placing;
+        if (ctx.issue({ type: "placeCommand", empireId: game.playerId, commandId: placing.commandId, systemId: target.id })) ui.placing = null;
+        return;
       }
       const selected = fleetView(ui.selectedFleet);
       if (target?.kind === "system" && selected?.own) {
@@ -339,6 +352,7 @@ function startGame(game: Game): void {
     // Ships you fought were seen up close, so their hulls can be shown; defenses have no sprite.
     hullOf: (_shipId, empireId, designName) => game.state.empires[empireId]?.designs.find((d) => d.name === designName)?.hull ?? null,
   };
+  const commandCtx: CommandContext = { game, pack, issue: ctx.issue, systemName: (id) => systemName(id) };
   const openBattle = (battleId: number) => {
     ui.battleId = battleId;
     ui.battleRound = 0;
@@ -347,6 +361,7 @@ function startGame(game: Game): void {
 
   function selectTarget(target: MapTarget | null): void {
     ui.preview = null;
+    ui.moveBlocked = null;
     ui.contextMenu = null;
     ui.selectedFleet = target?.kind === "fleet" ? target.id : null;
     ui.selectedSystem = target?.kind === "system" ? target.id : null;
@@ -357,6 +372,8 @@ function startGame(game: Game): void {
   function setPreview(fleetId: FleetId, destinationId: SystemId): void {
     const plan = planMove(game.state, fleetId, destinationId, pack);
     ui.preview = typeof plan === "string" ? null : { fleetId, route: plan.route, turns: plan.turns, destinationId };
+    // Say why a destination is off limits (the command rules), rather than ignoring the tap.
+    ui.moveBlocked = typeof plan === "string" ? { fleetId, destinationId, reason: plan } : null;
     update();
   }
 
@@ -405,7 +422,20 @@ function startGame(game: Game): void {
       case "idleFleet":
         ui.panel = "none";
         return focusFleet(item.fleetId);
+      case "placeCommand":
+        return startPlacing(item.commandId);
     }
+  }
+
+  /** Pick a home system for a naval command on the map. */
+  function startPlacing(commandId: number | null): void {
+    ui.placing = { commandId };
+    ui.panel = "none";
+    ui.selectedFleet = null;
+    ui.selectedSystem = null;
+    ui.preview = null;
+    map.fitGalaxy();
+    update();
   }
 
   /** Planets in a system that one of the player's colony ships there could settle right now. */
@@ -515,6 +545,16 @@ function startGame(game: Game): void {
         return `Mines hit ${e.hits} ship${e.hits > 1 ? "s" : ""} near ${systemName(e.systemId)}${e.shipsLost ? `, ${e.shipsLost} lost` : ""}`;
       case "capitalMoved":
         return `Capital moved to ${colonyName(e.colonyId)}`;
+      case "fleetHalted":
+        return `${fleetView(e.fleetId)?.name ?? "Group"} halted at ${systemName(e.systemId)}: enemies at ${systemName(e.blockedId)}, and only a fleet in a naval command can enter`;
+      case "flagshipLost":
+        return e.heldTogether
+          ? `${fleetView(e.fleetId)?.name ?? "A fleet"} lost its flagship and ${e.officer} at ${systemName(e.systemId)}, but held together`
+          : `${fleetView(e.fleetId)?.name ?? "A fleet"} lost its flagship and ${e.officer} at ${systemName(e.systemId)}; the fleet broke up`;
+      case "commandDisplaced":
+        return `A naval command lost its home at ${systemName(e.systemId)}: move it to another colony`;
+      case "commandLost":
+        return `${e.name} was lost with ${systemName(e.systemId)}; its fleets are now groups`;
       case "outpostLost":
         return `Lost a ${pack.outposts[e.kind].name} at ${systemName(e.systemId)}`;
       case "sabotage": {
@@ -658,6 +698,7 @@ function startGame(game: Game): void {
       { className: "sheet panel" },
       h("h2", {}, "Fleets", button("✕", () => ((ui.panel = "none"), update()), { ariaLabel: "Close" })),
       button("Ship designs", () => openPanel("designs")),
+      commandsList(commandCtx, locateSystem, startPlacing),
       list,
     );
   }
@@ -704,6 +745,24 @@ function startGame(game: Game): void {
   }
 
   function previewBar(): HTMLElement | null {
+    if (ui.placing) {
+      return h(
+        "div",
+        { className: "sheet confirm" },
+        h("div", { className: "small", textContent: placingText(commandCtx, ui.placing.commandId) }),
+        h("div", { className: "row" }, button("Later", () => ((ui.placing = null), update()))),
+      );
+    }
+    const blocked = ui.moveBlocked;
+    if (blocked && !ui.preview) {
+      return h(
+        "div",
+        { className: "sheet confirm" },
+        h("div", { className: "confirm-text", textContent: `${fleetView(blocked.fleetId)?.name ?? "Fleet"} can't go to ${systemName(blocked.destinationId)}` }),
+        h("div", { className: "warn-text small", textContent: capitalize(blocked.reason) + "." }),
+        h("div", { className: "row" }, button("OK", () => ((ui.moveBlocked = null), update()))),
+      );
+    }
     const preview = ui.preview;
     if (!preview) return null;
     const fleet = fleetView(preview.fleetId);
@@ -876,6 +935,7 @@ function startGame(game: Game): void {
       h("h2", {}, h("span", {}, h("span", { className: "swatch", style: `background:${owner.color}` }), fleet.name), button("✕", () => selectTarget(null), { ariaLabel: "Close" })),
       h("div", { className: "sub", textContent: `${owner.name} · ${fleetStatus(fleet)}` }),
       intel,
+      fleet.own ? fleetCommandSection(commandCtx, fleet.id) : null,
       settleRow,
       invasion,
       bombing,
@@ -909,6 +969,7 @@ function startGame(game: Game): void {
     const star = pack.starTypes.find((t) => t.id === system.starType);
     const capitalOf = system.colonies.find((c) => c.capital);
     const settle = new Map(colonizeOptions(system.id).map((o) => [o.bodyId, o]));
+    const baseHere = game.state.empires[game.playerId]!.navalCommands.find((c) => c.homeSystemId === system.id);
 
     const bodies = h("ul");
     if (!system.bodies) {
@@ -949,13 +1010,18 @@ function startGame(game: Game): void {
         const outpost = system.outposts.find((o) => o.bodyId === body.id);
         if (outpost) {
           const real = game.state.outposts.find((o) => o.id === outpost.id);
-          const name = real ? outpostName(pack, real) : pack.outposts[outpost.kind].name;
+          const name = (real ? outpostName(pack, real) : pack.outposts[outpost.kind].name) + markLabel(outpost.mark);
+          const hp = outpost.own ? outpostHp(game, pack, outpost.id) : `${outpost.defenseHp} hp`;
           row.firstChild!.appendChild(
-            h("div", { className: "small" }, h("span", { className: "swatch", style: `background:${empire(outpost.empireId).color}` }), `${name}${outpost.kind === "combat" ? ` · ${outpost.defenseHp} hp` : ""}`),
+            h("div", { className: "small" }, h("span", { className: "swatch", style: `background:${empire(outpost.empireId).color}` }), `${name}${outpost.kind === "combat" ? ` · ${hp}` : ""}`),
           );
+          const upgrades: HTMLElement[] = [];
           if (outpost.own && outpost.kind === "combat" && !outpost.depot && outpostTechOk(pack, game.state.empires[game.playerId]!, "depot")) {
-            detail = button(`Make depot · ${pack.outposts.depot.cost} ¢`, () => ctx.issue({ type: "upgradeOutpost", empireId: game.playerId, outpostId: outpost.id }), { className: "small-button", title: pack.outposts.depot.description });
+            upgrades.push(button(`Make depot · ${pack.outposts.depot.cost} ¢`, () => ctx.issue({ type: "upgradeOutpost", empireId: game.playerId, outpostId: outpost.id }), { className: "small-button", title: pack.outposts.depot.description }));
           }
+          const mark = outpost.own ? outpostMarkControl(commandCtx, outpost.id) : null;
+          if (mark) upgrades.push(mark);
+          if (upgrades.length > 0) detail = h("span", { className: "column" }, ...upgrades);
         }
         const builders = outpostBuilders(system.id, body.id);
         const option = settle.get(body.id);
@@ -988,6 +1054,7 @@ function startGame(game: Game): void {
       { className: "sheet" },
       h("h2", {}, system.name, button("✕", () => selectTarget(null), { ariaLabel: "Close" })),
       h("div", { className: "sub", textContent: `${star?.name ?? system.starType}${capitalOf ? ` · ${empire(capitalOf.empireId).name} capital` : ""}` }),
+      baseHere ? h("div", { className: "small", textContent: `⚑ ${commandLine(commandCtx, baseHere)}` }) : null,
       bodies,
       here.length ? h("div", { className: "sub", style: "margin-top:10px", textContent: "Fleets" }) : null,
       here.length ? fleets : null,
@@ -1065,11 +1132,34 @@ function startGame(game: Game): void {
     });
   }
 
+  /** Charted systems the fleet can't be ordered to now, under the command rules (cached per state). */
+  let blockedCache: { state: unknown; fleetId: FleetId; set: Set<SystemId> } | null = null;
+  function unreachable(fleetId: FleetId): Set<SystemId> {
+    if (blockedCache && blockedCache.state === game.state && blockedCache.fleetId === fleetId) return blockedCache.set;
+    const hostile = knownHostileSystems(game.state, pack, game.playerId);
+    const set = new Set<SystemId>();
+    for (const system of view.systems) {
+      if (system.charted && typeof planMove(game.state, fleetId, system.id, pack, hostile) === "string") set.add(system.id);
+    }
+    blockedCache = { state: game.state, fleetId, set };
+    return set;
+  }
+
   function update(): void {
     view = ui.revealMap ? omniscientView(game.state, pack, game.playerId) : empireView(game.state, pack, game.playerId);
     if (ui.selectedFleet !== null && !fleetView(ui.selectedFleet)) ui.selectedFleet = null;
     const annotations = ui.showPlanetValues ? plannerLabels(planetPlans(game.state, pack, view, game.state.empires[game.playerId]!), pack) : undefined;
-    map.setScene({ view, selectedSystem: ui.selectedSystem, selectedFleet: ui.selectedFleet, preview: ui.preview, showSupply: fleetView(ui.selectedFleet)?.own === true, annotations });
+    const selectedOwn = fleetView(ui.selectedFleet)?.own === true;
+    map.setScene({
+      view,
+      selectedSystem: ui.selectedSystem,
+      selectedFleet: ui.selectedFleet,
+      preview: ui.preview,
+      showSupply: selectedOwn,
+      annotations,
+      blocked: selectedOwn && ui.selectedFleet !== null ? unreachable(ui.selectedFleet) : undefined,
+      commandSites: ui.placing ? new Set(commandSites(game)) : undefined,
+    });
     const panel =
       ui.panel === "menu"
         ? menuPanel()
@@ -1141,3 +1231,7 @@ function restoreScroll(root: Element, positions: { path: number[]; top: number; 
 }
 
 void showSetup();
+
+function capitalize(text: string): string {
+  return text.charAt(0).toUpperCase() + text.slice(1);
+}

@@ -48,6 +48,7 @@ export function testFleet(state: GameState, opts: { id: number; empireId: number
     invadeAllOut: false,
     bombardColonyId: null,
     sabotage: null,
+    command: null,
   };
 }
 
@@ -77,4 +78,21 @@ export function relocateCapitals(state: GameState, systems: number[]): void {
 /** Put every system on every empire's star charts, so tests can route fleets anywhere. */
 export function chartAll(state: GameState): void {
   for (const empire of state.empires) empire.charted = state.galaxy.systems.map((s) => s.id);
+}
+
+/**
+ * Put a fleet under its empire's first naval command, skipping the rules for forming one (home system,
+ * armed flagship, points): for tests of other mechanics that need a fleet able to attack.
+ */
+export function enlist(state: GameState, fleet: Fleet, flagshipId = fleet.ships[0]!.id): Fleet {
+  const command = state.empires[fleet.empireId]!.navalCommands[0]!;
+  fleet.command = { commandId: command.id, officer: { id: 90_000 + fleet.id, name: "Test", xp: 0 }, flagshipId, cohesion: 100 };
+  return fleet;
+}
+
+/** Enlist the fleet an attack order (invade, bombard, sabotage) is for, so ground-war tests can skip forming fleets. */
+export function enlistFor(state: GameState, command: { type: string; fleetId?: number }): void {
+  if (!["invade", "bombard", "sabotage"].includes(command.type)) return;
+  const fleet = state.fleets.find((f) => f.id === command.fleetId);
+  if (fleet && !fleet.command) enlist(state, fleet);
 }

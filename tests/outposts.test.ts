@@ -1,4 +1,4 @@
-import { chartAll } from "./helpers";
+import { chartAll, enlistFor } from "./helpers";
 import { describe, expect, it } from "vitest";
 import {
   applyCommand,
@@ -19,6 +19,7 @@ const end: Command = { type: "endTurn" };
 
 function run(state: GameState, ...commands: Command[]): GameState {
   for (const command of commands) {
+    enlistFor(state, command);
     const result = applyCommand(state, command, pack);
     if (!result.ok) throw new Error(`${command.type}: ${result.error}`);
     state = result.state;
@@ -75,7 +76,7 @@ describe("outposts", () => {
     expect(applyCommand(s, build(9001, "mining"), pack)).toMatchObject({ ok: false, error: "Mining Outpost needs research" });
     expect(applyCommand(s, build(9002, "mining"), pack).ok).toBe(false); // gas giants can't be mined
     s = run(s, build(9002, "combat"));
-    expect(s.outposts).toEqual([expect.objectContaining({ empireId: 0, systemId: 1, bodyId: 9002, kind: "combat", depot: false, defenseHp: 60 })]);
+    expect(s.outposts).toEqual([expect.objectContaining({ empireId: 0, systemId: 1, bodyId: 9002, kind: "combat", depot: false, mark: 0, defenseHp: 60 })]);
     expect(s.fleets.some((f) => f.id === fleet.id)).toBe(false); // ship used up
     expect(empireView(s, pack, 0).systems[1]!.outposts).toHaveLength(1);
   });
@@ -94,7 +95,7 @@ describe("outposts", () => {
 
   it("combat outposts fight and stop passing ships; destroyed ones are lost", () => {
     let s = line();
-    s.outposts.push({ id: 7000, empireId: 1, systemId: 3, bodyId: 9003, kind: "combat", depot: false, defenseHp: 60 });
+    s.outposts.push({ id: 7000, empireId: 1, systemId: 3, bodyId: 9003, kind: "combat", depot: false, mark: 0, defenseHp: 60 });
     s.galaxy.systems[3]!.bodies = [{ id: 9003, kind: "asteroids" }];
     const raiders = newFleet(s, pack, s.empires[0]!, ["frigate", "frigate", "frigate", "frigate", "frigate", "frigate"], 2);
     raiders.orders = { ...raiders.orders, mission: "engage", retreatPercent: 100 };
@@ -108,7 +109,7 @@ describe("outposts", () => {
 
   it("an unguarded mining outpost falls to any armed enemy fleet", () => {
     let s = line();
-    s.outposts.push({ id: 7001, empireId: 1, systemId: 1, bodyId: 9001, kind: "mining", depot: false, defenseHp: 0 });
+    s.outposts.push({ id: 7001, empireId: 1, systemId: 1, bodyId: 9001, kind: "mining", depot: false, mark: 0, defenseHp: 0 });
     s.fleets.push(newFleet(s, pack, s.empires[0]!, ["frigate"], 1));
     s = run(s, end);
     expect(s.outposts).toHaveLength(0);
@@ -119,7 +120,7 @@ describe("outposts", () => {
     let s = line();
     s.empires[0]!.techs.push("outpost_construction", "supply_lines", "forward_depots");
     s.galaxy.systems[3]!.bodies = [{ id: 9003, kind: "gasGiant" }];
-    s.outposts.push({ id: 7002, empireId: 0, systemId: 3, bodyId: 9003, kind: "combat", depot: false, defenseHp: 60 });
+    s.outposts.push({ id: 7002, empireId: 0, systemId: 3, bodyId: 9003, kind: "combat", depot: false, mark: 0, defenseHp: 60 });
     expect(suppliedSystems(s, pack, 0).has(3)).toBe(false);
     s.empires[0]!.credits = 100;
     s = run(s, { type: "upgradeOutpost", empireId: 0, outpostId: 7002 });

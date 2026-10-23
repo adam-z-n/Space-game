@@ -1,5 +1,6 @@
 import type { ContentPack, PersonalityData } from "../../content/schema";
-import type { Command } from "../commands";
+import { planMove, type Command } from "../commands";
+import { fleetOrderBlocker, knownHostileSystems } from "../command";
 import { empireEconomy, empireEffects, type EmpireEconomy, type Totals } from "../economy";
 import { shortestPaths, type Neighbor } from "../graph";
 import { knownAdjacency } from "../vision";
@@ -64,6 +65,10 @@ export interface AiContext {
   commands: Command[];
   /** Fleets already given an order this turn. */
   busy: Set<number>;
+  /** Systems where this empire knows of enemies (armed groups can't enter them). */
+  hostile: Set<SystemId>;
+  /** Groups ordered to form into fleets this turn (they may attack once the orders apply). */
+  formedNow: Set<number>;
 }
 
 export function buildContext(state: GameState, pack: ContentPack, empireId: EmpireId): AiContext {
@@ -139,16 +144,32 @@ export function buildContext(state: GameState, pack: ContentPack, empireId: Empi
     ownDefense: colonies.reduce((n, c) => n + defenseStrength(c.defenseHp), 0),
     commands: [],
     busy: new Set(),
+    hostile: knownHostileSystems(state, pack, empireId),
+    formedNow: new Set(),
   };
 }
 
-/** Queue a move unless the fleet is already there or already heading there. */
+/**
+ * Queue a move unless the fleet is already there or already heading there, or the command rules forbid it:
+ * a fleet committed to its course carries on, a fleet stopped away from home heads for the nearest colony
+ * or outpost instead, and an armed group stays out of enemy space.
+ */
 export function moveTo(ctx: AiContext, info: FleetInfo, systemId: SystemId): void {
   const f = info.fleet;
   ctx.busy.add(f.id);
   const heading = f.route.length > 0 ? f.route[f.route.length - 1] : f.progress === 0 ? f.systemId : undefined;
   if (heading === systemId) return;
   if (f.progress === 0 && f.systemId === systemId && f.route.length === 0) return;
+  // Formed this turn at a command's home: the move is checked once the fleet exists.
+  if (!ctx.formedNow.has(f.id) && typeof planMove(ctx.state, f.id, systemId, ctx.pack, ctx.hostile) === "string") {
+    if (f.command && f.progress === 0 && fleetOrderBlocker(ctx.state, ctx.pack, f, systemId)) {
+      const posts = [...new Set([...ctx.colonies.map((c) => c.systemId), ...ctx.state.outposts.filter((o) => o.empireId === ctx.id).map((o) => o.systemId)])];
+      const d = ctx.dist(f.systemId);
+      const post = posts.filter((s) => d[s] !== Infinity).sort((a, b) => d[a]! - d[b]! || a - b)[0];
+      if (post !== undefined && post !== heading) ctx.commands.push({ type: "moveFleet", empireId: ctx.id, fleetId: f.id, destinationId: post });
+    }
+    return;
+  }
   ctx.commands.push({ type: "moveFleet", empireId: ctx.id, fleetId: f.id, destinationId: systemId });
 }
 

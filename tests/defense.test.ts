@@ -1,4 +1,4 @@
-import { chartAll } from "./helpers";
+import { chartAll, enlist, enlistFor } from "./helpers";
 import { describe, expect, it } from "vitest";
 import {
   applyCommand,
@@ -18,6 +18,7 @@ const end: Command = { type: "endTurn" };
 
 function run(state: GameState, ...commands: Command[]): GameState {
   for (const command of commands) {
+    enlistFor(state, command);
     const result = applyCommand(state, command, pack);
     if (!result.ok) throw new Error(`${command.type}: ${result.error}`);
     state = result.state;
@@ -115,6 +116,9 @@ describe("invasion", () => {
     const cap = enemyCapital(s);
     expect(applyCommand(s, { type: "invade", empireId: 0, fleetId: fleet.id, colonyId: cap.id }, pack)).toMatchObject({ ok: false, error: "fleet carries no troops" });
     const t = besieged(2);
+    // Only a fleet in a naval command can attack.
+    expect(applyCommand(t, { type: "invade", empireId: 0, fleetId: t.fleets[0]!.id, colonyId: cap.id }, pack)).toMatchObject({ ok: false, error: expect.stringContaining("naval command") });
+    enlist(t, t.fleets[0]!);
     t.empires[0]!.colonySightings = [];
     expect(applyCommand(t, { type: "invade", empireId: 0, fleetId: t.fleets[0]!.id, colonyId: cap.id }, pack)).toMatchObject({ ok: false, error: "no known rival colony there" });
   });
@@ -279,7 +283,7 @@ describe("invasion", () => {
   it("moving cancels the order", () => {
     let s = besieged(2);
     const fleet = s.fleets[0]!;
-    s = run(s, { type: "invade", empireId: 0, fleetId: fleet.id, colonyId: enemyCapital(s).id }, { type: "moveFleet", empireId: 0, fleetId: fleet.id, destinationId: 3 });
+    s = run(s, { type: "invade", empireId: 0, fleetId: fleet.id, colonyId: enemyCapital(s).id }, { type: "moveFleet", empireId: 0, fleetId: fleet.id, destinationId: 0 });
     expect(s.fleets[0]!.invadeColonyId).toBeNull();
   });
 

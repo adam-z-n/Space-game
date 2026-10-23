@@ -1,6 +1,7 @@
 import type { Command } from "../commands";
 import { componentAvailable, componentFits, designBuildable, designStats, hullAvailable, hullSlots } from "../ships";
 import type { ShipDesign } from "../state";
+import { hasFlag } from "../economy";
 import type { AiContext } from "./context";
 
 /**
@@ -66,7 +67,7 @@ export function planWarship(ctx: AiContext): WarshipPlan {
     }
   }
 
-  const same = empire.designs.find((d) => !d.obsolete && d.hull === hull.id && d.components.join() === components.join());
+  const same = empire.designs.find((d) => !d.obsolete && d.formation !== "screen" && d.hull === hull.id && d.components.join() === components.join());
   if (same) return { design: same, create: null };
 
   // Only switch if the new design is meaningfully better per unit of cost.
@@ -86,10 +87,25 @@ export function planWarship(ctx: AiContext): WarshipPlan {
 export function currentWarship(ctx: AiContext): ShipDesign | null {
   const { pack, empire } = ctx;
   const prefix = PREFIX[ctx.personality.designStyle];
-  const own = empire.designs.filter((d) => d.name.startsWith(prefix) && designBuildable(pack, empire, d));
+  // Guard twins (screen formation) are built alongside, not as the main warship.
+  const own = empire.designs.filter((d) => d.name.startsWith(prefix) && d.formation !== "screen" && designBuildable(pack, empire, d));
   if (own.length > 0) return own[own.length - 1]!;
   const armed = empire.designs.filter((d) => designBuildable(pack, empire, d) && designStats(pack, d, ctx.fx).armed);
   return armed.sort((a, b) => designStats(pack, b, ctx.fx).damagePerRound - designStats(pack, a, ctx.fx).damagePerRound || a.id.localeCompare(b.id))[0] ?? null;
+}
+
+/**
+ * Once flagship targeting is known (the AI assumes rivals will learn it as it did), a Guard twin of the main
+ * warship in the Screen formation, to take shots aimed at the flagship. Null if not needed or already designed.
+ */
+export function planGuard(ctx: AiContext, warship: ShipDesign | null): Extract<Command, { type: "createDesign" }>["design"] | null {
+  if (!warship || !hasFlag(ctx.pack, ctx.empire, "flagshipTargeting")) return null;
+  if (guardFor(ctx, warship)) return null;
+  return { name: `${warship.name} Guard`, hull: warship.hull, components: [...warship.components], formation: "screen" };
+}
+
+export function guardFor(ctx: AiContext, warship: ShipDesign): ShipDesign | null {
+  return ctx.empire.designs.find((d) => !d.obsolete && d.formation === "screen" && d.hull === warship.hull && d.components.join() === warship.components.join()) ?? null;
 }
 
 export function designWhere(ctx: AiContext, test: (s: ReturnType<typeof designStats>) => boolean): ShipDesign | null {

@@ -12,8 +12,8 @@ state, all changes through commands); the rules data lives in `content/default/p
 
 ## Where things stand
 
-- **Released:** v1.0.0, v1.3.0 (which includes 1.1 and 1.2) and v1.4.0 (once its release PR merges and the owner
-  tags it). The owner publishes releases through the GitHub UI.
+- **Released:** v1.0.0, v1.3.0 (which includes 1.1 and 1.2), v1.4.0, and v1.5.0 once its PR merges and the owner
+  tags it. The owner publishes releases through the GitHub UI.
   To release: a small PR that bumps `version` (`npm version X.Y.Z --no-git-tag-version`) and retitles the changelog
   section; after it merges the owner creates the release and tag (tag pushes from sessions get a 403), and the
   deploy archives that build under `/vX.Y/`.
@@ -35,10 +35,14 @@ state, all changes through commands); the rules data lives in `content/default/p
   gas giant habitats, Microfabrication / Molecular Assembly slots, warp gates (`fleet.warp`); four research-boost
   techs repurposed; nine new weapons (specials pin/emp/nanite/area/ion/phase, flak, heavy mines, satellites);
   How to play screen and first-game tips (`src/web/help.ts`). State version 17.
-- **Planned for 1.5 (agreed, not started):** the fleet command overhaul; the draft rules are in `docs/ROADMAP.md`.
-  Before designing it in detail, get the owner's answers to the two open questions there (can a fleet stopped away
-  from a colony or combat outpost take new orders; do support ships use command points). It changes how the whole
-  game plays, the AI included, so propose the full design with numbers first.
+- **1.5 contents (PR open):** the fleet command overhaul, approved design in `docs/FLEET_COMMAND.md` (revision 3, softer
+  mark steps). Build plan in its section 11. Part 1 (core rules, state version 18, basic AI so it stays valid) and
+  part 2 (combat: flagship loss, Chain of Command, officer experience, cohesion, flagship targeting, screening and
+  decoys, network and size penalty rules) and part 3 (AI: strike fleets formed at command homes and drilled to
+  80% cohesion before launch, trimming groups to fit points, flagship targeting, Guard twins, outpost marks,
+  research weights; `AI_LAUNCH_COHESION` in `operations.ts`) and part 4 (screens: `src/web/commandPanels.ts`, map flags, pennants
+  and dimmed destinations, placing mode in `main.ts`, help topic `fleets`) and part 5 (balance sims: conquest
+  roughly halves against 1.4, accepted by the owner; numbers in `CHANGELOG.md`) are done.
 - **Next ideas** (`docs/ROADMAP.md`): diplomacy, espionage, trade, pass-and-play multiplayer; combat terrain,
   ambush, admirals, boarding.
 
@@ -66,7 +70,7 @@ state, all changes through commands); the rules data lives in `content/default/p
 
 - All randomness from the seeded `Rng`; no `Math.random`, clocks, or trig/exp/log/pow in `src/core`.
 - Iterate in a fixed order and break ties by id. Replays must reproduce the final state hash.
-- Changing persisted state means bumping `STATE_VERSION` in `src/core/state.ts` (now 17) and adding a step to
+- Changing persisted state means bumping `STATE_VERSION` in `src/core/state.ts` (now 18) and adding a step to
   `migrateState` in `src/core/save.ts`, with a test.
 - New content fields go in the zod schema (with `superRefine` checks for cross-references). New effect keys must
   also be added to the effect list in `src/core/economy.ts`.
@@ -83,7 +87,8 @@ state, all changes through commands); the rules data lives in `content/default/p
   sim command in both trees in parallel (same seeds). For a full-tree research check, a probe script playing
   Total domination games capped at 400 turns logs each empire's tech count over time (8 small and 4 medium games
   take about 2 hours).
-- `tests/helpers.ts` has `testPack`, `testFleet`, `relocateCapitals`, `chartAll`. Full AI-game tests need a
+- `tests/helpers.ts` has `testPack`, `testFleet`, `relocateCapitals`, `chartAll`, and `enlist`/`enlistFor` (put a
+  fleet in a naval command without the forming rules, for tests of attacks). Full AI-game tests need a
   `30_000` ms timeout.
 - AI tuning knobs: `ENDGAME` in `src/core/ai/strategy.ts`, `AI_MAX_WARSHIPS` in `src/core/ai/production.ts`,
   attack planning in `attack()` in `src/core/ai/operations.ts`.

@@ -142,6 +142,10 @@ export const EffectsSchema = z
     /** Added to sabotage odds and to the chance of capturing a tech with a colony. */
     sabotagePercent: z.number().int(),
     techCapturePercent: z.number().int(),
+    /** Points added to every naval command. */
+    commandPoints: z.number().int(),
+    /** Officers (fleets) added to every naval command. */
+    commandOfficers: z.number().int(),
   })
   .partial()
   .strict();
@@ -175,6 +179,13 @@ const Hull = z.object({
   endurance: z.number().int().nonnegative(),
   /** Cargo hull: unarmed ships on it caught without an escort by armed enemies are destroyed, not driven off. */
   freighter: z.boolean().default(false),
+  /**
+   * Small enough to slip in unseen: a group made only of cloaked ships on such hulls, carrying commandos, may
+   * enter enemy systems and sabotage without being formed into a fleet.
+   */
+  infiltrator: z.boolean().default(false),
+  /** Naval command points an armed ship on this hull uses (unarmed ships use the command block's supportPoints). */
+  commandPoints: z.number().int().nonnegative().default(1),
   requires: id.optional(),
 });
 
@@ -299,7 +310,28 @@ const Building = z.object({
 });
 
 /** Special rules a tech switches on, handled in code (see hasFlag). */
-export const TECH_FLAGS = ["hitAndRun", "tractorBeams", "solarSails", "stealthHulls", "tachyonScanners", "galacticSurvey", "sensorSpoofing", "gasMining", "fieldRepair", "cureBlight", "gasGiantHabitats", "heavyMines"] as const;
+export const TECH_FLAGS = [
+  "hitAndRun",
+  "tractorBeams",
+  "solarSails",
+  "stealthHulls",
+  "tachyonScanners",
+  "galacticSurvey",
+  "sensorSpoofing",
+  "gasMining",
+  "fieldRepair",
+  "cureBlight",
+  "gasGiantHabitats",
+  "heavyMines",
+  /** Fleets change course in flight and take any order anywhere. */
+  "subspaceCommand",
+  /** A fleet that loses its flagship holds together under a new one. */
+  "chainOfCommand",
+  /** Unlocks the Flagship target priority. */
+  "flagshipTargeting",
+  /** Enemies aiming at this empire's flagships often pick the wrong ship (combat.command.decoyPercent). */
+  "flagshipDecoys",
+] as const;
 export type TechFlag = (typeof TECH_FLAGS)[number];
 
 const Tech = z.object({
@@ -324,6 +356,42 @@ const ResearchSchool = z.object({
 });
 
 const ResearchField = z.object({ id, name: z.string().min(1) });
+
+/** Naval commands, officers and fleets (see docs/FLEET_COMMAND.md). */
+const NavalCommandRules = z.object({
+  /** One command, plus one per this many colonies. */
+  coloniesPerCommand: z.number().int().positive(),
+  /** Points every command starts with, shared by its fleets, and one more per this much population. */
+  basePoints: z.number().int().nonnegative(),
+  populationPerPoint: z.number().int().positive(),
+  /** Points an unarmed ship uses (armed ships use their hull's commandPoints). */
+  supportPoints: z.number().int().nonnegative(),
+  /** Points a Command Network flagship adds to its command. */
+  networkPoints: z.number().int().nonnegative(),
+  /** Officers (fleets) per command before techs. */
+  officers: z.number().int().positive(),
+  /** Turns until a new officer replaces one killed with the flagship. */
+  officerReplaceTurns: z.number().int().nonnegative(),
+  /** Turns before a newly placed command, or a moved one, can form fleets. */
+  newCommandTurns: z.number().int().nonnegative(),
+  relocateTurns: z.number().int().nonnegative(),
+  /** Cohesion (percent) of a new fleet, gained per turn, lost per ship added and per flagship change. */
+  cohesionStart: z.number().int().min(0).max(100),
+  cohesionPerTurn: z.number().int().nonnegative(),
+  cohesionPerShip: z.number().int().nonnegative(),
+  cohesionFlagship: z.number().int().nonnegative(),
+  /** Accuracy lost at cohesionStart, scaling to none at 100%. */
+  cohesionAccuracy: z.number().int().nonnegative(),
+  /** Officer ranks, lowest first: experience needed and the accuracy and evasion they add to their fleet. */
+  officerRanks: z.array(z.object({ name: z.string().min(1), xp: z.number().int().nonnegative(), bonus: z.number().int().nonnegative() })).min(1),
+  /** Officer experience per battle fought, and extra for a win. */
+  officerXpPerBattle: z.number().int().nonnegative(),
+  officerXpPerWin: z.number().int().nonnegative(),
+  /** Chance a flagship-targeted shot is taken by a screening ship, and that decoys send it at the wrong ship. */
+  flagshipScreenPercent: z.number().int().min(0).max(100),
+  decoyPercent: z.number().int().min(0).max(100),
+  officerNames: z.array(z.string().min(1)).min(1),
+});
 
 const Combat = z.object({
   rounds: z.number().int().positive(),
@@ -387,9 +455,8 @@ const Combat = z.object({
   militiaRegenPerTurn: z.number().int().nonnegative(),
   /** A hit can knock out one of the target's components: chance is the damage as a share of the ship's hull, capped here. */
   criticalMaxPercent: z.number().int().min(0).max(100),
-  /** Fleets larger than this fight less well together; a command network raises the limit. */
+  /** Groups (ships not formed into a fleet) with more warships than this fight less well together. */
   fleetSizeLimit: z.number().int().positive(),
-  commandSizeBonus: z.number().int().nonnegative(),
   /** Accuracy and evasion lost per ship over the limit, and the most it can cost. */
   oversizePenalty: z.number().int().nonnegative(),
   oversizePenaltyMax: z.number().int().nonnegative(),
@@ -401,6 +468,7 @@ const Combat = z.object({
   xpPerBattle: z.number().int().nonnegative(),
   xpPerKill: z.number().int().nonnegative(),
   xpOutnumbered: z.number().int().nonnegative(),
+  command: NavalCommandRules,
 });
 
 const scale = z.number().int().min(0).max(10);
@@ -561,6 +629,21 @@ const Outposts = z.object({
     supplyRange: z.number().int().nonnegative(),
     requires: id.optional(),
   }),
+  /**
+   * Upgrades for combat outposts and depots, Mark I first. Each needs this many Weapons-field techs and the
+   * credits, and replaces the outpost's hit points, guns and upkeep.
+   */
+  marks: z.array(
+    z.object({
+      weaponsTechs: z.number().int().nonnegative(),
+      cost: z.number().int().nonnegative(),
+      hp: z.number().int().positive(),
+      weapons: z.array(z.object({ damage: z.number().int().positive(), accuracy: z.number().int().min(1).max(100), count: z.number().int().positive() })),
+      upkeep: z.number().int().nonnegative(),
+    }),
+  ).default([]),
+  /** The research field whose techs unlock marks. */
+  marksField: id.default("weapons"),
 });
 export type OutpostsData = z.infer<typeof Outposts>;
 
