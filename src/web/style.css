@@ -1005,3 +1005,21 @@ svg.sprite.dim {
   line-height: 1.4;
   color: var(--text);
 }
+
+/* Ship designer: parts grouped by category, one open at a time. */
+.part-groups {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.part-groups button.part-group-head {
+  width: 100%;
+  text-align: left;
+}
+.part-groups button.part-group-head.on {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.part-groups ul {
+  margin-bottom: 6px;
+}

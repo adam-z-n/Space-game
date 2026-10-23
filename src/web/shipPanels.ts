@@ -140,6 +140,50 @@ export function startDraft(pack: ContentPack, empire: Empire, base?: ShipDesign)
   };
 }
 
+/** Component categories for the designer's parts list, in display order. */
+const PART_CATEGORIES = [
+  { id: "beams", name: "Beam weapons" },
+  { id: "missiles", name: "Missiles and torpedoes" },
+  { id: "guns", name: "Mass drivers and guns" },
+  { id: "special", name: "Special weapons" },
+  { id: "fighters", name: "Fighters and drones" },
+  { id: "bombs", name: "Bombs" },
+  { id: "armor", name: "Armor" },
+  { id: "shields", name: "Shields" },
+  { id: "engines", name: "Engines and thrusters" },
+  { id: "electronics", name: "Sensors and electronics" },
+  { id: "support", name: "Support and cargo" },
+] as const;
+type PartCategory = (typeof PART_CATEGORIES)[number]["id"];
+
+/** The designer category a component is listed under. */
+export function partCategory(c: ReturnType<typeof getComponent>): PartCategory {
+  switch (c.kind) {
+    case "weapon":
+      if (c.special === "missile" || c.special === "emp" || c.special === "phase") return "missiles";
+      if (c.special === "ion" || c.special === "pin" || c.special === "nanite" || c.special === "area") return "special";
+      return c.range <= 1 || c.special === "pierce" ? "guns" : "beams";
+    case "hangar":
+      return "fighters";
+    case "bomb":
+      return "bombs";
+    case "armor":
+      return "armor";
+    case "shield":
+      return "shields";
+    case "engine":
+      return "engines";
+    case "sensor":
+    case "electronics":
+      return "electronics";
+    default:
+      return "support";
+  }
+}
+
+/** The parts category open in the designer (kept while the screen redraws). */
+let openPartCategory: PartCategory | null = "beams";
+
 export function designerPanel(ctx: ShipContext): HTMLElement {
   const { game, pack } = ctx;
   const empire = game.state.empires[game.playerId]!;
@@ -181,21 +225,36 @@ export function designerPanel(ctx: ShipContext): HTMLElement {
   const used = slotsUsed(pack, d.components);
   for (let i = used; i < slotCount; i++) slots.append(h("li", {}, h("span", { className: "muted", textContent: "Empty slot" })));
 
-  const parts = h("ul");
-  for (const c of pack.components.filter((x) => componentAvailable(pack, empire, x.id))) {
-    const fits = componentFits(pack, empire, hull.id, c.id);
-    const li = h(
-      "li",
-      { className: used + c.size <= slotCount && fits ? "tappable" : "muted" },
-      h("span", { className: "grow" }, h("div", { textContent: c.size > 1 ? `${c.name} (${c.size} slots)` : c.name }), h("div", { className: "muted small", textContent: fits ? c.description : `${c.description} Needs a bigger hull.` })),
-      h("span", { textContent: `${c.cost} ⚙` }),
-    );
-    li.onclick = () => {
-      if (used + c.size > slotCount || !fits) return;
-      d.components.push(c.id);
+  // Parts by category, one category open at a time (tap a heading to open it).
+  const parts = h("div", { className: "part-groups" });
+  const available = pack.components.filter((x) => componentAvailable(pack, empire, x.id));
+  for (const category of PART_CATEGORIES) {
+    const members = available.filter((c) => partCategory(c) === category.id);
+    if (members.length === 0) continue;
+    const open = openPartCategory === category.id;
+    const head = button(`${open ? "▾" : "▸"} ${category.name} (${members.length})`, () => {
+      openPartCategory = open ? null : category.id;
       ctx.rerender();
-    };
-    parts.append(li);
+    }, { className: `part-group-head${open ? " on" : ""}` });
+    parts.append(head);
+    if (!open) continue;
+    const list = h("ul");
+    for (const c of members) {
+      const fits = componentFits(pack, empire, hull.id, c.id);
+      const li = h(
+        "li",
+        { className: used + c.size <= slotCount && fits ? "tappable" : "muted" },
+        h("span", { className: "grow" }, h("div", { textContent: c.size > 1 ? `${c.name} (${c.size} slots)` : c.name }), h("div", { className: "muted small", textContent: fits ? c.description : `${c.description} Needs a bigger hull.` })),
+        h("span", { textContent: `${c.cost} ⚙` }),
+      );
+      li.onclick = () => {
+        if (used + c.size > slotCount || !fits) return;
+        d.components.push(c.id);
+        ctx.rerender();
+      };
+      list.append(li);
+    }
+    parts.append(list);
   }
 
   const formation = h("div", { className: "segmented" });

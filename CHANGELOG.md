@@ -46,6 +46,8 @@ The fleet command overhaul (design: `docs/FLEET_COMMAND.md`). Built so far (part
   - The system sheet shows outpost marks with the next upgrade's cost (or what it needs).
   - "Join fleet" merges a group into a fleet.
   - How to play has a Fleets and naval commands topic, and two new first-game tips.
+- The ship designer lists parts by category (beam weapons, missiles and torpedoes, guns, special weapons,
+  fighters, bombs, armor, shields, engines, sensors and electronics, support), one category open at a time.
 - Saves move to state version 18.
 
 ## 1.4.0
