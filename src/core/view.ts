@@ -1,3 +1,4 @@
+import { supportedCommands } from "./command";
 import type { BattleReport, Body, BodyId, ColonyId, Empire, EmpireId, OutpostKind, FleetId, FleetPosition, GameState, Lane, SystemId } from "./state";
 import { colonyOnBody, fleetPosition } from "./state";
 import type { ContentPack } from "../content/schema";
@@ -43,6 +44,8 @@ export interface OutpostMarker {
   bodyId: BodyId;
   kind: OutpostKind;
   depot: boolean;
+  /** Upgrade mark (0 for the base outpost). */
+  mark: number;
   own: boolean;
   defenseHp: number;
 }
@@ -85,6 +88,8 @@ export interface FleetView {
   /** Turns of supply left and the most it can hold; null for rivals. */
   supply: number | null;
   maxSupply: number | null;
+  /** Formed into a fleet under a naval command (own fleets only; rivals show false). */
+  formed: boolean;
 }
 
 export interface EmpireSummary {
@@ -110,6 +115,8 @@ export interface EmpireView {
   battles: BattleReport[];
   /** The viewer's own minefields. */
   minefields: { systemId: SystemId; strength: number }[];
+  /** Systems where the viewer's naval commands are based (fleets form there). */
+  commandHomes: SystemId[];
 }
 
 export function empireView(state: GameState, pack: ContentPack, viewerId: EmpireId): EmpireView {
@@ -171,7 +178,7 @@ export function empireView(state: GameState, pack: ContentPack, viewerId: Empire
       colonies: (markers.get(s.id) ?? []).sort((a, b) => a.colonyId - b.colonyId),
       outposts: state.outposts
         .filter((o) => o.systemId === s.id && (o.empireId === viewerId || inSensorRange(sources, s)))
-        .map((o) => ({ id: o.id, empireId: o.empireId, bodyId: o.bodyId, kind: o.kind, depot: o.depot, own: o.empireId === viewerId, defenseHp: o.defenseHp })),
+        .map((o) => ({ id: o.id, empireId: o.empireId, bodyId: o.bodyId, kind: o.kind, depot: o.depot, mark: o.mark, own: o.empireId === viewerId, defenseHp: o.defenseHp })),
     };
   });
 
@@ -196,6 +203,7 @@ export function empireView(state: GameState, pack: ContentPack, viewerId: Empire
       holding: fleet.holding,
       supply: fleet.supply,
       maxSupply: fleetMaxSupply(pack, state, fleet),
+      formed: fleet.command !== null,
     });
   }
   for (const s of viewer.sightings) {
@@ -217,6 +225,7 @@ export function empireView(state: GameState, pack: ContentPack, viewerId: Empire
       holding: false,
       supply: null,
       maxSupply: null,
+      formed: false,
     });
   }
 
@@ -233,6 +242,7 @@ export function empireView(state: GameState, pack: ContentPack, viewerId: Empire
     supplied: [...suppliedSystems(state, pack, viewerId)].sort((a, b) => a - b),
     battles: state.lastBattles.filter((b) => b.empires.includes(viewerId)),
     minefields: state.minefields.filter((m) => m.empireId === viewerId).map((m) => ({ systemId: m.systemId, strength: m.strength })),
+    commandHomes: viewer.navalCommands.map((c) => c.homeSystemId).filter((s): s is SystemId => s !== null),
   };
 }
 
@@ -256,7 +266,7 @@ export function omniscientView(state: GameState, pack: ContentPack, viewerId: Em
       survey: surveySystem(pack, state.empires[viewerId]!, s.bodies),
       outposts: state.outposts
         .filter((o) => o.systemId === s.id)
-        .map((o) => ({ id: o.id, empireId: o.empireId, bodyId: o.bodyId, kind: o.kind, depot: o.depot, own: o.empireId === viewerId, defenseHp: o.defenseHp })),
+        .map((o) => ({ id: o.id, empireId: o.empireId, bodyId: o.bodyId, kind: o.kind, depot: o.depot, mark: o.mark, own: o.empireId === viewerId, defenseHp: o.defenseHp })),
       colonies: state.colonies
         .filter((c) => c.systemId === s.id)
         .map((c) => ({
@@ -292,6 +302,7 @@ export function omniscientView(state: GameState, pack: ContentPack, viewerId: Em
         holding: f.holding,
         supply: f.supply,
         maxSupply: fleetMaxSupply(pack, state, f),
+        formed: f.command !== null,
       };
     }),
     empires: view.empires.map((e) => ({ ...e, met: true })),
@@ -303,12 +314,16 @@ export type AttentionItem =
   | { type: "chooseResearch" }
   | { type: "emptyQueue"; colonyId: ColonyId; systemId: SystemId }
   | { type: "canColonize"; fleetId: FleetId; systemId: SystemId }
-  | { type: "idleFleet"; fleetId: FleetId; systemId: SystemId };
+  | { type: "idleFleet"; fleetId: FleetId; systemId: SystemId }
+  /** A naval command to base: a new one the empire can now support (commandId null), or one that lost its home. */
+  | { type: "placeCommand"; commandId: number | null };
 
 /** Things the player probably wants to handle before ending the turn, most important first. */
 export function attentionItems(state: GameState, pack: ContentPack, empireId: EmpireId): AttentionItem[] {
   const empire = state.empires[empireId]!;
   const items: AttentionItem[] = [];
+  for (const command of empire.navalCommands) if (command.homeSystemId === null) items.push({ type: "placeCommand", commandId: command.id });
+  if (empire.navalCommands.length < supportedCommands(state, pack, empireId)) items.push({ type: "placeCommand", commandId: null });
   if (empire.research.current === null && availableTechs(pack, empire).length > 0) items.push({ type: "chooseResearch" });
   for (const colony of state.colonies) {
     if (colony.empireId === empireId && colony.queue.length === 0) items.push({ type: "emptyQueue", colonyId: colony.id, systemId: colony.systemId });

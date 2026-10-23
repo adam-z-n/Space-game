@@ -40,8 +40,9 @@ state, all changes through commands); the rules data lives in `content/default/p
   part 2 (combat: flagship loss, Chain of Command, officer experience, cohesion, flagship targeting, screening and
   decoys, network and size penalty rules) and part 3 (AI: strike fleets formed at command homes and drilled to
   80% cohesion before launch, trimming groups to fit points, flagship targeting, Guard twins, outpost marks,
-  research weights; `AI_LAUNCH_COHESION` in `operations.ts`) are done; next are part 4 (screens: the web UI has no
-  buttons yet for placing commands, forming fleets or outpost marks) and part 5 (balance sims, changelog).
+  research weights; `AI_LAUNCH_COHESION` in `operations.ts`) and part 4 (screens: `src/web/commandPanels.ts`, map flags, pennants
+  and dimmed destinations, placing mode in `main.ts`, help topic `fleets`) are done; next is part 5 (balance sims,
+  changelog, release notes).
 - **Next ideas** (`docs/ROADMAP.md`): diplomacy, espionage, trade, pass-and-play multiplayer; combat terrain,
   ambush, admirals, boarding.
 

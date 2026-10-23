@@ -325,7 +325,14 @@ export function fleetDetail(ctx: ShipContext, fleetId: FleetId): HTMLElement | n
   const inSystem = fleet.progress === 0;
   const others = game.state.fleets.filter((f) => f.empireId === game.playerId && f.id !== fleet.id && inSystem && f.progress === 0 && f.systemId === fleet.systemId);
   const actions = h("div", { className: "column" });
-  for (const other of others) actions.append(button(`Merge ${other.name} into this fleet`, () => ctx.issue({ type: "mergeFleets", empireId: game.playerId, fleetId: other.id, intoFleetId: fleet.id })));
+  for (const other of others) {
+    // A group joins a fleet (in a naval command), not the other way round.
+    if (other.command && !fleet.command) {
+      actions.append(button(`Join fleet ${other.name}`, () => ctx.issue({ type: "mergeFleets", empireId: game.playerId, fleetId: fleet.id, intoFleetId: other.id })));
+    } else {
+      actions.append(button(`Merge ${other.name} into this ${fleet.command ? "fleet" : "group"}`, () => ctx.issue({ type: "mergeFleets", empireId: game.playerId, fleetId: other.id, intoFleetId: fleet.id })));
+    }
+  }
   if (inSystem && selectedShips.size > 0 && selectedShips.size < fleet.ships.length) {
     actions.append(
       button(`Detach ${selectedShips.size} selected ship${selectedShips.size > 1 ? "s" : ""}`, () => {

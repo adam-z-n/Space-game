@@ -2,7 +2,7 @@
 
 ## 1.5.0 (in progress)
 
-The fleet command overhaul (design: `docs/FLEET_COMMAND.md`). Built so far (parts 1 to 3: rules, combat and AI):
+The fleet command overhaul (design: `docs/FLEET_COMMAND.md`). Built so far (parts 1 to 4: rules, combat, AI and screens):
 
 - Ships move about in groups; only a fleet, formed under a naval command with an officer and an armed flagship,
   may enter systems with known enemies, invade, bomb or sabotage. Infiltrators are the exception: groups of cloaked
@@ -35,6 +35,17 @@ The fleet command overhaul (design: `docs/FLEET_COMMAND.md`). Built so far (part
 - The AI researches the command techs (warlike temperaments most), aims at flagships with fleets that outgun what
   it has seen once it has Command Ship Analysis, builds one warship in three as a Screen-formation Guard twin from
   then on, and buys outpost marks for its frontier outposts when it has credits to spare.
+- Screens:
+  - The fleet sheet shows a fleet's officer, rank, command, flagship, cohesion and points, with Dissolve and
+    flagship buttons. A group's sheet explains what it can't do and offers Form fleet at a command's home, or
+    says why not.
+  - A destination a fleet can't go to explains why, and such systems are dimmed on the map while it is selected.
+  - Command homes carry a ⚑ on the map and fleets fly a pennant.
+  - The Fleets screen lists each command's officers, points and next officer. When a command can be based or must
+    be moved, the "to do" button offers it and circles the colonies to choose from.
+  - The system sheet shows outpost marks with the next upgrade's cost (or what it needs).
+  - "Join fleet" merges a group into a fleet.
+  - How to play has a Fleets and naval commands topic, and two new first-game tips.
 - Saves move to state version 18.
 
 ## 1.4.0

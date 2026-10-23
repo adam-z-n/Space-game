@@ -31,6 +31,10 @@ export interface MapScene {
   showSupply: boolean;
   /** Extra text under some systems' names (the colonization planner's planet values). */
   annotations?: Map<SystemId, { text: string; color: string }>;
+  /** Systems the selected fleet can't be sent to right now (drawn dimmed). */
+  blocked?: Set<SystemId>;
+  /** Systems where a naval command could be based (highlighted while choosing one). */
+  commandSites?: Set<SystemId>;
 }
 
 export type MapTarget = { kind: "system"; id: SystemId } | { kind: "fleet"; id: FleetId };
@@ -431,6 +435,15 @@ export class GalaxyMap {
       // The disc shows what is known about the system's worlds; a small core keeps the star's own color.
       parts.push(`<circle cx="${system.x}" cy="${system.y}" r="${starRadius}" fill="${survey[system.survey]}"/>`);
       parts.push(`<circle cx="${system.x}" cy="${system.y}" r="${starRadius * 0.38}" fill="${starType?.color ?? "#fff"}"/>`);
+      // Off limits for the selected fleet: dimmed.
+      if (scene.blocked?.has(system.id)) parts.push(`<circle cx="${system.x}" cy="${system.y}" r="${starRadius + px(2)}" fill="#000" opacity="0.6"/>`);
+      // A naval command's home: a flag above the star (fleets form there).
+      if (view.commandHomes.includes(system.id)) {
+        parts.push(`<text class="command-flag" x="${system.x}" y="${system.y - starRadius - px(4)}" font-size="${px(14)}" text-anchor="middle" fill="${myColor}">⚑</text>`);
+      }
+      if (scene.commandSites?.has(system.id)) {
+        parts.push(`<circle class="selected-ring" cx="${system.x}" cy="${system.y}" r="${starRadius + px(16)}" stroke="${myColor}" stroke-width="${px(2)}" stroke-dasharray="${px(5)} ${px(3)}"/>`);
+      }
       // Outposts: small squares left of the star (filled: combat, hollow: mining, ringed: supply depot).
       system.outposts.forEach((o, i) => {
         const size = px(7);
@@ -466,6 +479,11 @@ export class GalaxyMap {
       const size = (height * pixel) / 2;
       if (selected) parts.push(`<circle class="selected-ring" cx="${fx}" cy="${fy}" r="${(width * pixel) / 2 + px(6)}" stroke-width="${px(1.5)}" stroke-dasharray="${px(3)} ${px(3)}"/>`);
       parts.push(spriteMarkup(sprite, color(fleet.empireId), fx - (width * pixel) / 2, fy - size, pixel, stale ? ' opacity="0.45"' : ""));
+      // Formed fleets (in a naval command) fly a small pennant; groups don't.
+      if (fleet.formed) {
+        const top = fy - size - px(3);
+        parts.push(`<path d="M${fx} ${top} l0 ${-px(9)} l${px(7)} ${px(3)} l${-px(7)} ${px(3)}" fill="${color(fleet.empireId)}" stroke="${color(fleet.empireId)}" stroke-width="${px(1)}"/>`);
+      }
       if (fleet.own && fleet.holding) parts.push(`<circle cx="${fx}" cy="${fy + size + px(4)}" r="${px(2)}" fill="${color(fleet.empireId)}"/>`);
       if (fleet.ships > 1) parts.push(`<text class="fleet-count" x="${fx + size * 0.9}" y="${fy - size * 0.6}" font-size="${px(10)}">${fleet.ships}</text>`);
       if (fleet.own && fleet.supply === 0) parts.push(`<circle class="dry" cx="${fx}" cy="${fy}" r="${px(12)}" stroke-width="${px(1.5)}"/>`);
