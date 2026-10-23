@@ -228,6 +228,13 @@ function attack(ctx: AiContext, strategy: Strategy): void {
     underway += info.strength;
   }
 
+  // Raiders strike in small packs from wherever they are: each drilled fleet goes for the target on its
+  // own, and groups idle at any command's home form into new packs there.
+  if (raider) {
+    raidPacks(ctx, pool, target.colony.systemId);
+    return;
+  }
+
   // Staging: the home of the ready command nearest the target. Fleets form only there.
   const toTarget = ctx.dist(target.colony.systemId);
   const base = ctx.empire.navalCommands
@@ -360,6 +367,32 @@ function trimTo(ctx: AiContext, info: FleetInfo, room: number, lead: boolean): {
     ctx.commands.push({ type: "splitFleet", empireId: ctx.id, fleetId: fleet.id, shipIds: fleet.ships.filter((s) => !kept.has(s.id)).map((s) => s.id) });
   }
   return { points, strength: keep.reduce((n, s) => n + solo(s), 0), ships: keep.length };
+}
+
+/** Raider packs: launch every drilled fleet at the target, and form idle groups at command homes. */
+function raidPacks(ctx: AiContext, pool: FleetInfo[], targetSystem: SystemId): void {
+  // Officers and points taken by packs formed this turn, per command.
+  const taken = new Map<number, { officers: number; points: number }>();
+  for (const info of pool) {
+    if (!info.idle || ctx.busy.has(info.fleet.id)) continue;
+    const command = info.fleet.command;
+    if (command) {
+      if (command.cohesion >= AI_LAUNCH_COHESION) moveTo(ctx, info, targetSystem);
+      else ctx.busy.add(info.fleet.id);
+      continue;
+    }
+    const home = ctx.empire.navalCommands.find((c) => c.homeSystemId === info.fleet.systemId);
+    const used = taken.get(home?.id ?? -1) ?? { officers: 0, points: 0 };
+    if (!home || !commandReady(ctx.state, home) || freeOfficers(ctx.state, ctx.pack, ctx.empire, home) - used.officers <= 0) continue;
+    const room = commandCapacity(ctx.state, ctx.pack, ctx.empire, home) - commandUsed(ctx.state, ctx.pack, ctx.empire, home) - used.points;
+    const kept = trimTo(ctx, info, room, true);
+    if (!kept) continue;
+    taken.set(home.id, { officers: used.officers + 1, points: used.points + kept.points });
+    const flagship = suggestedFlagship(ctx.pack, ctx.state, info.fleet)!;
+    ctx.commands.push({ type: "formFleet", empireId: ctx.id, fleetId: info.fleet.id, flagshipId: flagship.id });
+    ctx.formedNow.add(info.fleet.id);
+    ctx.busy.add(info.fleet.id);
+  }
 }
 
 /** Cohesion (percent) a strike fleet waits for before it launches. */
