@@ -1,6 +1,6 @@
 # Changelog
 
-## 1.5.0 (in progress)
+## 1.5.0
 
 The fleet command overhaul (design: `docs/FLEET_COMMAND.md`). All five parts are built (rules, combat, AI, screens, balance checks):
 
