@@ -153,6 +153,7 @@ function fight(
       invadeAllOut: false,
       bombardColonyId: null,
       sabotage: null,
+      command: null,
     };
     stations.set(fleet.id, station);
     combatants.set(key, {

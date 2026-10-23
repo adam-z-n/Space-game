@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { buildContext, createInitialState, decideStrategy, newFleet, planAiTurn, type Command, type GameState } from "../src/core";
 import { defaultPack } from "../src/content/defaultPack";
-import { chartAll } from "./helpers";
+import { chartAll, enlist } from "./helpers";
 
 const pack = defaultPack();
 
@@ -43,7 +43,7 @@ describe("AI siege tactics", () => {
     const transports = newFleet(s, pack, ai, ["troop_transport"], at); // 10 troops vs 20 defenders: 25 needed
     transports.invadeColonyId = target(s).id;
     bombers.supply = 20; // well supplied: no need to head home
-    s.fleets.push(bombers, transports);
+    s.fleets.push(enlist(s, bombers), enlist(s, transports));
     expect(ordersFor(planAiTurn(s, pack, 1), bombers.id)).toContainEqual(expect.objectContaining({ type: "bombard", colonyId: target(s).id }));
 
     // Two more transports arrive: 30 troops are enough, so the bombing stops.
@@ -57,22 +57,26 @@ describe("AI siege tactics", () => {
     const at = target(s).systemId;
     const transports = newFleet(s, pack, s.empires[1]!, ["troop_transport"], at); // 10 troops vs 9: under the 12 a safe landing needs
     transports.invadeColonyId = target(s).id;
-    s.fleets.push(transports);
+    s.fleets.push(enlist(s, transports));
     expect(ordersFor(planAiTurn(s, pack, 1), transports.id)).toContainEqual(expect.objectContaining({ type: "invade", colonyId: target(s).id, allOut: true }));
     // Well short (10 vs 20): they keep waiting for reinforcements.
     s.empires[1]!.colonySightings[0]!.troops = 20;
     expect(ordersFor(planAiTurn(s, pack, 1), transports.id).some((c) => c.type === "invade")).toBe(false);
   });
 
-  it("sends commandos ahead to knock out a target's defenses", () => {
+  it("sends commandos with a strike fleet to knock out a target's defenses, never alone", () => {
     const s = atWar(40, 10);
     const ai = s.empires[1]!;
     expect(decideStrategy(buildContext(s, pack, 1))).toMatchObject({ posture: "attack", targetColony: expect.objectContaining({ colonyId: target(s).id }) });
-    const raiders = newFleet(s, pack, ai, ["infiltrator"], ai.homeSystemId);
-    s.fleets.push(raiders);
-    const orders = ordersFor(planAiTurn(s, pack, 1), raiders.id);
-    expect(orders).toContainEqual(expect.objectContaining({ type: "moveFleet", destinationId: target(s).systemId }));
-    expect(orders).toContainEqual(expect.objectContaining({ type: "sabotage", colonyId: target(s).id, mission: "defenses" }));
+    // On their own (not in a naval command) commandos can't attack: they wait to join a strike fleet.
+    const loose = newFleet(s, pack, ai, ["infiltrator"], ai.homeSystemId);
+    s.fleets.push(loose);
+    expect(ordersFor(planAiTurn(s, pack, 1), loose.id)).not.toContainEqual(expect.objectContaining({ type: "moveFleet", destinationId: target(s).systemId }));
+    // Riding in a fleet bound for the target, they strike its defenses.
+    const strike = newFleet(s, pack, ai, ["frigate", "infiltrator"], ai.homeSystemId);
+    strike.route = [target(s).systemId];
+    s.fleets.push(enlist(s, strike));
+    expect(ordersFor(planAiTurn(s, pack, 1), strike.id)).toContainEqual(expect.objectContaining({ type: "sabotage", colonyId: target(s).id, mission: "defenses" }));
   });
 
   it("builds siege ships and commandos for the war, and troop ships in batches", () => {
@@ -114,7 +118,7 @@ describe("AI siege tactics", () => {
     const ai = s.empires[1]!;
     ai.techs.push("forward_depots");
     ai.credits = 1000;
-    s.outposts.push({ id: 7700, empireId: 1, systemId: target(s).systemId, bodyId: 7701, kind: "combat", depot: false, defenseHp: 60 });
+    s.outposts.push({ id: 7700, empireId: 1, systemId: target(s).systemId, bodyId: 7701, kind: "combat", depot: false, mark: 0, defenseHp: 60 });
     expect(planAiTurn(s, pack, 1)).toContainEqual({ type: "upgradeOutpost", empireId: 1, outpostId: 7700 });
   });
 });

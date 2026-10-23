@@ -352,6 +352,7 @@ export function newFleet(state: GameState, pack: ContentPack, empire: Empire, de
     invadeAllOut: false,
     bombardColonyId: null,
     sabotage: null,
+    command: null,
     stores: 0,
   };
   fleet.orders = defaultOrders(fleetArmed(pack, state, fleet));

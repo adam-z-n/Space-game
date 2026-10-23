@@ -1,3 +1,4 @@
+import { commandCapacity, fleetPoints, freeOfficers, newCommand, suggestedFlagship, takeOfficer } from "./command";
 import type { ContentPack } from "../content/schema";
 import { generateGalaxy, installHomeworld, pickHomeSystems } from "./galaxy";
 import { Rng } from "./rng";
@@ -80,6 +81,7 @@ export function createInitialState(settings: GameSettings, pack: ContentPack): G
       research: { current: null, progress: 0 },
       shipsBuilt: {},
       designs: startingDesigns(pack),
+      navalCommands: [],
       eliminated: false,
     });
   }
@@ -110,7 +112,16 @@ export function createInitialState(settings: GameSettings, pack: ContentPack): G
     capital.defenseHp = defense.maxHp;
     capital.troops = defense.maxTroops;
     state.colonies.push(capital);
-    for (const start of pack.start.fleets) state.fleets.push(newFleet(state, pack, empire, start.ships, empire.homeSystemId));
+    const base = newCommand(state, empire, empire.homeSystemId, 0);
+    for (const start of pack.start.fleets) {
+      const fleet = newFleet(state, pack, empire, start.ships, empire.homeSystemId);
+      state.fleets.push(fleet);
+      // The starting warships begin as a fleet in the first command, ready to fight.
+      const flagship = suggestedFlagship(pack, state, fleet);
+      if (flagship && freeOfficers(state, pack, empire, base) > 0 && fleetPoints(pack, state, fleet) <= commandCapacity(state, pack, empire, base)) {
+        fleet.command = { commandId: base.id, officer: takeOfficer(state, pack, base), flagshipId: flagship.id, cohesion: 100 };
+      }
+    }
   }
   updateSightings(state, pack, null, state.turn);
   return state;

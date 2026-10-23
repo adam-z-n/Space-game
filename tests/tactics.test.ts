@@ -1,4 +1,4 @@
-import { chartAll } from "./helpers";
+import { chartAll, enlistFor } from "./helpers";
 import { describe, expect, it } from "vitest";
 import { applyCommand, colonizeBlocker, combatShipCount, createInitialState, slotsUsed, defendingTroops, newFleet, type BattleReport, type Command, type Formation, type GameState } from "../src/core";
 import { defaultPack } from "../src/content/defaultPack";
@@ -8,6 +8,7 @@ const end: Command = { type: "endTurn" };
 
 function run(state: GameState, ...commands: Command[]): GameState {
   for (const command of commands) {
+    enlistFor(state, command);
     const result = applyCommand(state, command, pack);
     if (!result.ok) throw new Error(`${command.type}: ${result.error}`);
     state = result.state;

@@ -5,7 +5,7 @@ import type { BodyKind, Formation } from "../content/schema";
  * so it can be cloned, saved, hashed, and sent over a network unchanged.
  */
 
-export const STATE_VERSION = 17;
+export const STATE_VERSION = 18;
 
 export type SystemId = number;
 export type EmpireId = number;
@@ -110,7 +110,43 @@ export interface Empire {
   shipsBuilt: Record<string, number>;
   /** Ship designs: the content pack's starting designs plus the player's own. */
   designs: ShipDesign[];
+  /** Naval commands, oldest first: only fleets in a command can attack (see docs/FLEET_COMMAND.md). */
+  navalCommands: NavalCommand[];
   eliminated: boolean;
+}
+
+/** A commander of a fleet, or one waiting in a command's reserve. */
+export interface Officer {
+  id: number;
+  name: string;
+  /** Battle experience; see the content pack's officer ranks. */
+  xp: number;
+}
+
+/**
+ * A naval command: a pool of points and officers based at a system. Fleets form only at its home,
+ * and each fleet in it uses one officer and some of its points.
+ */
+export interface NavalCommand {
+  id: number;
+  name: string;
+  /** The system it is based at; null while displaced (its home was lost) until it is moved. */
+  homeSystemId: SystemId | null;
+  /** First turn fleets can form here (new and moved commands take a few turns to set up). */
+  readyTurn: number;
+  /** Officers not leading a fleet, keeping their experience. */
+  reserve: Officer[];
+  /** Turns when replacements arrive for officers lost with their flagships. */
+  vacancies: number[];
+}
+
+/** What makes a fleet a fleet rather than a loose group: its command, officer and flagship. */
+export interface FleetCommand {
+  commandId: number;
+  officer: Officer;
+  flagshipId: ShipId;
+  /** Percent; a new fleet fights at its best only once this reaches 100. */
+  cohesion: number;
 }
 
 export const FOCUSES = ["balanced", "industry", "research", "food"] as const;
@@ -165,6 +201,8 @@ export interface Outpost {
   kind: OutpostKind;
   /** A combat outpost upgraded to a supply depot. */
   depot: boolean;
+  /** Upgrade mark: 0 for the base outpost, else an index + 1 into the content pack's outpost marks. */
+  mark: number;
   /** Defense hit points (combat outposts); 0 means destroyed. */
   defenseHp: number;
 }
@@ -281,6 +319,8 @@ export interface Fleet {
   bombardColonyId: ColonyId | null;
   /** Commandos aboard strike this colony each turn the fleet is in its system. */
   sabotage: { colonyId: ColonyId; mission: SabotageMission } | null;
+  /** Set when formed into a fleet under a naval command; null for a loose group, which can't attack. */
+  command: FleetCommand | null;
 }
 
 export type GameEvent =
@@ -333,6 +373,13 @@ export type GameEvent =
   | { type: "sabotage"; turn: number; empireId: EmpireId; attackerId: EmpireId; colonyId: ColonyId; systemId: SystemId; mission: SabotageMission; success: boolean }
   | { type: "mineHits"; turn: number; empireId: EmpireId; systemId: SystemId; hits: number; shipsLost: number }
   | { type: "capitalMoved"; turn: number; empireId: EmpireId; colonyId: ColonyId; systemId: SystemId }
+  /** An armed group stopped short of a system with known enemies (only fleets can enter). */
+  | { type: "fleetHalted"; turn: number; empireId: EmpireId; fleetId: FleetId; systemId: SystemId; blockedId: SystemId }
+  /** A fleet's flagship was lost with its officer; the fleet broke up (or, with Chain of Command, held together). */
+  | { type: "flagshipLost"; turn: number; empireId: EmpireId; fleetId: FleetId; systemId: SystemId; officer: string; heldTogether: boolean }
+  /** A command's home system was lost: it must be moved (displaced) or, if the empire can't support it, it is gone. */
+  | { type: "commandDisplaced"; turn: number; empireId: EmpireId; commandId: number; systemId: SystemId }
+  | { type: "commandLost"; turn: number; empireId: EmpireId; commandId: number; systemId: SystemId; name: string }
   | { type: "gameOver"; turn: number; empireId: EmpireId; winnerId: EmpireId; reason: GameOutcome["reason"] };
 
 export interface Minefield {

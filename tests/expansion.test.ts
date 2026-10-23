@@ -63,7 +63,7 @@ describe("gas giant habitats", () => {
 
   it("needs the tech, and can't settle a gas giant that holds an outpost", () => {
     const { s, e, home, giant, habitat } = withGiant();
-    s.outposts.push({ id: 9901, empireId: 0, systemId: home, bodyId: giant.id, kind: "mining", depot: false, defenseHp: 0 });
+    s.outposts.push({ id: 9901, empireId: 0, systemId: home, bodyId: giant.id, kind: "mining", depot: false, mark: 0, defenseHp: 0 });
     expect(applyCommand(s, { type: "colonize", empireId: 0, fleetId: habitat.id, bodyId: giant.id }, pack)).toMatchObject({ ok: false, error: "an outpost holds it" });
     s.outposts = [];
     e.techs = e.techs.filter((t) => t !== "gas_giant_habitats");

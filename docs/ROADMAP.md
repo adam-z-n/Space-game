@@ -16,7 +16,7 @@ habitats, warp gates, nine new weapons and in-game help; the rest waits here.
   two techs. Fleets can't change course in transit until a Subspace Command tech. Answered: a fleet stopped away from a
   colony or outpost takes new orders only with Subspace Command; support ships cost 1 point each. Later requests: officers per
   command, flagship targeting, officer experience, cohesion, Chain of Command, command home systems, and outpost
-  marks unlocked by weapons research. Full proposal: `docs/FLEET_COMMAND.md` (awaiting approval).
+  marks unlocked by weapons research. Approved design: `docs/FLEET_COMMAND.md`.
 
 ## Future versions (requested)
 

@@ -51,6 +51,8 @@ const EFFECT_KEYS = [
   "miningPercent",
   "sabotagePercent",
   "techCapturePercent",
+  "commandPoints",
+  "commandOfficers",
 ] as const;
 export type Totals = Record<(typeof EFFECT_KEYS)[number], number>;
 

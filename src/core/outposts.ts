@@ -32,7 +32,8 @@ export function outpostBlocker(state: GameState, pack: ContentPack, empire: Empi
 export function outpostDefense(pack: ContentPack, empire: Empire, outpost: Outpost): ColonyDefense {
   if (outpost.kind !== "combat") return { maxHp: 0, shield: 0, weapons: [], maxTroops: 0, mines: 0, satellites: 0 };
   const pct = 100 + empireEffects(pack, empire).defensePercent;
-  const config = pack.outposts.combat;
+  // An upgraded outpost uses its mark's hit points and guns in place of the base ones.
+  const config = outpost.mark > 0 ? pack.outposts.marks[outpost.mark - 1]! : pack.outposts.combat;
   const weapons = config.weapons.flatMap((w) => Array.from({ length: w.count }, () => ({ damage: Math.floor((w.damage * pct) / 100), accuracy: w.accuracy, range: 3, ammo: 0 })));
   return { maxHp: Math.floor((config.hp * pct) / 100), shield: 0, weapons, maxTroops: 0, mines: 0, satellites: 0 };
 }
@@ -52,7 +53,8 @@ export function outpostFinances(state: GameState, pack: ContentPack, empireId: E
   for (const o of state.outposts) {
     if (o.empireId !== empireId) continue;
     if (o.kind === "mining") income += Math.floor((pack.outposts.mining.credits * (100 + empireEffects(pack, state.empires[empireId]!).miningPercent)) / 100);
-    upkeep += pack.outposts[o.kind].upkeep + (o.depot ? pack.outposts.depot.upkeep : 0);
+    const base = o.mark > 0 ? pack.outposts.marks[o.mark - 1]!.upkeep : pack.outposts[o.kind].upkeep;
+    upkeep += base + (o.depot ? pack.outposts.depot.upkeep : 0);
   }
   return { income, upkeep };
 }

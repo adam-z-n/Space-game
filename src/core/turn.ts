@@ -9,6 +9,7 @@ import { fleetArmed, fleetStealthy } from "./ships";
 import { regenerateOutposts, resolveOutpostRaids } from "./outposts";
 import { resolveSupply, updateBlockades, warpGateAt } from "./supply";
 import type { EmpireId, GameEvent, GameState, SystemId } from "./state";
+import { fleetHasWarships, formedFleets, isCommandPost, knownHostileSystems, resolveCommands } from "./command";
 
 /**
  * Turn resolution, in the order the design fixes:
@@ -17,6 +18,7 @@ import type { EmpireId, GameEvent, GameState, SystemId } from "./state";
  */
 export function resolveTurn(state: GameState, pack: ContentPack): void {
   const events: GameEvent[] = [];
+  const formedBefore = formedFleets(state);
   wearOffBlight(state);
   resolveMovement(state, pack, events);
   resolveSupply(state, pack, events);
@@ -30,6 +32,7 @@ export function resolveTurn(state: GameState, pack: ContentPack): void {
   // Blockades are settled by combat (defenses knocked out): re-check before the economy runs.
   updateBlockades(state, pack, events);
   resolveEconomy(state, pack, events);
+  resolveCommands(state, pack, events, formedBefore);
   regenerateDefenses(state, pack);
   regenerateOutposts(state, pack);
   const resolved = state.turn;
@@ -64,9 +67,21 @@ function resolveMovement(state: GameState, pack: ContentPack, events: GameEvent[
     if (colony.defenseHp > 0 && colonyDefense(pack, state.empires[colony.empireId]!, colony).weapons.length > 0) guard(colony.systemId, colony.empireId);
   }
   for (const outpost of state.outposts) if (outpost.kind === "combat" && outpost.defenseHp > 0) guard(outpost.systemId, outpost.empireId);
+  // Armed groups (not in a command) stop short of systems where their empire knows of enemies,
+  // unless they are on their way to one of their own colonies or outposts.
+  const hostile = new Map<EmpireId, Set<SystemId>>();
+  const hostileFor = (empireId: EmpireId) => {
+    let set = hostile.get(empireId);
+    if (!set) {
+      set = knownHostileSystems(state, pack, empireId);
+      hostile.set(empireId, set);
+    }
+    return set;
+  };
   const fleets = state.fleets.slice().sort((a, b) => a.id - b.id);
   for (const fleet of fleets) {
     if (fleet.route.length === 0) continue;
+    const group = !fleet.command && !fleet.warp && fleetHasWarships(pack, state, fleet) && !isCommandPost(state, fleet.empireId, fleet.route.at(-1)!);
     if (fleet.warp) {
       // A warp gate jump: there in one go if both gates still work, otherwise the fleet stays put.
       const dest = fleet.route[0]!;
@@ -83,8 +98,15 @@ function resolveMovement(state: GameState, pack: ContentPack, events: GameEvent[
     // Cloaked fleets slip past guards.
     const cloaked = fleetStealthy(pack, state, fleet);
     let budget = fleet.speed;
+    let halted = false;
     while (budget > 0 && fleet.route.length > 0) {
       const next = fleet.route[0]!;
+      if (group && fleet.progress === 0 && hostileFor(fleet.empireId).has(next) && !isCommandPost(state, fleet.empireId, next)) {
+        events.push({ type: "fleetHalted", turn: state.turn, empireId: fleet.empireId, fleetId: fleet.id, systemId: fleet.systemId, blockedId: next });
+        fleet.route = [];
+        halted = true;
+        break;
+      }
       const remaining = laneLength(state.galaxy, fleet.systemId, next)! - fleet.progress;
       if (budget < remaining) {
         fleet.progress += budget;
@@ -103,7 +125,7 @@ function resolveMovement(state: GameState, pack: ContentPack, events: GameEvent[
         }
       }
     }
-    if (fleet.route.length === 0) {
+    if (fleet.route.length === 0 && !halted) {
       events.push({ type: "fleetArrived", turn: state.turn, empireId: fleet.empireId, fleetId: fleet.id, systemId: fleet.systemId });
     }
   }

@@ -1,6 +1,6 @@
 # 1.5 Fleet command overhaul: design proposal
 
-Status: proposal, revision 3, waiting for the owner's approval. Builds on the agreed draft in `docs/ROADMAP.md`
+Status: approved (revision 3 with the softer mark steps); being built. Builds on the agreed draft in `docs/ROADMAP.md`
 and the owner's answers and requests:
 - A fleet stopped away from a colony or outpost takes new orders only with Subspace Command.
 - Support ships cost 1 command point each.
@@ -48,7 +48,7 @@ withdraws, and that officer's place stays empty for a few turns. A new fleet als
 
 ### Home systems
 
-- **First command**: based at your capital from the start.
+- **First command**: based at your capital from the start. Your two starting destroyers begin as its first fleet.
 - **New commands**: when you can support another (one per 5 colonies), you are asked to pick its home system.
   - The home must be a system with one of your colonies, and each system holds at most one command.
   - The command is ready 3 turns after you place it.
@@ -208,17 +208,17 @@ weapons research after Outpost Construction.
 |---|---|---|---|---|---|
 | Base | Outpost Construction | an outpost ship | 60 | 2 x 5 damage, 70% accuracy | 1 |
 | I | 3 | 150 | 100 | 3 x 6, 70% | 1 |
-| II | 6 | 250 | 150 | 3 x 8, 72% | 2 |
-| III | 9 | 400 | 220 | 4 x 9, 75% | 2 |
-| IV | 12 | 600 | 300 | 4 x 11, 75% | 3 |
-| V | 15 | 850 | 400 | 5 x 12, 78% | 3 |
+| II | 5 | 250 | 150 | 3 x 8, 72% | 2 |
+| III | 8 | 400 | 220 | 4 x 9, 75% | 2 |
+| IV | 11 | 600 | 300 | 4 x 11, 75% | 3 |
+| V | 13 | 850 | 400 | 5 x 12, 78% | 3 |
 
 For comparison, an Orbital Fortress is 120 hit points with 3 x 8 guns for 120 credits, and a Star Fortress is 300
 hit points with 4 x 12 guns for 260. A Mark V outpost is a fortress in deep space, at more than three times the
 price.
 
 - **Weapons techs** are those in the Weapons field (23 in the tree). They are counted whenever you got them, since
-  Outpost Construction is cheap and early, so 3 per mark is about "every 3 new weapons techs" in practice.
+  Outpost Construction is cheap and early, so the steps (3, 5, 8, 11, 13) are about "every 3 new weapons techs" in practice.
 - **One mark at a time.** It is bought with credits and done at once, like a depot upgrade. A depot keeps its mark
   when built, and an outpost keeps its mark when made into a depot.
 - **A destroyed outpost is gone**, as now. A damaged one repairs at its usual rate up to its mark's hit points.
@@ -249,8 +249,8 @@ Outpost marks need no new techs.
 ## 9. Saves and the AI
 
 **Saves (state version 18).** Loading a 1.4 game:
-- Every empire's first command is placed at its capital. Any extra commands it can support are placed at its colonies
-  nearest its other fleets, so nobody is asked to choose on load.
+- Every empire's first command is placed at its capital. Any extra commands it can support are placed at its largest
+  other colonies, so nobody is asked to choose on load.
 - Each empire's armed fleets are formed, strongest first, as long as it has officers free.
   - The flagship is the toughest armed ship.
   - The fleet keeps all its ships, even if that is over the point limit.
@@ -345,7 +345,7 @@ Each part is committed and pushed, with tests. One PR for 1.5 at the end.
 7. Command Network flagship: +6 points.
 8. Points are shared within a command rather than set per fleet, so extra officers add flexibility, not strength.
 9. Command homes: colony systems only, one command per system. A new command is ready in 3 turns, a moved one in 5.
-10. Outpost marks: 3 weapons techs per mark, counted whenever you got them; 5 marks; bought at once with credits.
+10. Outpost marks: unlocked at 3, 5, 8, 11 and 13 weapons techs, counted whenever you got them; bought at once with credits.
 11. Clear path: no known enemy fleet, outpost or colony anywhere on the route, the outpost's own system included.
 
 ## 13. Race impact (predicted from the values, no games played)
@@ -386,7 +386,7 @@ Each part is committed and pushed, with tests. One PR for 1.5 at the end.
 1. **Fixed in this revision:** Fleet Admiralty, Combined Fleet Doctrine and Chain of Command first needed Fleet
    Command, which is in the Command & Control school. The six limited races would have had to pick that school over
    AI or Cyber Warfare to get 3 of the 7 techs. They now need core techs only (section 8).
-2. **Suggest:** unlock marks at 3, 5, 8, 11 and 13 weapons techs instead of 3, 6, 9, 12 and 15. A one-school race
+2. **Adopted:** marks unlock at 3, 5, 8, 11 and 13 weapons techs instead of 3, 6, 9, 12 and 15. A one-school race
    then needs 13 of 17 (76%) for Mark V, against 57% for full access. The gap shrinks but doesn't close; it can't
    while the counting is by tech.
 3. **Watch in the sims:** Mekkan outposts, Aviari escort swarms and Kraal strikes. If Kraal fall behind, one option

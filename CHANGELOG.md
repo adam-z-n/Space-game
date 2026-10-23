@@ -1,5 +1,26 @@
 # Changelog
 
+## 1.5.0 (in progress)
+
+The fleet command overhaul (design: `docs/FLEET_COMMAND.md`). Built so far (part 1, core rules):
+
+- Ships move about in groups; only a fleet, formed under a naval command with an officer and an armed flagship,
+  may enter systems with known enemies, invade, bomb or sabotage. Armed groups halt before systems that turn
+  hostile, but can always go to your own colonies and outposts.
+- Naval commands: one at your capital, one more per 5 colonies, each based at a colony you choose; fleets form only
+  there. A command that loses its home is moved (if you can still support it) or lost. Each command has 12 points
+  plus 1 per 10 population, shared by its fleets (escort 1, destroyer 2, cruiser 4, battleship 8, dreadnought 12,
+  unarmed ships 1), and one officer.
+- Fleets commit to their course; away from your colonies and outposts they can only head back to one.
+- Losing a flagship breaks the fleet up and costs its officer; a replacement comes in 5 turns. Officers keep their
+  experience in reserve. New fleets start at 50% cohesion and gain 10% a turn.
+- Outpost and depot marks I-V, unlocked by 3, 5, 8, 11 and 13 weapons techs, bought with credits when the outpost
+  has a clear way home.
+- Seven new techs: Naval Staff College, Officer Academy, Command Ship Analysis, Subspace Command, Fleet Admiralty,
+  Combined Fleet Doctrine, Chain of Command.
+- The AI places commands facing its war target, forms its strike fleets at command homes, and sends troops and
+  commandos only inside fleets. Saves move to state version 18.
+
 ## 1.4.0
 
 Fixes and screens:

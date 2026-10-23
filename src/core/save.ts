@@ -1,3 +1,4 @@
+import { fleetHasWarships, freeOfficers, newCommand, suggestedFlagship, supportedCommands, takeOfficer } from "./command";
 import type { ContentPack } from "../content/schema";
 import { hashString } from "./rng";
 import { Game } from "./game";
@@ -5,7 +6,7 @@ import type { Command } from "./commands";
 import { STATE_VERSION, type Fleet, type GameState } from "./state";
 import { updateSightings } from "./vision";
 import { empireEffects, newColony, refreshEmpireStats } from "./economy";
-import { defaultOrders, designStats, fleetArmed, fleetMaxSupply, startingDesigns } from "./ships";
+import { defaultOrders, designStats, fleetArmed, fleetMaxSupply, fleetStrength, startingDesigns } from "./ships";
 
 export const SAVE_FORMAT = 1;
 
@@ -241,6 +242,35 @@ export function migrateState(state: GameState, pack: ContentPack): GameState {
       fleet.warp = false;
     }
     old.version = 17;
+  }
+
+  if (old.version === 17) {
+    // v18: naval commands, officers and fleets; outpost marks.
+    for (const outpost of migrated.outposts) outpost.mark = 0;
+    for (const fleet of migrated.fleets) fleet.command = null;
+    for (const empire of migrated.empires) {
+      empire.navalCommands = [];
+      const colonies = migrated.colonies.filter((c) => c.empireId === empire.id);
+      const capital = colonies.find((c) => c.capital) ?? colonies[0];
+      if (empire.eliminated || !capital) continue;
+      // The first command at the capital, any others the empire can support at its largest colonies.
+      const homes = [capital.systemId];
+      for (const c of [...colonies].sort((a, b) => b.population - a.population || a.id - b.id)) if (!homes.includes(c.systemId)) homes.push(c.systemId);
+      const count = Math.min(homes.length, supportedCommands(migrated, pack, empire.id));
+      for (let i = 0; i < count; i++) newCommand(migrated, empire, homes[i]!, 0);
+      // Armed fleets become fleets, strongest first, while officers last; the rest are groups.
+      const armed = migrated.fleets
+        .filter((f) => f.empireId === empire.id && fleetHasWarships(pack, migrated, f))
+        .map((f) => ({ fleet: f, strength: fleetStrength(pack, migrated, f) }))
+        .sort((a, b) => b.strength - a.strength || a.fleet.id - b.fleet.id);
+      for (const { fleet } of armed) {
+        const base = empire.navalCommands.find((c) => freeOfficers(migrated, pack, empire, c) > 0);
+        const flagship = suggestedFlagship(pack, migrated, fleet);
+        if (!base || !flagship) break;
+        fleet.command = { commandId: base.id, officer: takeOfficer(migrated, pack, base), flagshipId: flagship.id, cohesion: 100 };
+      }
+    }
+    old.version = 18;
   }
 
   if (startVersion !== migrated.version) {

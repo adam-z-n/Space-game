@@ -2239,6 +2239,102 @@
       },
       "description": "+25% sabotage odds.",
       "school": "shields_assault"
+    },
+    {
+      "id": "naval_staff_college",
+      "name": "Naval Staff College",
+      "field": "logistics",
+      "cost": 400,
+      "requires": [
+        "supply_lines"
+      ],
+      "effects": {
+        "commandPoints": 4
+      },
+      "description": "+4 points for every naval command."
+    },
+    {
+      "id": "officer_academy",
+      "name": "Officer Academy",
+      "field": "science",
+      "cost": 450,
+      "requires": [
+        "battle_computers"
+      ],
+      "effects": {
+        "commandOfficers": 1
+      },
+      "description": "+1 officer for every naval command: one more fleet each."
+    },
+    {
+      "id": "command_ship_analysis",
+      "name": "Command Ship Analysis",
+      "field": "sensors",
+      "cost": 700,
+      "requires": [
+        "electronic_warfare"
+      ],
+      "effects": {},
+      "flags": [
+        "flagshipTargeting"
+      ],
+      "description": "Unlocks the Flagship target priority: fleets can aim at enemy flagships."
+    },
+    {
+      "id": "subspace_command",
+      "name": "Subspace Command",
+      "field": "sensors",
+      "cost": 900,
+      "requires": [
+        "deep_space_arrays"
+      ],
+      "effects": {},
+      "flags": [
+        "subspaceCommand"
+      ],
+      "description": "Fleets can change course in flight and take any order anywhere."
+    },
+    {
+      "id": "fleet_admiralty",
+      "name": "Fleet Admiralty",
+      "field": "science",
+      "cost": 1300,
+      "requires": [
+        "naval_staff_college",
+        "capital_ships"
+      ],
+      "effects": {
+        "commandPoints": 8
+      },
+      "description": "+8 points for every naval command."
+    },
+    {
+      "id": "combined_fleet_doctrine",
+      "name": "Combined Fleet Doctrine",
+      "field": "science",
+      "cost": 1600,
+      "requires": [
+        "officer_academy",
+        "capital_ships"
+      ],
+      "effects": {
+        "commandOfficers": 1
+      },
+      "description": "+1 officer for every naval command: one more fleet each."
+    },
+    {
+      "id": "chain_of_command",
+      "name": "Chain of Command",
+      "field": "science",
+      "cost": 2000,
+      "requires": [
+        "combined_fleet_doctrine"
+      ],
+      "effects": {},
+      "flags": [
+        "chainOfCommand"
+      ],
+      "description": "A fleet that loses its flagship holds together: the toughest ship left takes over."
     }
   ],
   "buildings": [
@@ -2577,7 +2673,75 @@
       "upkeep": 1,
       "supplyRange": 200,
       "requires": "forward_depots"
-    }
+    },
+    "marks": [
+      {
+        "weaponsTechs": 3,
+        "cost": 150,
+        "hp": 100,
+        "weapons": [
+          {
+            "damage": 6,
+            "accuracy": 70,
+            "count": 3
+          }
+        ],
+        "upkeep": 1
+      },
+      {
+        "weaponsTechs": 5,
+        "cost": 250,
+        "hp": 150,
+        "weapons": [
+          {
+            "damage": 8,
+            "accuracy": 72,
+            "count": 3
+          }
+        ],
+        "upkeep": 2
+      },
+      {
+        "weaponsTechs": 8,
+        "cost": 400,
+        "hp": 220,
+        "weapons": [
+          {
+            "damage": 9,
+            "accuracy": 75,
+            "count": 4
+          }
+        ],
+        "upkeep": 2
+      },
+      {
+        "weaponsTechs": 11,
+        "cost": 600,
+        "hp": 300,
+        "weapons": [
+          {
+            "damage": 11,
+            "accuracy": 75,
+            "count": 4
+          }
+        ],
+        "upkeep": 3
+      },
+      {
+        "weaponsTechs": 13,
+        "cost": 850,
+        "hp": 400,
+        "weapons": [
+          {
+            "damage": 12,
+            "accuracy": 78,
+            "count": 5
+          }
+        ],
+        "upkeep": 3
+      }
+    ],
+    "marksField": "weapons"
   },
   "combat": {
     "rounds": 6,
@@ -2656,7 +2820,91 @@
     "commandSizeBonus": 6,
     "oversizePenalty": 3,
     "oversizePenaltyMax": 24,
-    "supplyRepairPercent": 15
+    "supplyRepairPercent": 15,
+    "command": {
+      "coloniesPerCommand": 5,
+      "basePoints": 12,
+      "populationPerPoint": 10,
+      "supportPoints": 1,
+      "networkPoints": 6,
+      "officers": 1,
+      "officerReplaceTurns": 5,
+      "newCommandTurns": 3,
+      "relocateTurns": 5,
+      "cohesionStart": 50,
+      "cohesionPerTurn": 10,
+      "cohesionPerShip": 10,
+      "cohesionFlagship": 20,
+      "cohesionAccuracy": 10,
+      "officerRanks": [
+        {
+          "name": "Officer",
+          "xp": 0,
+          "bonus": 0
+        },
+        {
+          "name": "Veteran",
+          "xp": 6,
+          "bonus": 3
+        },
+        {
+          "name": "Seasoned",
+          "xp": 15,
+          "bonus": 6
+        },
+        {
+          "name": "Legendary",
+          "xp": 30,
+          "bonus": 9
+        }
+      ],
+      "officerXpPerBattle": 2,
+      "officerXpPerWin": 2,
+      "flagshipScreenPercent": 30,
+      "decoyPercent": 50,
+      "officerNames": [
+        "Voss",
+        "Adeyemi",
+        "Kerrigan",
+        "Okafor",
+        "Lindqvist",
+        "Tanaka",
+        "Moreau",
+        "Halvorsen",
+        "Castellano",
+        "Rourke",
+        "Nakamura",
+        "Petrova",
+        "Achebe",
+        "Sorensen",
+        "Valdez",
+        "Iwasaki",
+        "Brandt",
+        "Kowalski",
+        "Mbeki",
+        "Ferreira",
+        "Quinlan",
+        "Ashworth",
+        "Delacroix",
+        "Ibarra",
+        "Novak",
+        "Rasmussen",
+        "Takeda",
+        "Oyelaran",
+        "Marchetti",
+        "Strand",
+        "Vance",
+        "Holloway",
+        "Zhou",
+        "Abara",
+        "Keller",
+        "Sato",
+        "Duval",
+        "Morrow",
+        "Esposito",
+        "Thorne"
+      ]
+    }
   },
   "hulls": [
     {
@@ -2672,7 +2920,8 @@
       "evasion": 25,
       "maneuver": 5,
       "veteranBonus": 1,
-      "endurance": 10
+      "endurance": 10,
+      "commandPoints": 1
     },
     {
       "id": "frigate",
@@ -2687,7 +2936,8 @@
       "evasion": 15,
       "maneuver": 4,
       "veteranBonus": 2,
-      "endurance": 10
+      "endurance": 10,
+      "commandPoints": 2
     },
     {
       "id": "transport",
@@ -2703,7 +2953,8 @@
       "maneuver": 1,
       "veteranBonus": 1,
       "endurance": 12,
-      "freighter": true
+      "freighter": true,
+      "commandPoints": 1
     },
     {
       "id": "cruiser",
@@ -2719,7 +2970,8 @@
       "maneuver": 3,
       "veteranBonus": 3,
       "endurance": 12,
-      "requires": "cruiser_hulls"
+      "requires": "cruiser_hulls",
+      "commandPoints": 4
     },
     {
       "id": "battleship",
@@ -2735,7 +2987,8 @@
       "maneuver": 2,
       "veteranBonus": 4,
       "endurance": 14,
-      "requires": "capital_ships"
+      "requires": "capital_ships",
+      "commandPoints": 8
     },
     {
       "id": "dreadnought",
@@ -2751,7 +3004,8 @@
       "maneuver": 1,
       "veteranBonus": 5,
       "endurance": 16,
-      "requires": "dreadnought_hulls"
+      "requires": "dreadnought_hulls",
+      "commandPoints": 12
     }
   ],
   "components": [

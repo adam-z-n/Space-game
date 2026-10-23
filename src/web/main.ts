@@ -515,6 +515,16 @@ function startGame(game: Game): void {
         return `Mines hit ${e.hits} ship${e.hits > 1 ? "s" : ""} near ${systemName(e.systemId)}${e.shipsLost ? `, ${e.shipsLost} lost` : ""}`;
       case "capitalMoved":
         return `Capital moved to ${colonyName(e.colonyId)}`;
+      case "fleetHalted":
+        return `${fleetView(e.fleetId)?.name ?? "Group"} halted at ${systemName(e.systemId)}: enemies at ${systemName(e.blockedId)}, and only a fleet in a naval command can enter`;
+      case "flagshipLost":
+        return e.heldTogether
+          ? `${fleetView(e.fleetId)?.name ?? "A fleet"} lost its flagship and ${e.officer} at ${systemName(e.systemId)}, but held together`
+          : `${fleetView(e.fleetId)?.name ?? "A fleet"} lost its flagship and ${e.officer} at ${systemName(e.systemId)}; the fleet broke up`;
+      case "commandDisplaced":
+        return `A naval command lost its home at ${systemName(e.systemId)}: move it to another colony`;
+      case "commandLost":
+        return `${e.name} was lost with ${systemName(e.systemId)}; its fleets are now groups`;
       case "outpostLost":
         return `Lost a ${pack.outposts[e.kind].name} at ${systemName(e.systemId)}`;
       case "sabotage": {

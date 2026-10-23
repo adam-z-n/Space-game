@@ -1,4 +1,5 @@
 import { combatShipCount, fleetShipStats } from "../ships";
+import { commandCapacity, commandReady, commandUsed, findCommand, fleetPoints, freeOfficers, suggestedFlagship, supportedCommands } from "../command";
 import { colonyOnBody, type FleetOrders, type OutpostKind, type SystemId } from "../state";
 import { outpostBlocker, outpostTechOk } from "../outposts";
 import { defenseStrength, fleetAt, moveTo, withinReach, type AiContext, type FleetInfo } from "./context";
@@ -9,6 +10,7 @@ import type { Strategy } from "./strategy";
  * Each step skips fleets already given an order this turn (ctx.busy).
  */
 export function planOperations(ctx: AiContext, strategy: Strategy): void {
+  placeCommands(ctx, strategy);
   setStandingOrders(ctx);
   resupply(ctx);
   colonize(ctx, strategy);
@@ -185,7 +187,10 @@ function defend(ctx: AiContext, strategy: Strategy): void {
   }
 }
 
-/** Gather at a staging system on our side of the border, then strike a rival colony we can beat. */
+/**
+ * Gather at the home of the naval command nearest the target (only fleets in a command may attack),
+ * form a fleet there within the command's points, then strike a rival colony we can beat.
+ */
 function attack(ctx: AiContext, strategy: Strategy): void {
   if (strategy.posture !== "attack") return;
   // In the endgame drive raiders fight as one massed fleet and invade like everyone else.
@@ -218,53 +223,82 @@ function attack(ctx: AiContext, strategy: Strategy): void {
     underway += info.strength;
   }
 
-  // Staging: the supplied system closest to the target.
-  const staging = nearest(ctx, target.colony.systemId, [...ctx.supplied]) ?? ctx.capital.systemId;
+  // Staging: the home of the ready command nearest the target. Fleets form only there.
+  const toTarget = ctx.dist(target.colony.systemId);
+  const base = ctx.empire.navalCommands
+    .filter((c) => commandReady(ctx.state, c) && toTarget[c.homeSystemId!] !== Infinity)
+    .sort((a, b) => toTarget[a.homeSystemId!]! - toTarget[b.homeSystemId!]! || a.id - b.id)[0];
+  if (!base) return;
+  const staging = base.homeSystemId!;
   const needed = Math.floor((target.guard * nerve) / 100) + 1;
   const atStaging = pool.filter((f) => f.idle && f.fleet.systemId === staging);
-  const ready = atStaging.reduce((n, f) => n + f.strength, 0);
 
-  // Troop transports and supply ships gather at the staging system and ride along with the strongest fleet there.
-  const transports = ctx.fleets.filter((f) => (f.troops > 0 || f.supplier) && !f.armed && free(ctx, f));
-  const anchor = [...atStaging].sort((a, b) => b.strength - a.strength || a.fleet.id - b.fleet.id)[0];
+  // The fleet that leads the strike: one already formed here, else the strongest group, formed now.
+  const anchor = [...atStaging].sort((a, b) => Number(!!b.fleet.command) - Number(!!a.fleet.command) || b.strength - a.strength || a.fleet.id - b.fleet.id)[0];
+  let room = 0;
+  let canLead = false;
+  if (anchor?.fleet.command) {
+    const own = findCommand(ctx.empire, anchor.fleet.command.commandId)!;
+    room = commandCapacity(ctx.state, ctx.pack, ctx.empire, own) - commandUsed(ctx.state, ctx.pack, ctx.empire, own);
+    canLead = true;
+  } else if (anchor && freeOfficers(ctx.state, ctx.pack, ctx.empire, base) > 0) {
+    room = commandCapacity(ctx.state, ctx.pack, ctx.empire, base) - commandUsed(ctx.state, ctx.pack, ctx.empire, base) - fleetPoints(ctx.pack, ctx.state, anchor.fleet);
+    canLead = room >= 0;
+  }
+
+  // Troop transports, commandos and supply ships gather at staging and ride along with the strike fleet.
+  const transports = ctx.fleets.filter((f) => (f.troops > 0 || f.supplier || f.commandos > 0) && !f.armed && !f.fleet.command && free(ctx, f));
   let carried = anchor?.troops ?? 0;
+  const merges: number[] = [];
   for (const info of transports) {
     // Stopped at staging counts even with a course plotted (say, a retreat after a skirmish there):
     // merging into the strike force cancels it.
-    if (anchor && info.fleet.progress === 0 && info.fleet.systemId === staging) {
+    if (anchor && canLead && info.fleet.progress === 0 && info.fleet.systemId === staging) {
+      const points = fleetPoints(ctx.pack, ctx.state, info.fleet);
+      if (points > room) continue;
+      room -= points;
       ctx.busy.add(info.fleet.id);
       carried += info.troops;
-      ctx.commands.push({ type: "mergeFleets", empireId: ctx.id, fleetId: info.fleet.id, intoFleetId: anchor.fleet.id });
+      merges.push(info.fleet.id);
     } else {
       moveTo(ctx, info, staging);
     }
   }
 
-  // A strike force strong enough is already on its way: new arrivals wait at staging and form up.
-  if (raider || (ready >= needed && underway < needed)) {
-    // Form the warships waiting at staging into full fleets (the anchor first, which carries the
-    // troops), so a strike goes out as a few fleets rather than a stream of single ships.
-    const launching: FleetInfo[] = [];
-    if (raider) launching.push(...pool);
-    else {
-      const waiting = [...atStaging].sort((a, b) => Number(b === anchor) - Number(a === anchor) || b.strength - a.strength || a.fleet.id - b.fleet.id);
-      let lead: FleetInfo | null = null;
-      let room = 0;
-      for (const info of waiting) {
-        const ships = combatShipCount(ctx.pack, ctx.state, info.fleet);
-        if (lead && ships <= room) {
-          ctx.busy.add(info.fleet.id);
-          ctx.commands.push({ type: "mergeFleets", empireId: ctx.id, fleetId: info.fleet.id, intoFleetId: lead.fleet.id });
-          room -= ships;
-          continue;
-        }
-        lead = info;
-        room = sizeLimit(ctx, info) - ships;
-        launching.push(info);
+  // Warships waiting at staging: groups join the strike fleet while its command has points, and
+  // other fleets already formed here go along beside it.
+  let ready = canLead && anchor ? anchor.strength : 0;
+  const escorts: FleetInfo[] = [];
+  if (anchor && canLead) {
+    for (const info of atStaging) {
+      if (info === anchor) continue;
+      if (info.fleet.command) {
+        escorts.push(info);
+        ready += info.strength;
+        continue;
       }
+      const points = fleetPoints(ctx.pack, ctx.state, info.fleet);
+      if (raider || points > room) continue;
+      room -= points;
+      ready += info.strength;
+      merges.push(info.fleet.id);
     }
-    for (const info of launching) moveTo(ctx, info, target.colony.systemId);
-    if (anchor && carried > 0 && !raider) {
+  }
+
+  // A strike force strong enough is already on its way: new arrivals wait at staging and form up.
+  if (anchor && canLead && (raider || (ready >= needed && underway < needed))) {
+    if (!anchor.fleet.command) {
+      const flagship = suggestedFlagship(ctx.pack, ctx.state, anchor.fleet)!;
+      ctx.commands.push({ type: "formFleet", empireId: ctx.id, fleetId: anchor.fleet.id, flagshipId: flagship.id });
+      ctx.formedNow.add(anchor.fleet.id);
+    }
+    for (const id of merges) {
+      ctx.busy.add(id);
+      ctx.commands.push({ type: "mergeFleets", empireId: ctx.id, fleetId: id, intoFleetId: anchor.fleet.id });
+    }
+    for (const info of [anchor, ...escorts]) moveTo(ctx, info, target.colony.systemId);
+    if (raider) for (const info of pool) if (info.fleet.command && info.idle && !ctx.busy.has(info.fleet.id)) moveTo(ctx, info, target.colony.systemId);
+    if (carried > 0 && !raider) {
       ctx.commands.push({ type: "invade", empireId: ctx.id, fleetId: anchor.fleet.id, colonyId: target.colony.colonyId });
     }
   }
@@ -276,7 +310,7 @@ function attack(ctx: AiContext, strategy: Strategy): void {
 /** Fleets with troops sitting at a known rival colony keep an invasion order on it. */
 function invade(ctx: AiContext): void {
   for (const info of ctx.fleets) {
-    if (info.troops === 0 || !free(ctx, info) || info.fleet.progress > 0 || info.fleet.route.length > 0) continue;
+    if (info.troops === 0 || !info.fleet.command || !free(ctx, info) || info.fleet.progress > 0 || info.fleet.route.length > 0) continue;
     const colony = ctx.rivalColonies.filter((c) => c.systemId === info.fleet.systemId).sort((a, b) => a.troops - b.troops || a.colonyId - b.colonyId)[0];
     if (!colony || info.fleet.invadeColonyId === colony.colonyId) continue;
     ctx.busy.add(info.fleet.id);
@@ -297,7 +331,8 @@ function siege(ctx: AiContext, strategy: Strategy): void {
   const inOrbit = new Map<SystemId, FleetInfo[]>();
   for (const info of ctx.fleets) {
     // Fleets already ordered away this turn (say, home to resupply) take no part.
-    if (info.fleet.progress > 0 || info.fleet.route.length > 0 || !free(ctx, info)) continue;
+    // Only fleets in a naval command may bomb or invade.
+    if (info.fleet.progress > 0 || info.fleet.route.length > 0 || !free(ctx, info) || !info.fleet.command) continue;
     inOrbit.set(info.fleet.systemId, [...(inOrbit.get(info.fleet.systemId) ?? []), info]);
   }
   const handled = new Set<number>();
@@ -332,8 +367,9 @@ function raid(ctx: AiContext, strategy: Strategy): void {
   const target = strategy.targetColony;
   if (strategy.posture !== "attack" || !target) return;
   for (const info of ctx.fleets) {
-    if (info.commandos === 0 || info.armed || !free(ctx, info)) continue;
-    moveTo(ctx, info, target.systemId);
+    // Commandos ride with the strike fleet (see attack): they strike once it is at or bound for the target.
+    if (info.commandos === 0 || !info.fleet.command || !free(ctx, info)) continue;
+    if ((info.fleet.route.at(-1) ?? info.fleet.systemId) !== target.systemId) continue;
     const mission = target.defenseHp > 0 ? "defenses" : "garrison";
     const order = info.fleet.sabotage;
     if (order?.colonyId !== target.colonyId || order.mission !== mission) {
@@ -375,6 +411,29 @@ function garrison(ctx: AiContext, strategy: Strategy): void {
   }
 }
 
+/**
+ * Base new naval commands, and move displaced ones, at a colony facing the war target (or the largest
+ * colony when at peace): fleets form only where commands are based.
+ */
+function placeCommands(ctx: AiContext, strategy: Strategy): void {
+  const taken = new Set(ctx.empire.navalCommands.map((c) => c.homeSystemId).filter((s): s is SystemId => s !== null));
+  const facing = ctx.rivalColonies.filter((c) => strategy.warTarget === null || c.empireId === strategy.warTarget).map((c) => c.systemId);
+  const front = (systemId: SystemId) => Math.min(...facing.map((f) => ctx.dist(systemId)[f]!), Infinity);
+  const population = (systemId: SystemId) => ctx.colonies.filter((c) => c.systemId === systemId).reduce((n, c) => n + c.population, 0);
+  const sites = [...new Set(ctx.colonies.map((c) => c.systemId))]
+    .filter((s) => !taken.has(s) && !ctx.hostile.has(s))
+    .sort((a, b) => front(a) - front(b) || population(b) - population(a) || a - b);
+  for (const command of ctx.empire.navalCommands) {
+    if (command.homeSystemId !== null) continue;
+    const site = sites.shift();
+    if (site !== undefined) ctx.commands.push({ type: "placeCommand", empireId: ctx.id, commandId: command.id, systemId: site });
+  }
+  if (ctx.empire.navalCommands.length < supportedCommands(ctx.state, ctx.pack, ctx.id)) {
+    const site = sites.shift();
+    if (site !== undefined) ctx.commands.push({ type: "placeCommand", empireId: ctx.id, commandId: null, systemId: site });
+  }
+}
+
 /** Everything left goes home and forms up; raiders keep small packs (except in the endgame drive). */
 function gather(ctx: AiContext, strategy: Strategy): void {
   if (!ctx.capital) return;
@@ -386,16 +445,22 @@ function gather(ctx: AiContext, strategy: Strategy): void {
   const bySystem = new Map<SystemId, FleetInfo[]>();
   for (const info of idle) bySystem.set(info.fleet.systemId, [...(bySystem.get(info.fleet.systemId) ?? []), info]);
   for (const [systemId, group] of [...bySystem].sort((a, b) => a[0] - b[0])) {
-    group.sort((a, b) => b.strength - a.strength || a.fleet.id - b.fleet.id);
+    // A fleet in a command anchors the group (groups merge into it while its command has points).
+    group.sort((a, b) => Number(!!b.fleet.command) - Number(!!a.fleet.command) || b.strength - a.strength || a.fleet.id - b.fleet.id);
     const anchor = group[0]!;
     const count = (info: FleetInfo) => combatShipCount(ctx.pack, ctx.state, info.fleet);
     let ships = count(anchor);
     const maxShips = Math.min(style, limit(anchor));
+    const own = anchor.fleet.command ? findCommand(ctx.empire, anchor.fleet.command.commandId) : undefined;
+    let room = own ? commandCapacity(ctx.state, ctx.pack, ctx.empire, own) - commandUsed(ctx.state, ctx.pack, ctx.empire, own) : Infinity;
     ctx.busy.add(anchor.fleet.id);
     for (const other of group.slice(1)) {
       ctx.busy.add(other.fleet.id);
-      if (ships + count(other) > maxShips) continue;
+      if (other.fleet.command) continue;
+      const points = own ? fleetPoints(ctx.pack, ctx.state, other.fleet) : 0;
+      if (ships + count(other) > maxShips || points > room) continue;
       ships += count(other);
+      room -= points;
       ctx.commands.push({ type: "mergeFleets", empireId: ctx.id, fleetId: other.fleet.id, intoFleetId: anchor.fleet.id });
     }
     if (systemId !== home && !ctx.colonies.some((c) => c.systemId === systemId) && !ctx.supplied.has(systemId)) {
