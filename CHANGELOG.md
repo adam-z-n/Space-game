@@ -2,7 +2,7 @@
 
 ## 1.5.0 (in progress)
 
-The fleet command overhaul (design: `docs/FLEET_COMMAND.md`). Built so far (parts 1 and 2, rules and combat):
+The fleet command overhaul (design: `docs/FLEET_COMMAND.md`). Built so far (parts 1 to 3: rules, combat and AI):
 
 - Ships move about in groups; only a fleet, formed under a naval command with an officer and an armed flagship,
   may enter systems with known enemies, invade, bomb or sabotage. Infiltrators are the exception: groups of cloaked
@@ -27,8 +27,15 @@ The fleet command overhaul (design: `docs/FLEET_COMMAND.md`). Built so far (part
   has a clear way home.
 - Seven new techs: Naval Staff College, Officer Academy, Command Ship Analysis, Subspace Command, Fleet Admiralty,
   Combined Fleet Doctrine, Chain of Command.
-- The AI places commands facing its war target, forms its strike fleets at command homes, and sends troops and
-  commandos only inside fleets. Saves move to state version 18.
+- The AI places commands facing its war target (and moves displaced ones), forms its strike fleet at the command
+  home nearest the target as soon as warships gather there, fills it up to the command's points (leaving extra
+  ships behind as a group), and launches once cohesion is back to 80%. Troops and commandos ride inside fleets;
+  cloaked infiltrators still go ahead alone. Stranded fleets head for the nearest colony or outpost, and groups
+  regroup at the nearest command home.
+- The AI researches the command techs (warlike temperaments most), aims at flagships with fleets that outgun what
+  it has seen once it has Command Ship Analysis, builds one warship in three as a Screen-formation Guard twin from
+  then on, and buys outpost marks for its frontier outposts when it has credits to spare.
+- Saves move to state version 18.
 
 ## 1.4.0
 

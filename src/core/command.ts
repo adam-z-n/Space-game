@@ -188,7 +188,9 @@ export function suggestedFlagship(pack: ContentPack, state: GameState, fleet: Fl
   fleet.ships.forEach((ship, i) => {
     const s = stats[i]!;
     if (!shipArmed(pack, empire, ship)) return;
-    const score = s.maxHp + (s.command > 0 ? 100_000 : 0);
+    // A Command Network ship first, then the toughest; screening ships guard the flagship rather than lead.
+    const screen = getDesign(empire, ship.designId).formation === "screen";
+    const score = s.maxHp * 2 + (screen ? 0 : 1) + (s.command > 0 ? 100_000 : 0);
     if (!best || score > best.score) best = { ship, score };
   });
   return best?.ship;

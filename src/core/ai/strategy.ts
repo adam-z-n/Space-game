@@ -172,6 +172,11 @@ export function chooseResearch(ctx: AiContext, strategy: Strategy): string | nul
     if ((fx.industryPercent ?? 0) > 0 || (fx.industry ?? 0) > 0) weight += p.economy;
     if ((fx.researchPercent ?? 0) > 0 || (fx.research ?? 0) > 0) weight += p.research;
     if (ctx.economy.netCredits < 2 && ((fx.creditsPercent ?? 0) > 0 || (fx.credits ?? 0) > 0)) weight += 15;
+    // Naval command: more points and officers, then freedom of orders, flagship tactics and Chain of Command;
+    // warlike temperaments want them most.
+    if ((fx.commandPoints ?? 0) > 0 || (fx.commandOfficers ?? 0) > 0) weight += 5 + p.military;
+    if (tech.flags.includes("subspaceCommand")) weight += 5 + p.aggression;
+    if (tech.flags.includes("flagshipTargeting") || tech.flags.includes("chainOfCommand")) weight += Math.floor((p.military + p.aggression) / 2);
     // Specialists lean into their affinity field (it also costs less there).
     if (researchAccess(pack, empire).affinity === tech.field) weight += 10;
     const score = Math.floor((weight * 10000) / techCost(pack, empire, tech));

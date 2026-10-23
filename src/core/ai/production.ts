@@ -2,7 +2,7 @@ import { buildOptions, buyCost, colonyOutput, findBody, itemCost, planetStats, p
 import { combatShipCount, designStats, fleetShipStats } from "../ships";
 import type { Colony, Focus, QueueItem } from "../state";
 import type { AiContext } from "./context";
-import { designWhere } from "./designs";
+import { designWhere, guardFor } from "./designs";
 import { outpostTargets } from "./operations";
 import type { Strategy } from "./strategy";
 
@@ -109,13 +109,18 @@ export function planProduction(ctx: AiContext, strategy: Strategy, warshipId: st
   }
 
   // Planets already being settled this turn (by colony ship or a colony base queued below).
+  let queuedGuards = 0;
   const settling = new Set(ctx.commands.flatMap((c) => (c.type === "colonize" ? [c.bodyId] : [])));
   for (const colony of ctx.colonies) {
     if (colony.queue.length > 0) continue;
     const options = buildOptions(ctx.state, pack, empire, colony);
     const can = (item: QueueItem | null): item is QueueItem => !!item && options.some((o) => o.kind === item.kind && o.id === item.id);
     const affordable = !!warStats && warStats.upkeep <= room.upkeep && warStats.upkeep <= fleetRoom && warshipsAfloat + queuedWar < AI_MAX_WARSHIPS;
-    const warItem = warship && affordable ? ({ kind: "ship", id: warship.id } as QueueItem) : null;
+    // One warship in three is its Guard twin (Screen formation) once the AI has one, to shield flagships.
+    const guard = warship ? guardFor(ctx, warship) : null;
+    const guards = ctx.fleets.reduce((n, f) => n + f.fleet.ships.filter((s) => s.designId === guard?.id).length, 0) + queuedGuards;
+    const warDesign = guard && guards * 3 < warshipsAfloat + queuedWar ? guard : warship;
+    const warItem = warDesign && affordable ? ({ kind: "ship", id: warDesign.id } as QueueItem) : null;
     const big = colony.population >= 3;
     let pick: QueueItem | null = null;
 
@@ -173,6 +178,7 @@ export function planProduction(ctx: AiContext, strategy: Strategy, warshipId: st
       fleetRoom -= warStats!.upkeep;
       deficit -= perWarship;
       queuedWar++;
+      if (pick.id === guard?.id) queuedGuards++;
     }
     ctx.commands.push({ type: "queueBuild", empireId: ctx.id, colonyId: colony.id, item: pick });
   }
