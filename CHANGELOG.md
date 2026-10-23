@@ -2,7 +2,7 @@
 
 ## 1.5.0 (in progress)
 
-The fleet command overhaul (design: `docs/FLEET_COMMAND.md`). Built so far (parts 1 to 4: rules, combat, AI and screens):
+The fleet command overhaul (design: `docs/FLEET_COMMAND.md`). All five parts are built (rules, combat, AI, screens, balance checks):
 
 - Ships move about in groups; only a fleet, formed under a naval command with an officer and an armed flagship,
   may enter systems with known enemies, invade, bomb or sabotage. Infiltrators are the exception: groups of cloaked
@@ -49,6 +49,13 @@ The fleet command overhaul (design: `docs/FLEET_COMMAND.md`). Built so far (part
 - The ship designer lists parts by category (beam weapons, missiles and torpedoes, guns, special weapons,
   fighters, bombs, armor, shields, engines, sensors and electronics, support), one category open at a time.
 - Saves move to state version 18.
+- Balance (all-AI sims against 1.4, same seeds: 60 small games of 150 turns, 20 medium games of 200 turns):
+  - Conquest roughly halves: invasions 5.4 → 2.5 per small game and 11.5 → 4.8 per medium game. Ships lost in
+    battle fall by about a third.
+  - Expansionists win more often (small 45% → 57%, medium 60% → 70%); raiders and warlords win less.
+  - Win rates by race move within the noise of these samples; no race stands out.
+  - No AI orders are rejected. Raising command points (1 per 5 population), two officers per command, or launching
+    at 60% cohesion each changed invasions by under 1 per game: the drop comes from the rules themselves.
 
 ## 1.4.0
 

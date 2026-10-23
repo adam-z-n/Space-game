@@ -1,6 +1,6 @@
 # 1.5 Fleet command overhaul: design proposal
 
-Status: approved (revision 3 with the softer mark steps); being built. Builds on the agreed draft in `docs/ROADMAP.md`
+Status: approved (revision 3 with the softer mark steps); built in 1.5. Balance results are in `CHANGELOG.md`. Builds on the agreed draft in `docs/ROADMAP.md`
 and the owner's answers and requests:
 - A fleet stopped away from a colony or outpost takes new orders only with Subspace Command.
 - Support ships cost 1 command point each.

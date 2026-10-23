@@ -40,7 +40,9 @@ habitats, warp gates, nine new weapons and in-game help; the rest waits here.
 
 ## Other candidates noted along the way
 
-- AI tuning: the warlord and turtle personalities rarely win; expansionists win most.
+- AI tuning: the warlord and turtle personalities rarely win; expansionists win most. 1.5's command rules halved
+  conquest in all-AI games and hit raiders and warlords hardest; ideas: strikes launched from several commands at
+  once, using spare officers for second fleets, and longer campaigns (pushing on to the next target).
 - Teach the AI the remaining 1.1 tools: minelayers and cloaked raiding (1.3 taught it bombardment, commando raids
   and supply depots).
 - AI debt in collapsing empires: an empire losing colonies to conquest keeps its fleet and runs deep into debt
