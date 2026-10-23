@@ -184,7 +184,15 @@ export function planProduction(ctx: AiContext, strategy: Strategy, warshipId: st
   }
 
   // Buy with surplus credits, keeping a reserve that grows with the empire. Urgent builds first.
-  let spendable = empire.credits - (30 + ctx.colonies.length * 8);
+  // Credits already committed this turn (outpost marks, depots) are gone before any buying.
+  const committed = ctx.commands.reduce(
+    (n, c) =>
+      n +
+      (c.type === "upgradeOutpostMark" ? ctx.pack.outposts.marks[ctx.state.outposts.find((o) => o.id === c.outpostId)!.mark]!.cost : 0) +
+      (c.type === "upgradeOutpost" ? ctx.pack.outposts.depot.cost : 0),
+    0,
+  );
+  let spendable = empire.credits - committed - (30 + ctx.colonies.length * 8);
   const order = [...ctx.colonies].sort((a, b) => Number(b.capital) - Number(a.capital) || a.id - b.id);
   for (const colony of order) {
     const first = colony.queue[0];

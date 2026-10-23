@@ -151,7 +151,8 @@ describe("AI behaviour", () => {
     });
 
     it("fills its strike fleet at staging up to its command's points, then drills before launching", () => {
-      const s = armed("turns200", "warlord", 0); // 8 frigates at home, plus the starting pair formed as a fleet
+      // 8 frigates at home, plus the starting pair formed as a fleet; the target's defenses need more than the pair.
+      const s = armed("turns200", "warlord", 50);
       const ai = s.empires[1]!;
       const dist = buildContext(s, pack, 1).dist(ai.homeSystemId);
       const next = s.galaxy.systems.map((x) => x.id).filter((id) => id !== ai.homeSystemId).sort((a, b) => dist[a]! - dist[b]!)[0]!;

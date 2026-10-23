@@ -302,7 +302,9 @@ function attack(ctx: AiContext, strategy: Strategy): void {
         ready += info.strength;
         continue;
       }
-      if (raider) continue;
+      // Once strong enough (with a margin), no more ships join: each one costs cohesion, and a fleet that
+      // keeps taking in the trickle of new warships would never be drilled enough to launch.
+      if (raider || ready >= Math.floor((needed * 5) / 4)) continue;
       const kept = trimTo(ctx, info, room, false);
       if (!kept) continue;
       room -= kept.points;
