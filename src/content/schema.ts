@@ -179,6 +179,11 @@ const Hull = z.object({
   endurance: z.number().int().nonnegative(),
   /** Cargo hull: unarmed ships on it caught without an escort by armed enemies are destroyed, not driven off. */
   freighter: z.boolean().default(false),
+  /**
+   * Small enough to slip in unseen: a group made only of cloaked ships on such hulls, carrying commandos, may
+   * enter enemy systems and sabotage without being formed into a fleet.
+   */
+  infiltrator: z.boolean().default(false),
   /** Naval command points an armed ship on this hull uses (unarmed ships use the command block's supportPoints). */
   commandPoints: z.number().int().nonnegative().default(1),
   requires: id.optional(),

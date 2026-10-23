@@ -2921,7 +2921,8 @@
       "maneuver": 5,
       "veteranBonus": 1,
       "endurance": 10,
-      "commandPoints": 1
+      "commandPoints": 1,
+      "infiltrator": true
     },
     {
       "id": "frigate",
@@ -2937,7 +2938,8 @@
       "maneuver": 4,
       "veteranBonus": 2,
       "endurance": 10,
-      "commandPoints": 2
+      "commandPoints": 2,
+      "infiltrator": true
     },
     {
       "id": "transport",

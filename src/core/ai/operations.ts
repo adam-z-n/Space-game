@@ -1,5 +1,5 @@
 import { combatShipCount, fleetShipStats } from "../ships";
-import { commandCapacity, commandReady, commandUsed, findCommand, fleetPoints, freeOfficers, suggestedFlagship, supportedCommands } from "../command";
+import { commandCapacity, commandReady, commandUsed, findCommand, fleetPoints, freeOfficers, suggestedFlagship, supportedCommands, infiltratorGroup } from "../command";
 import { colonyOnBody, type FleetOrders, type OutpostKind, type SystemId } from "../state";
 import { outpostBlocker, outpostTechOk } from "../outposts";
 import { defenseStrength, fleetAt, moveTo, withinReach, type AiContext, type FleetInfo } from "./context";
@@ -247,7 +247,9 @@ function attack(ctx: AiContext, strategy: Strategy): void {
   }
 
   // Troop transports, commandos and supply ships gather at staging and ride along with the strike fleet.
-  const transports = ctx.fleets.filter((f) => (f.troops > 0 || f.supplier || f.commandos > 0) && !f.armed && !f.fleet.command && free(ctx, f));
+  const transports = ctx.fleets.filter(
+    (f) => (f.troops > 0 || f.supplier || f.commandos > 0) && !f.armed && !f.fleet.command && !infiltratorGroup(ctx.pack, ctx.state, f.fleet) && free(ctx, f),
+  );
   let carried = anchor?.troops ?? 0;
   const merges: number[] = [];
   for (const info of transports) {
@@ -367,9 +369,11 @@ function raid(ctx: AiContext, strategy: Strategy): void {
   const target = strategy.targetColony;
   if (strategy.posture !== "attack" || !target) return;
   for (const info of ctx.fleets) {
-    // Commandos ride with the strike fleet (see attack): they strike once it is at or bound for the target.
-    if (info.commandos === 0 || !info.fleet.command || !free(ctx, info)) continue;
-    if ((info.fleet.route.at(-1) ?? info.fleet.systemId) !== target.systemId) continue;
+    if (info.commandos === 0 || !free(ctx, info)) continue;
+    // Cloaked infiltrators go ahead on their own; other commandos ride with the strike fleet (see attack)
+    // and strike once it is at or bound for the target.
+    if (infiltratorGroup(ctx.pack, ctx.state, info.fleet)) moveTo(ctx, info, target.systemId);
+    else if (!info.fleet.command || (info.fleet.route.at(-1) ?? info.fleet.systemId) !== target.systemId) continue;
     const mission = target.defenseHp > 0 ? "defenses" : "garrison";
     const order = info.fleet.sabotage;
     if (order?.colonyId !== target.colonyId || order.mission !== mission) {

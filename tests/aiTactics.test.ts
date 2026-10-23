@@ -64,15 +64,18 @@ describe("AI siege tactics", () => {
     expect(ordersFor(planAiTurn(s, pack, 1), transports.id).some((c) => c.type === "invade")).toBe(false);
   });
 
-  it("sends commandos with a strike fleet to knock out a target's defenses, never alone", () => {
+  it("sends cloaked infiltrators ahead on their own, and other commandos with a strike fleet", () => {
     const s = atWar(40, 10);
     const ai = s.empires[1]!;
     expect(decideStrategy(buildContext(s, pack, 1))).toMatchObject({ posture: "attack", targetColony: expect.objectContaining({ colonyId: target(s).id }) });
-    // On their own (not in a naval command) commandos can't attack: they wait to join a strike fleet.
-    const loose = newFleet(s, pack, ai, ["infiltrator"], ai.homeSystemId);
-    s.fleets.push(loose);
-    expect(ordersFor(planAiTurn(s, pack, 1), loose.id)).not.toContainEqual(expect.objectContaining({ type: "moveFleet", destinationId: target(s).systemId }));
-    // Riding in a fleet bound for the target, they strike its defenses.
+    // Infiltrators (cloaked escorts with commandos) need no naval command.
+    const raiders = newFleet(s, pack, ai, ["infiltrator"], ai.homeSystemId);
+    s.fleets.push(raiders);
+    const orders = ordersFor(planAiTurn(s, pack, 1), raiders.id);
+    expect(orders).toContainEqual(expect.objectContaining({ type: "moveFleet", destinationId: target(s).systemId }));
+    expect(orders).toContainEqual(expect.objectContaining({ type: "sabotage", colonyId: target(s).id, mission: "defenses" }));
+    // Riding in a fleet bound for the target, other commandos strike its defenses too.
+    s.fleets = s.fleets.filter((f) => f.id !== raiders.id);
     const strike = newFleet(s, pack, ai, ["frigate", "infiltrator"], ai.homeSystemId);
     strike.route = [target(s).systemId];
     s.fleets.push(enlist(s, strike));

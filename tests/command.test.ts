@@ -215,6 +215,30 @@ describe("what groups and fleets may do", () => {
     expect(halted).toMatchObject({ systemId: 1, route: [], progress: 0 });
   });
 
+  it("infiltrators (cloaked escorts or destroyers with commandos) may sneak in and sabotage without a fleet", () => {
+    const s = line();
+    const empire = s.empires[0]!;
+    const colonyId = s.colonies[1]!.id;
+    empire.designs.push(
+      { id: "cloaked_destroyer", name: "Cloaked Destroyer", hull: "frigate", components: ["cloaking_device", "commando_team", "laser"], formation: "front", obsolete: false },
+      { id: "cloaked_cruiser", name: "Cloaked Cruiser", hull: "cruiser", components: ["cloaking_device", "commando_team", "laser"], formation: "front", obsolete: false },
+    );
+    const sneak = (designs: string[]) => {
+      const f = newFleet(s, pack, empire, designs, 3);
+      s.fleets.push(f);
+      const move: Command = { type: "moveFleet", empireId: 0, fleetId: f.id, destinationId: 4 };
+      const moved = applyCommand(s, move, pack);
+      // Sabotage needs the fleet at or bound for the target: check it after the move when there is one.
+      const after = moved.ok ? moved.state : s;
+      return { move: error(s, move), sabotage: error(after, { type: "sabotage", empireId: 0, fleetId: f.id, colonyId, mission: "defenses" }) };
+    };
+    expect(sneak(["infiltrator"])).toEqual({ move: "ok", sabotage: "ok" });
+    expect(sneak(["cloaked_destroyer", "infiltrator"])).toEqual({ move: "ok", sabotage: "ok" });
+    // Larger hulls don't qualify, and every ship must be cloaked.
+    expect(sneak(["cloaked_cruiser"]).sabotage).toContain("naval command");
+    expect(sneak(["infiltrator", "frigate"])).toEqual({ move: expect.stringContaining("naval command"), sabotage: expect.stringContaining("naval command") });
+  });
+
   it("only fleets may invade, bomb or sabotage", () => {
     const s = line();
     const group = newFleet(s, pack, s.empires[0]!, ["frigate", "troop_transport"], 4);

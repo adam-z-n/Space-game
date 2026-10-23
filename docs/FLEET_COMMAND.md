@@ -38,6 +38,10 @@ withdraws, and that officer's place stays empty for a few turns. A new fleet als
 - **Unarmed groups go anywhere.** Scouts, colony ships, outpost ships and supply ships aren't attacking, so they
   ignore the "enter" rule. Troop ships, bombers and commandos can travel unformed, but they need a fleet to invade,
   bomb or sabotage.
+- **Infiltrators are the exception** (owner's request, after part 1). A group made only of cloaked escorts or
+  destroyers (hulls marked `infiltrator` in the content), carrying commandos, may enter enemy systems and sabotage
+  without a fleet, armed or not. Cloaked commandos on cruisers or larger, or a group with any uncloaked ship, don't
+  qualify. Infiltrators still can't invade or bomb. Sneaky sabotage stays a tactic of its own.
 - **Known** means what your empire knows: sightings and charted colonies, the same knowledge the AI uses. If an
   armed group's next stop turns hostile while it travels, and isn't one of your colonies or outposts, the group
   halts where it is and you get a "group halted" event.

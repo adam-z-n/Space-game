@@ -39,6 +39,20 @@ export function shipArmed(pack: ContentPack, empire: Empire, ship: Ship): boolea
   return designStats(pack, getDesign(empire, ship.designId), empireEffects(pack, empire)).armed;
 }
 
+/**
+ * Infiltrators: a group made only of cloaked ships on small (infiltrator) hulls, carrying commandos. Sneaking in
+ * is their trade, so they may enter enemy systems and sabotage without a naval command (but not invade or bomb).
+ */
+export function infiltratorGroup(pack: ContentPack, state: GameState, fleet: Fleet): boolean {
+  if (fleet.command || fleet.ships.length === 0) return false;
+  const empire = state.empires[fleet.empireId]!;
+  const stats = fleetShipStats(pack, state, fleet);
+  return (
+    stats.some((s) => s.commandos > 0) &&
+    fleet.ships.every((ship, i) => stats[i]!.stealth && getHull(pack, getDesign(empire, ship.designId).hull).infiltrator)
+  );
+}
+
 /** Commands an empire can support: one, plus one per so many colonies. */
 export function supportedCommands(state: GameState, pack: ContentPack, empireId: EmpireId): number {
   const colonies = state.colonies.filter((c) => c.empireId === empireId).length;

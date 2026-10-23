@@ -47,6 +47,7 @@ import {
   fleetOrderBlocker,
   fleetPoints,
   freeOfficers,
+  infiltratorGroup,
   hasColonyIn,
   isCommandPost,
   knownHostileSystems,
@@ -160,7 +161,7 @@ export function planMove(state: GameState, fleetId: FleetId, destinationId: Syst
   const adj = knownAdjacency(state, fleet.empireId);
   const blocked = fleetOrderBlocker(state, pack, fleet, destinationId);
   if (blocked) return blocked;
-  if (fleet.command || !fleetHasWarships(pack, state, fleet)) return planRoute(state, fleet, destinationId, pack, adj);
+  if (fleet.command || !fleetHasWarships(pack, state, fleet) || infiltratorGroup(pack, state, fleet)) return planRoute(state, fleet, destinationId, pack, adj);
 
   const hostile = knownHostile ?? knownHostileSystems(state, pack, fleet.empireId);
   const home = isCommandPost(state, fleet.empireId, destinationId);
@@ -395,7 +396,7 @@ export function validateCommand(state: GameState, command: Command, pack: Conten
       if (command.colonyId === null) return null;
       if (!SABOTAGE_MISSIONS.includes(command.mission)) return `unknown mission ${command.mission}`;
       if (!fleetShipStats(pack, state, fleet).some((s) => s.commandos > 0)) return "fleet carries no commandos";
-      if (!fleet.command) return NEEDS_COMMAND;
+      if (!fleet.command && !infiltratorGroup(pack, state, fleet)) return NEEDS_COMMAND;
       const known = state.empires[command.empireId]!.colonySightings.find((c) => c.colonyId === command.colonyId);
       if (!known) return "no known rival colony there";
       const destination = fleet.route.length > 0 ? fleet.route[fleet.route.length - 1] : fleet.systemId;

@@ -5,7 +5,8 @@
 The fleet command overhaul (design: `docs/FLEET_COMMAND.md`). Built so far (part 1, core rules):
 
 - Ships move about in groups; only a fleet, formed under a naval command with an officer and an armed flagship,
-  may enter systems with known enemies, invade, bomb or sabotage. Armed groups halt before systems that turn
+  may enter systems with known enemies, invade, bomb or sabotage. Infiltrators are the exception: groups of cloaked
+  escorts or destroyers carrying commandos sneak in and sabotage on their own. Armed groups halt before systems that turn
   hostile, but can always go to your own colonies and outposts.
 - Naval commands: one at your capital, one more per 5 colonies, each based at a colony you choose; fleets form only
   there. A command that loses its home is moved (if you can still support it) or lost. Each command has 12 points

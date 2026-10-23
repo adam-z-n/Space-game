@@ -9,7 +9,7 @@ import { fleetArmed, fleetStealthy } from "./ships";
 import { regenerateOutposts, resolveOutpostRaids } from "./outposts";
 import { resolveSupply, updateBlockades, warpGateAt } from "./supply";
 import type { EmpireId, GameEvent, GameState, SystemId } from "./state";
-import { fleetHasWarships, formedFleets, isCommandPost, knownHostileSystems, resolveCommands } from "./command";
+import { fleetHasWarships, formedFleets, infiltratorGroup, isCommandPost, knownHostileSystems, resolveCommands } from "./command";
 
 /**
  * Turn resolution, in the order the design fixes:
@@ -81,7 +81,8 @@ function resolveMovement(state: GameState, pack: ContentPack, events: GameEvent[
   const fleets = state.fleets.slice().sort((a, b) => a.id - b.id);
   for (const fleet of fleets) {
     if (fleet.route.length === 0) continue;
-    const group = !fleet.command && !fleet.warp && fleetHasWarships(pack, state, fleet) && !isCommandPost(state, fleet.empireId, fleet.route.at(-1)!);
+    const group =
+      !fleet.command && !fleet.warp && fleetHasWarships(pack, state, fleet) && !infiltratorGroup(pack, state, fleet) && !isCommandPost(state, fleet.empireId, fleet.route.at(-1)!);
     if (fleet.warp) {
       // A warp gate jump: there in one go if both gates still work, otherwise the fleet stays put.
       const dest = fleet.route[0]!;
