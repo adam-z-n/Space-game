@@ -1,9 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { chartAll } from "./helpers";
+import { chartAll, enlist } from "./helpers";
 import { defaultPack } from "../src/content/defaultPack";
 import { applyCommand, createInitialState, migrateState, newFleet, type Command, type GameState } from "../src/core";
 import { commandCapacity, commandUsed, fleetPoints, freeOfficers, knownHostileSystems, supportedCommands } from "../src/core/command";
 import { outpostDefense, outpostFinances } from "../src/core/outposts";
+import { leadership } from "../src/core/combat";
 
 const pack = defaultPack();
 const end: Command = { type: "endTurn" };
@@ -408,5 +409,94 @@ describe("saves from 1.4", () => {
     const formed = migrated.fleets.filter((f) => f.empireId === 0 && f.command).map((f) => f.id);
     expect(formed).toEqual([strong.id, weak.id]);
     expect(migrated.fleets.find((f) => f.id === strong.id)!.command).toMatchObject({ commandId: empire.navalCommands[0]!.id, cohesion: 100 });
+  });
+});
+
+describe("in battle", () => {
+  /** Empire 0's fleet (its first ship the flagship) against empire 1's ships at system 2, both fighting to the end. */
+  function clash(ours: string[], theirs: string[], setup?: (s: GameState) => void): { s: GameState; fleetId: number; enemyId: number } {
+    let s = line();
+    for (const e of s.empires) e.designs.push({ id: "screen_gun", name: "Screen Gun", hull: "frigate", components: ["laser", "laser", "laser"], formation: "screen", obsolete: false });
+    const fleet = enlist(s, newFleet(s, pack, s.empires[0]!, ours, 2));
+    const enemy = newFleet(s, pack, s.empires[1]!, theirs, 2);
+    for (const f of [fleet, enemy]) f.orders = { ...f.orders, mission: "engage", retreatPercent: 100 };
+    s.fleets.push(fleet, enemy);
+    setup?.(s);
+    s = run(s, end);
+    return { s, fleetId: fleet.id, enemyId: enemy.id };
+  }
+
+  it("officers gain experience from battles, more from a win; ranks and cohesion change their fleet's aim", () => {
+    const { s, fleetId } = clash(["frigate", "frigate", "frigate", "frigate"], ["frigate"]);
+    const won = s.lastTurnEvents.some((e) => e.type === "battle" && e.empireId === 0 && e.outcome === "won");
+    expect(s.fleets.find((f) => f.id === fleetId)!.command!.officer.xp).toBe(won ? 4 : 2);
+    const fleet = s.fleets.find((f) => f.id === fleetId)!;
+    fleet.command!.cohesion = 50;
+    fleet.command!.officer.xp = 6;
+    expect(leadership(pack, fleet)).toEqual({ bonus: 3, drill: 10 });
+    fleet.command!.cohesion = 100;
+    fleet.command!.officer.xp = 30;
+    expect(leadership(pack, fleet)).toEqual({ bonus: 9, drill: 0 });
+  });
+
+  it("a fleet whose flagship is destroyed breaks up and falls back, and its officer is lost", () => {
+    const { s, fleetId } = clash(["frigate", "frigate", "frigate"], Array.from({ length: 6 }, () => "frigate"), (s) => {
+      s.empires[1]!.techs.push("command_ship_analysis");
+      s.fleets[0]!.ships[0]!.hp = 1;
+      s.fleets[1]!.orders.targetPriority = "flagship";
+      enlist(s, s.fleets[1]!);
+    });
+    expect(s.lastTurnEvents).toContainEqual(expect.objectContaining({ type: "flagshipLost", fleetId, heldTogether: false }));
+    const broken = s.fleets.find((f) => f.id === fleetId);
+    if (broken) {
+      expect(broken.command).toBeNull();
+      expect(s.lastBattles[0]!.results.find((r) => r.empireId === 0)!.retreated).toContain(fleetId);
+    }
+    expect(s.empires[0]!.navalCommands[0]!.vacancies).toHaveLength(1);
+  });
+
+  it("with Chain of Command the fleet holds together under its toughest ship", () => {
+    const { s, fleetId } = clash(["frigate", "frigate", "frigate", "frigate"], ["frigate", "frigate"], (s) => {
+      s.empires[0]!.techs.push("chain_of_command");
+      s.empires[1]!.techs.push("command_ship_analysis");
+      s.fleets[0]!.ships[0]!.hp = 1;
+      s.fleets[1]!.orders.targetPriority = "flagship";
+      enlist(s, s.fleets[1]!);
+    });
+    expect(s.lastTurnEvents).toContainEqual(expect.objectContaining({ type: "flagshipLost", fleetId, heldTogether: true }));
+    const fleet = s.fleets.find((f) => f.id === fleetId)!;
+    expect(fleet.command).not.toBeNull();
+    expect(fleet.ships.map((x) => x.id)).toContain(fleet.command!.flagshipId);
+    expect(fleet.command!.cohesion).toBe(50 + 10); // back to 50%, then a turn's drill
+    expect(s.empires[0]!.navalCommands[0]!.vacancies).toHaveLength(0);
+  });
+
+  it("flagship targeting aims every shot at the flagship; screening ships and decoys draw some away", () => {
+    // Share of the shots from 6 enemy destroyers aiming at flagships that go for ours (made too tough to fall).
+    const share = (escort: string, decoys: boolean) => {
+      const { s, fleetId } = clash(["frigate", escort, escort, escort], Array.from({ length: 6 }, () => "frigate"), (s) => {
+        s.empires[1]!.techs.push("command_ship_analysis");
+        if (decoys) s.empires[0]!.techs.push("holographic_decoys");
+        s.fleets[1]!.orders.targetPriority = "flagship";
+        s.fleets[0]!.ships[0]!.hp = 10_000;
+      });
+      const report = s.lastBattles[0]!;
+      const flagship = report.ships.find((x) => x.fleetId === fleetId)!.shipId;
+      const shots = report.rounds.flatMap((r) => r.shots).filter((x) => report.ships.find((y) => y.shipId === x.attacker)!.empireId === 1);
+      return shots.filter((x) => x.target === flagship).length / shots.length;
+    };
+    expect(share("frigate", false)).toBe(1);
+    expect(share("screen_gun", false)).toBeLessThan(1);
+    expect(share("frigate", true)).toBeLessThan(1);
+  });
+
+  it("the Flagship target priority needs Command Ship Analysis", () => {
+    const s = line();
+    const fleet = newFleet(s, pack, s.empires[0]!, ["frigate"], 0);
+    s.fleets.push(fleet);
+    const orders: Command = { type: "setFleetOrders", empireId: 0, fleetId: fleet.id, orders: { ...fleet.orders, targetPriority: "flagship" } };
+    expect(error(s, orders)).toContain("Command Ship Analysis");
+    s.empires[0]!.techs.push("command_ship_analysis");
+    expect(error(s, orders)).toBe("ok");
   });
 });

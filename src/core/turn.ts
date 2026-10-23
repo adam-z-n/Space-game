@@ -23,7 +23,7 @@ export function resolveTurn(state: GameState, pack: ContentPack): void {
   resolveMovement(state, pack, events);
   resolveSupply(state, pack, events);
   const pinned = resolveMines(state, pack, events);
-  resolveCombat(state, pack, events, pinned);
+  resolveCombat(state, pack, events, pinned, formedBefore);
   resolveSatellites(state, pack, events);
   resolveOutpostRaids(state, pack, events);
   resolveBombardment(state, pack, events);

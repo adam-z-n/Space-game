@@ -207,6 +207,22 @@ export function releaseOfficer(state: GameState, pack: ContentPack, fleet: Fleet
 }
 
 /**
+ * Chain of Command: when a fleet's flagship is lost, its officer with it, the toughest armed ship left takes
+ * over under a field-promoted officer (the most experienced in reserve, else a new one) and cohesion falls back.
+ * Returns false (nothing changed) without the tech or an armed ship to lead.
+ */
+export function promoteFlagship(state: GameState, pack: ContentPack, fleet: Fleet, events: GameEvent[]): boolean {
+  if (!fleet.command) return false;
+  const empire = state.empires[fleet.empireId]!;
+  const command = findCommand(empire, fleet.command.commandId);
+  const next = suggestedFlagship(pack, state, fleet);
+  if (!hasFlag(pack, empire, "chainOfCommand") || !command || !next) return false;
+  events.push({ type: "flagshipLost", turn: state.turn, empireId: fleet.empireId, fleetId: fleet.id, systemId: fleet.systemId, officer: fleet.command.officer.name, heldTogether: true });
+  fleet.command = { ...fleet.command, officer: takeOfficer(state, pack, command), flagshipId: next.id, cohesion: Math.min(fleet.command.cohesion, commandRules(pack).cohesionStart) };
+  return true;
+}
+
+/**
  * Bookkeeping each turn, after battles, invasions and bombing:
  * officers lost with fleets wiped out or flagships destroyed, replacements arriving, cohesion,
  * and commands whose home system fell (moved if the empire can still support them, else lost).
@@ -224,6 +240,7 @@ export function resolveCommands(state: GameState, pack: ContentPack, events: Gam
   for (const fleet of [...state.fleets].sort((a, b) => a.id - b.id)) {
     if (!fleet.command) continue;
     if (!fleet.ships.some((s) => s.id === fleet.command!.flagshipId)) {
+      if (promoteFlagship(state, pack, fleet, events)) continue;
       events.push({ type: "flagshipLost", turn: state.turn, empireId: fleet.empireId, fleetId: fleet.id, systemId: fleet.systemId, officer: fleet.command.officer.name, heldTogether: false });
       releaseOfficer(state, pack, fleet, true);
       continue;

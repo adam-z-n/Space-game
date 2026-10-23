@@ -28,9 +28,8 @@ export function planOperations(ctx: AiContext, strategy: Strategy): void {
 
 const free = (ctx: AiContext, f: FleetInfo) => !ctx.busy.has(f.fleet.id);
 
-/** Warships a fleet can hold before it fights less well together (more with a command network aboard). */
-const sizeLimit = (ctx: AiContext, info: FleetInfo) =>
-  ctx.pack.combat.fleetSizeLimit + (fleetShipStats(ctx.pack, ctx.state, info.fleet).some((s) => s.command > 0) ? ctx.pack.combat.commandSizeBonus : 0);
+/** Warships a group can hold before it fights less well together; a fleet in a command is limited by points instead. */
+const sizeLimit = (ctx: AiContext, info: FleetInfo) => (info.fleet.command ? Infinity : ctx.pack.combat.fleetSizeLimit);
 
 /** Systems unarmed ships should stay out of: recent enemy warships and defended rival colonies. */
 function dangerZones(ctx: AiContext): Set<SystemId> {

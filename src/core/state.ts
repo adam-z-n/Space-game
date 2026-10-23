@@ -268,7 +268,8 @@ export interface Ship {
 
 export const STANCES = ["aggressive", "balanced", "cautious"] as const;
 export type Stance = (typeof STANCES)[number];
-export const TARGET_PRIORITIES = ["warships", "transports", "any"] as const;
+/** "flagship" (needs the flagshipTargeting flag) aims every shot that can reach at enemy flagships. */
+export const TARGET_PRIORITIES = ["warships", "transports", "any", "flagship"] as const;
 export type TargetPriority = (typeof TARGET_PRIORITIES)[number];
 export const MISSIONS = ["engage", "evade"] as const;
 export type Mission = (typeof MISSIONS)[number];

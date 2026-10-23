@@ -2,7 +2,7 @@
 
 ## 1.5.0 (in progress)
 
-The fleet command overhaul (design: `docs/FLEET_COMMAND.md`). Built so far (part 1, core rules):
+The fleet command overhaul (design: `docs/FLEET_COMMAND.md`). Built so far (parts 1 and 2, rules and combat):
 
 - Ships move about in groups; only a fleet, formed under a naval command with an officer and an armed flagship,
   may enter systems with known enemies, invade, bomb or sabotage. Infiltrators are the exception: groups of cloaked
@@ -15,6 +15,14 @@ The fleet command overhaul (design: `docs/FLEET_COMMAND.md`). Built so far (part
 - Fleets commit to their course; away from your colonies and outposts they can only head back to one.
 - Losing a flagship breaks the fleet up and costs its officer; a replacement comes in 5 turns. Officers keep their
   experience in reserve. New fleets start at 50% cohesion and gain 10% a turn.
+- In battle, a fleet whose flagship is destroyed breaks up at the end of that round and its ships fall back (with
+  Chain of Command it holds together under its toughest ship and a field-promoted officer).
+- Officers earn experience (2 per battle, 2 more for a win): Veteran, Seasoned and Legendary give their fleet
+  +3/+6/+9% accuracy and evasion. A fleet below full cohesion is up to 10% less accurate.
+- Command Ship Analysis unlocks the Flagship target priority: every shot goes for an enemy flagship. Ships in the
+  Screen formation take 30% of those shots for it, and Holographic Decoys send half of them at the wrong ship.
+- Command networks work only in fleets formed under a command (and add 6 points as a flagship). The size penalty
+  now applies only to groups of more than 8 warships; fleets are limited by points instead.
 - Outpost and depot marks I-V, unlocked by 3, 5, 8, 11 and 13 weapons techs, bought with credits when the outpost
   has a clear way home.
 - Seven new techs: Naval Staff College, Officer Academy, Command Ship Analysis, Subspace Command, Fleet Admiralty,

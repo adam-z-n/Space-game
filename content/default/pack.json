@@ -1454,8 +1454,11 @@
       "effects": {
         "shipEvasion": 5
       },
-      "description": "+5% evasion for every ship.",
-      "school": "stealth"
+      "description": "+5% evasion for every ship; enemies aiming at your flagships pick the wrong ship half the time.",
+      "school": "stealth",
+      "flags": [
+        "flagshipDecoys"
+      ]
     },
     {
       "id": "tachyon_scanners",
@@ -2817,7 +2820,6 @@
     "techCapturePercent": 25,
     "criticalMaxPercent": 40,
     "fleetSizeLimit": 8,
-    "commandSizeBonus": 6,
     "oversizePenalty": 3,
     "oversizePenaltyMax": 24,
     "supplyRepairPercent": 15,
@@ -3470,7 +3472,7 @@
       "id": "command_network",
       "name": "Fleet Command Network",
       "kind": "electronics",
-      "description": "While this ship survives, every ship in its fleet gets +10% accuracy and +5% evasion, and the fleet maneuvers as one (+1 maneuver). Battleship or larger.",
+      "description": "While this ship survives in a fleet formed under a naval command, every ship in the fleet gets +10% accuracy and +5% evasion, and the fleet maneuvers as one (+1 maneuver). As the flagship it adds 6 points to its command. Battleship or larger.",
       "cost": 20,
       "command": 10,
       "minSlots": 8,

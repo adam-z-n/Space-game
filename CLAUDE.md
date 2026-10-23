@@ -36,9 +36,9 @@ state, all changes through commands); the rules data lives in `content/default/p
   techs repurposed; nine new weapons (specials pin/emp/nanite/area/ion/phase, flak, heavy mines, satellites);
   How to play screen and first-game tips (`src/web/help.ts`). State version 17.
 - **1.5 in progress:** the fleet command overhaul, approved design in `docs/FLEET_COMMAND.md` (revision 3, softer
-  mark steps). Build plan in its section 11. Part 1 (core rules, state version 18, basic AI so it stays valid) is
-  done; next are part 2 (combat: flagship loss in battle, Chain of Command, officer experience, cohesion, flagship
-  targeting and screening, network bonus and oversize penalty), part 3 (AI), part 4 (screens: the web UI has no
+  mark steps). Build plan in its section 11. Part 1 (core rules, state version 18, basic AI so it stays valid) and
+  part 2 (combat: flagship loss, Chain of Command, officer experience, cohesion, flagship targeting, screening and
+  decoys, network and size penalty rules) are done; next are part 3 (AI), part 4 (screens: the web UI has no
   buttons yet for placing commands, forming fleets or outpost marks) and part 5 (balance sims, changelog).
 - **Next ideas** (`docs/ROADMAP.md`): diplomacy, espionage, trade, pass-and-play multiplayer; combat terrain,
   ambush, admirals, boarding.

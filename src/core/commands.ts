@@ -308,6 +308,7 @@ export function validateCommand(state: GameState, command: Command, pack: Conten
       const o = command.orders;
       if (!MISSIONS.includes(o.mission) || !STANCES.includes(o.stance) || !TARGET_PRIORITIES.includes(o.targetPriority)) return "invalid orders";
       if (!Number.isInteger(o.retreatPercent) || o.retreatPercent < 0 || o.retreatPercent > 100) return "retreat threshold must be 0-100";
+      if (o.targetPriority === "flagship" && !hasFlag(pack, state.empires[command.empireId]!, "flagshipTargeting")) return "targeting flagships needs Command Ship Analysis";
       return null;
     }
     case "renameFleet": {

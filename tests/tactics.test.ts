@@ -1,4 +1,4 @@
-import { chartAll, enlistFor } from "./helpers";
+import { chartAll, enlist, enlistFor } from "./helpers";
 import { describe, expect, it } from "vitest";
 import { applyCommand, colonizeBlocker, combatShipCount, createInitialState, slotsUsed, defendingTroops, newFleet, type BattleReport, type Command, type Formation, type GameState } from "../src/core";
 import { defaultPack } from "../src/content/defaultPack";
@@ -274,7 +274,8 @@ describe("experience and command", () => {
       design(s, "flag", "battleship", [withCommand ? "command_network" : "composite_armor", ...Array.from({ length: 7 }, () => "composite_armor")]);
       design(s, "gunboat", "frigate", ["laser", "laser", "laser"]);
       design(s, "target", "dreadnought", ["laser", ...Array.from({ length: 11 }, () => "crystalline_armor")]);
-      const fleet = newFleet(s, pack, s.empires[0]!, ["flag", ...Array.from({ length: 6 }, () => "gunboat")], 3);
+      // Networks work only in fleets formed under a naval command.
+      const fleet = enlist(s, newFleet(s, pack, s.empires[0]!, ["flag", ...Array.from({ length: 6 }, () => "gunboat")], 3));
       const target = newFleet(s, pack, s.empires[1]!, ["target", "target"], 3);
       for (const f of [fleet, target]) f.orders = { ...f.orders, mission: "engage", retreatPercent: 100 };
       s.fleets.push(fleet, target);

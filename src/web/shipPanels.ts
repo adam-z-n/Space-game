@@ -16,6 +16,7 @@ import {
   veteranBonus,
   fleetShipStats,
   fleetStrength,
+  hasFlag,
   getComponent,
   getDesign,
   getHull,
@@ -265,7 +266,7 @@ let ordersOpenFor: FleetId | null = null;
 const ORDER_LABELS = {
   mission: { engage: "Engage", evade: "Evade" },
   stance: { aggressive: "Aggressive", balanced: "Balanced", cautious: "Cautious" },
-  targetPriority: { warships: "warships first", transports: "transports first", any: "any target" },
+  targetPriority: { warships: "warships first", transports: "transports first", any: "any target", flagship: "flagships first" },
 } as const;
 
 /** Ships, supply and standing orders for one of the player's fleets. */
@@ -335,20 +336,21 @@ export function fleetDetail(ctx: ShipContext, fleetId: FleetId): HTMLElement | n
     );
   }
 
-  const limit = pack.combat.fleetSizeLimit + (stats.some((s) => s.command > 0) ? pack.combat.commandSizeBonus : 0);
+  // Only groups suffer from size: a fleet in a naval command is limited by its points instead.
+  const limit = pack.combat.fleetSizeLimit;
   const warships = combatShipCount(pack, game.state, fleet);
-  const over = warships - limit;
+  const over = fleet.command ? 0 : warships - limit;
   const sizeWarning =
     over > 0
       ? h("div", {
           className: "warn-text small",
-          textContent: `Too big to fight as one: ${warships} warships, limit ${limit}. −${Math.min(pack.combat.oversizePenaltyMax, over * pack.combat.oversizePenalty)}% accuracy and evasion. Split it, or add a command network.`,
+          textContent: `Too big to fight as one: ${warships} warships, limit ${limit}. −${Math.min(pack.combat.oversizePenaltyMax, over * pack.combat.oversizePenalty)}% accuracy and evasion. Split it, or form it into a fleet at a naval command.`,
         })
       : null;
   return h(
     "div",
     {},
-    h("div", { className: "muted small", textContent: `${fleet.ships.length} ship${fleet.ships.length > 1 ? "s" : ""} (${warships} of ${limit} warships) · strength ${fleetStrength(pack, game.state, fleet)} · speed ${fleet.speed}` }),
+    h("div", { className: "muted small", textContent: `${fleet.ships.length} ship${fleet.ships.length > 1 ? "s" : ""} (${fleet.command ? `${warships} warships` : `${warships} of ${limit} warships`}) · strength ${fleetStrength(pack, game.state, fleet)} · speed ${fleet.speed}` }),
     sizeWarning,
     supply,
     ships,
@@ -361,7 +363,16 @@ export function fleetDetail(ctx: ShipContext, fleetId: FleetId): HTMLElement | n
           segment<FleetOrders["mission"]>([["engage", "Engage"], ["evade", "Evade"]], orders.mission, (mission) => setOrders({ mission })),
           segment<FleetOrders["stance"]>([["aggressive", "Aggressive"], ["balanced", "Balanced"], ["cautious", "Cautious"]], orders.stance, (stance) => setOrders({ stance })),
           h("div", { className: "muted small", textContent: "Target first" }),
-          segment<FleetOrders["targetPriority"]>([["warships", "Warships"], ["transports", "Transports"], ["any", "Anything"]], orders.targetPriority, (targetPriority) => setOrders({ targetPriority })),
+          segment<FleetOrders["targetPriority"]>(
+            [
+              ["warships", "Warships"],
+              ["transports", "Transports"],
+              ["any", "Anything"],
+              ...(hasFlag(pack, empire, "flagshipTargeting") ? [["flagship", "Flagships"] as ["flagship", string]] : []),
+            ],
+            orders.targetPriority,
+            (targetPriority) => setOrders({ targetPriority }),
+          ),
           h("div", { className: "muted small", textContent: "Retreat after losing" }),
           segment<number>([[25, "25%"], [50, "50%"], [75, "75%"], [100, "Never"]], orders.retreatPercent, (retreatPercent) => setOrders({ retreatPercent })),
           button("Done", () => ((ordersOpenFor = null), ctx.rerender())),

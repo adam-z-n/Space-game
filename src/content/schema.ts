@@ -329,6 +329,8 @@ export const TECH_FLAGS = [
   "chainOfCommand",
   /** Unlocks the Flagship target priority. */
   "flagshipTargeting",
+  /** Enemies aiming at this empire's flagships often pick the wrong ship (combat.command.decoyPercent). */
+  "flagshipDecoys",
 ] as const;
 export type TechFlag = (typeof TECH_FLAGS)[number];
 
@@ -453,9 +455,8 @@ const Combat = z.object({
   militiaRegenPerTurn: z.number().int().nonnegative(),
   /** A hit can knock out one of the target's components: chance is the damage as a share of the ship's hull, capped here. */
   criticalMaxPercent: z.number().int().min(0).max(100),
-  /** Fleets larger than this fight less well together; a command network raises the limit. */
+  /** Groups (ships not formed into a fleet) with more warships than this fight less well together. */
   fleetSizeLimit: z.number().int().positive(),
-  commandSizeBonus: z.number().int().nonnegative(),
   /** Accuracy and evasion lost per ship over the limit, and the most it can cost. */
   oversizePenalty: z.number().int().nonnegative(),
   oversizePenaltyMax: z.number().int().nonnegative(),
