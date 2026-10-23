@@ -283,14 +283,23 @@ function attack(ctx: AiContext, strategy: Strategy): void {
     (f) => (f.troops > 0 || f.supplier || f.commandos > 0) && !f.armed && !f.fleet.command && !infiltratorGroup(ctx.pack, ctx.state, f.fleet) && free(ctx, f),
   );
   let carried = anchor?.troops ?? 0;
+  // Only what the strike needs joins: troops for a safe landing (with a margin), one supply ship, one
+  // commando team. Every ship that joins costs cohesion, so a steady trickle would keep it from launching.
+  const troopsNeeded = Math.ceil((target.colony.troops * ctx.pack.combat.invasionMarginPercent * 6) / 500) + 1;
+  let supplied = (anchor?.fleet.stores ?? 0) > 0;
+  let commandos = (anchor?.commandos ?? 0) > 0;
   for (const info of transports) {
     // Stopped at staging counts even with a course plotted (say, a retreat after a skirmish there):
     // merging into the strike force cancels it.
     if (anchor && canLead && info.fleet.progress === 0 && info.fleet.systemId === staging) {
+      const wanted = (info.troops > 0 && landed(ctx, carried) < troopsNeeded) || (info.supplier && !supplied) || (info.commandos > 0 && !commandos);
+      if (!wanted) continue;
       const points = fleetPoints(ctx.pack, ctx.state, info.fleet);
       if (points > room) continue;
       room -= points;
       carried += info.troops;
+      supplied ||= info.supplier;
+      commandos ||= info.commandos > 0;
       merge(info);
     } else {
       moveTo(ctx, info, staging);
