@@ -31,6 +31,11 @@ marks; design in `docs/FLEET_COMMAND.md`) and sorted the ship designer's parts b
 
 - **Battlefield terrain:** nebulae weaken sensors and shields, asteroid fields add evasion and hurt missiles,
   blue giants drain shields, so where you fight matters.
+- **Strategic resources:** special resources in some systems, mined to give bonuses, while lacking them carries a
+  cost. Candidates: food, credits, shipbuilding cost, limits on how many ships of a kind can be built, or access to
+  key weapon, construction or propulsion techs. The aim is a more interesting and challenging map (worth fighting
+  or trading for) without a starting position that leaves an empire stuck for good: always leave a way round, such
+  as a costlier substitute, a slower research path, or trade.
 - **Ambush:** a fleet holding position on evade orders (or cloaked) gets a free first round on arrivals.
 - **Admirals:** commanders earned from victories, with traits, assigned to fleets; they can be killed.
 - **Boarding:** troop pods capture crippled enemy ships, with a chance to reverse-engineer a component.
@@ -40,6 +45,8 @@ marks; design in `docs/FLEET_COMMAND.md`) and sorted the ship designer's parts b
 - AI tuning: the warlord and turtle personalities rarely win; expansionists win most. 1.5's command rules halved
   conquest in all-AI games and hit raiders and warlords hardest; ideas: strikes launched from several commands at
   once, using spare officers for second fleets, and longer campaigns (pushing on to the next target).
+- AI bonuses by personality: raiders form one extra fleet per command; warlords get a few extra command points per
+  command.
 - Teach the AI the remaining 1.1 tools: minelayers and cloaked raiding (1.3 taught it bombardment, commando raids
   and supply depots).
 - AI debt in collapsing empires: an empire losing colonies to conquest keeps its fleet and runs deep into debt
