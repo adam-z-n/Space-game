@@ -4,19 +4,16 @@ Ideas for future versions, roughly grouped. Version 1.3 (released with 1.1 and 1
 logistics, ship experience, a larger research tree with race-specific schools, invasion handling, build batches, a
 planets screen, galaxy types, research pacing, and AI siege tactics and coalition. Version 1.4 added combat rules
 (retreat the way you came, no holding orbit under colony guns), colony destruction and bioweapons, gas giant
-habitats, warp gates, nine new weapons and in-game help; the rest waits here.
+habitats, warp gates, nine new weapons and in-game help. Version 1.5 overhauled fleet command (naval commands with
+points and officers, fleets formed around a flagship, cohesion, officer experience, flagship targeting and outpost
+marks; design in `docs/FLEET_COMMAND.md`) and sorted the ship designer's parts by category; the rest waits here.
 
-## Version 1.5 (agreed, next)
+## Decisions
 
-- **Fleet command overhaul.** Ships act on their own unless formed into a fleet, which needs an officer and a
-  designated flagship; if the flagship dies the fleet breaks up (retreating in battle). Only ships assigned to a
-  naval command may attack (enter systems with known enemy fleets or colonies, invade, bombard, sabotage).
-  Empires start with one command and gain one per 5 colonies; each command holds a number of points (escort 1,
-  frigate 2, freighter 1, cruiser 4, battleship 8, dreadnought 12), starting at 12 and growing with population and
-  two techs. Fleets can't change course in transit until a Subspace Command tech. Answered: a fleet stopped away from a
-  colony or outpost takes new orders only with Subspace Command; support ships cost 1 point each. Later requests: officers per
-  command, flagship targeting, officer experience, cohesion, Chain of Command, command home systems, and outpost
-  marks unlocked by weapons research. Approved design: `docs/FLEET_COMMAND.md`.
+- **Command points per hull stay as they are** (escort 1, destroyer 2, cruiser 4, battleship 8, dreadnought 12;
+  unarmed ships 1). Escorts look underpriced on raw slots and hit points, but larger ships have advantages that
+  don't show in those numbers: they can raise their defenses while spending a smaller share of their slots on
+  armor and shields, and key weapons are limited to the larger classes.
 
 ## Future versions (requested)
 
