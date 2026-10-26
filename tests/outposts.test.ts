@@ -128,6 +128,43 @@ describe("outposts", () => {
     expect(suppliedSystems(s, pack, 0).has(3)).toBe(true);
     expect(suppliedSystems(s, pack, 0).has(4)).toBe(false);
   });
+
+  it("an outpost ship converts your outpost to another kind; marks and depot are lost", () => {
+    let s = line();
+    s.empires[0]!.techs.push("outpost_construction", "asteroid_mining");
+    s.outposts.push({ id: 7003, empireId: 0, systemId: 1, bodyId: 9001, kind: "combat", depot: true, mark: 2, defenseHp: 40 });
+    const fleet = withOutposter(s);
+    const build = (kind: "combat" | "mining"): Command => ({ type: "buildOutpost", empireId: 0, fleetId: fleet.id, bodyId: 9001, kind });
+    expect(applyCommand(s, build("combat"), pack)).toMatchObject({ ok: false, error: "it is already a Combat Outpost" });
+    s = run(s, build("mining"));
+    expect(s.outposts).toEqual([expect.objectContaining({ empireId: 0, bodyId: 9001, kind: "mining", depot: false, mark: 0 })]);
+    expect(s.fleets.some((f) => f.id === fleet.id)).toBe(false);
+    // A rival's outpost can't be converted.
+    s.outposts[0]!.empireId = 1;
+    expect(applyCommand(s, { type: "buildOutpost", empireId: 0, fleetId: withOutposter(s).id, bodyId: 9001, kind: "combat" }, pack)).toMatchObject({ ok: false, error: "there is already an outpost there" });
+  });
+
+  it("a habitat ship settles over your gas giant outpost, and an outpost ship can turn a habitat back into an outpost", () => {
+    let s = line();
+    s.empires[0]!.techs.push("outpost_construction", "gas_giant_habitats");
+    s.outposts.push({ id: 7004, empireId: 0, systemId: 1, bodyId: 9002, kind: "combat", depot: false, mark: 0, defenseHp: 60 });
+    const habitat = newFleet(s, pack, s.empires[0]!, ["habitat_ship"], 1);
+    s.fleets.push(habitat);
+    s = run(s, { type: "colonize", empireId: 0, fleetId: habitat.id, bodyId: 9002 });
+    expect(s.outposts).toEqual([]);
+    expect(s.colonies.some((c) => c.empireId === 0 && c.bodyId === 9002)).toBe(true);
+
+    const fleet = withOutposter(s);
+    s = run(s, { type: "buildOutpost", empireId: 0, fleetId: fleet.id, bodyId: 9002, kind: "combat" });
+    expect(s.colonies.some((c) => c.bodyId === 9002)).toBe(false);
+    expect(s.outposts).toEqual([expect.objectContaining({ empireId: 0, bodyId: 9002, kind: "combat" })]);
+    // Never the capital.
+    const capital = s.colonies.find((c) => c.empireId === 0 && c.capital)!;
+    s.galaxy.systems[1]!.bodies.push({ id: 9005, kind: "gasGiant" });
+    capital.systemId = 1;
+    capital.bodyId = 9005;
+    expect(applyCommand(s, { type: "buildOutpost", empireId: 0, fleetId: withOutposter(s).id, bodyId: 9005, kind: "combat" }, pack)).toMatchObject({ ok: false, error: "you can't abandon your capital" });
+  });
 });
 
 describe("special operations", () => {

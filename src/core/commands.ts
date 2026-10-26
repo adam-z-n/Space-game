@@ -32,7 +32,7 @@ import {
 import { buildBlocker, buyCost, colonizeBlocker, colonyCanFarm, empireEffects, findBody, hasFlag, itemCost, newColony, techAvailable } from "./economy";
 import { designBlocker, designStats, fleetCanColonize, fleetMaxSupply, fleetShipStats, getDesign, refreshFleetStats, settlerIndex } from "./ships";
 import { fleetMaxStores, suppliedSystems, warpGateAt } from "./supply";
-import { outpostBlocker, outpostDefense, outpostTechOk } from "./outposts";
+import { outpostConversionBlocker, outpostDefense, outpostTechOk } from "./outposts";
 import { colonyDefense, fleetTroops } from "./defense";
 import { resolveTurn } from "./turn";
 import {
@@ -244,7 +244,8 @@ export function validateCommand(state: GameState, command: Command, pack: Conten
       const body = state.galaxy.systems[fleet.systemId]!.bodies.find((b) => b.id === command.bodyId);
       if (!body) return "planet is not in the fleet's system";
       if (colonyOnBody(state, body.id)) return "planet already colonized";
-      if (state.outposts.some((o) => o.bodyId === body.id)) return "an outpost holds it";
+      // A habitat ship may settle over one of the empire's own outposts, which it replaces.
+      if (state.outposts.some((o) => o.bodyId === body.id && o.empireId !== command.empireId)) return "an outpost holds it";
       if (settlerIndex(pack, state, fleet, body) < 0) return body.kind === "gasGiant" ? "gas giants need a habitat ship" : "habitat ships settle gas giants only";
       return colonizeBlocker(pack, state.empires[command.empireId]!, body);
     }
@@ -383,7 +384,7 @@ export function validateCommand(state: GameState, command: Command, pack: Conten
       if (!OUTPOST_KINDS.includes(command.kind)) return `unknown outpost type ${command.kind}`;
       const body = state.galaxy.systems[fleet.systemId]!.bodies.find((b) => b.id === command.bodyId);
       if (!body) return "that body is not in the fleet's system";
-      return outpostBlocker(state, pack, state.empires[command.empireId]!, body, command.kind);
+      return outpostConversionBlocker(state, pack, state.empires[command.empireId]!, body, command.kind);
     }
     case "upgradeOutpost": {
       const outpost = state.outposts.find((o) => o.id === command.outpostId);
@@ -501,6 +502,7 @@ export function applyCommand(state: GameState, command: Command, pack: ContentPa
     case "colonize": {
       const fleet = findFleet(next, command.fleetId)!;
       const empire = next.empires[command.empireId]!;
+      next.outposts = next.outposts.filter((o) => o.bodyId !== command.bodyId);
       next.colonies.push(newColony(next, empire, fleet.systemId, command.bodyId, pack.economy.colonyPopulation, false));
       // The first colony ship in the fleet that suits the body is used up.
       const body = findBody(next, fleet.systemId, command.bodyId)!;
@@ -640,6 +642,9 @@ export function applyCommand(state: GameState, command: Command, pack: ContentPa
     case "buildOutpost": {
       const fleet = findFleet(next, command.fleetId)!;
       const empire = next.empires[command.empireId]!;
+      // Converting: the empire's own outpost or habitat on the body gives way.
+      next.outposts = next.outposts.filter((o) => o.bodyId !== command.bodyId);
+      next.colonies = next.colonies.filter((c) => c.bodyId !== command.bodyId);
       const outpost: Outpost = { id: next.nextId++, empireId: empire.id, systemId: fleet.systemId, bodyId: command.bodyId, kind: command.kind, depot: false, mark: 0, defenseHp: 0 };
       outpost.defenseHp = outpostDefense(pack, empire, outpost).maxHp;
       next.outposts.push(outpost);
