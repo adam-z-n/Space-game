@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildContext, createInitialState, decideStrategy, newFleet, planAiTurn, type Command, type GameState } from "../src/core";
+import { buildContext, createInitialState, decideStrategy, fleetStrength, knownAdjacency, newCommand, newColony, newFleet, planAiTurn, shortestPaths, type Command, type GameState } from "../src/core";
 import { defaultPack } from "../src/content/defaultPack";
 import { chartAll, enlist } from "./helpers";
 
@@ -159,6 +159,60 @@ describe("AI naval commands", () => {
     expect(ordersFor(planAiTurn(s, pack, 1), groupId)).toContainEqual(expect.objectContaining({ type: "moveFleet", destinationId: target(s).systemId }));
     group.command!.cohesion = 60;
     expect(ordersFor(planAiTurn(s, pack, 1), groupId)).not.toContainEqual(expect.objectContaining({ type: "moveFleet", destinationId: target(s).systemId }));
+  });
+
+  /** Guard the target so that `share` percent of `strength` is just what a strike needs (with the warlord's nerve). */
+  function guardFor(s: GameState, strength: number, share: number): void {
+    const nerve = 100 + pack.aiPersonalities.find((p) => p.id === "warlord")!.caution * 10;
+    const hp = Math.floor((((strength * share) / 100) * 100 * 5) / nerve / 6);
+    target(s).defenseHp = hp;
+    s.empires[1]!.colonySightings[0]!.defenseHp = hp;
+  }
+
+  it("a spare officer forms a second fleet when the first, drilled, isn't enough", () => {
+    const { s, groupId } = strikeReady();
+    const ai = s.empires[1]!;
+    ai.techs.push("officer_academy");
+    const group = s.fleets.find((f) => f.id === groupId)!;
+    const first = newFleet(s, pack, ai, ["frigate", "frigate", "frigate", "frigate"], group.systemId);
+    s.fleets.push(enlist(s, first));
+    group.ships = group.ships.slice(0, 4);
+    guardFor(s, fleetStrength(pack, s, first) * 2, 85);
+    const orders = planAiTurn(s, pack, 1);
+    expect(ordersFor(orders, groupId)).toContainEqual(expect.objectContaining({ type: "formFleet" }));
+    expect(ordersFor(orders, groupId)).not.toContainEqual(expect.objectContaining({ type: "mergeFleets" }));
+    expect(ordersFor(orders, first.id).some((c) => c.type === "moveFleet")).toBe(false); // not enough alone: it waits
+  });
+
+  it("fleets from two commands strike together, timed to arrive on the same turn", () => {
+    const { s, groupId } = strikeReady();
+    const ai = s.empires[1]!;
+    const home = s.fleets.find((f) => f.id === groupId)!;
+    const near = enlist(s, home);
+    near.ships = near.ships.slice(0, 4);
+    // A second command based at a colony farther from the target, with a drilled fleet of its own.
+    const adj = knownAdjacency(s, 1);
+    const toTarget = shortestPaths(adj, target(s).systemId).dist;
+    const speed = near.speed;
+    const eta = (id: number) => Math.ceil(toTarget[id]! / speed);
+    const far = s.galaxy.systems.map((x) => x.id).filter((id) => toTarget[id]! !== Infinity && eta(id) >= eta(near.systemId) + 2 && eta(id) <= eta(near.systemId) + 4)[0]!;
+    const body = { id: 9500, kind: "planet" as const, planetType: "terran", size: "medium", richness: "normal" };
+    s.galaxy.systems[far]!.bodies.push(body);
+    s.colonies.push(newColony(s, ai, far, body.id, 8, false));
+    const second = newCommand(s, ai, far, 0);
+    const away = newFleet(s, pack, ai, ["frigate", "frigate", "frigate", "frigate"], far);
+    away.command = { commandId: second.id, officer: { id: 99_001, name: "Far", xp: 0 }, flagshipId: away.ships[0]!.id, cohesion: 100 };
+    s.fleets.push(away);
+    ai.explored = s.galaxy.systems.map((x) => x.id);
+    guardFor(s, fleetStrength(pack, s, near) + fleetStrength(pack, s, away), 90);
+    // The far fleet leaves first; the near one waits until its trip matches.
+    const orders = planAiTurn(s, pack, 1);
+    expect(ordersFor(orders, away.id)).toContainEqual(expect.objectContaining({ type: "moveFleet", destinationId: target(s).systemId }));
+    expect(ordersFor(orders, near.id).some((c) => c.type === "moveFleet")).toBe(false);
+    // Once the far fleet is close enough, the near one goes too.
+    away.route = [target(s).systemId];
+    away.systemId = near.systemId;
+    expect(ordersFor(planAiTurn(s, pack, 1), near.id)).toContainEqual(expect.objectContaining({ type: "moveFleet", destinationId: target(s).systemId }));
   });
 
   it("bases a new command at a colony when it can support one", () => {
