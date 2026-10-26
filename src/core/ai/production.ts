@@ -88,6 +88,10 @@ export function planProduction(ctx: AiContext, strategy: Strategy, warshipId: st
   const wantBombers = atWar && bomberDesign ? AI_SIEGE.bombers : 0;
   let infiltrators = afloat((s) => s.commandos > 0 && !s.armed) + queuedOf((q) => isShip(q, (s) => s.commandos > 0 && !s.armed));
   const wantInfiltrators = atWar && infiltratorDesign && strategy.targetColony!.defenseHp > 0 ? AI_SIEGE.infiltrators : 0;
+  // Minelayers: defensive temperaments keep one (two for the most defensive), and anyone under attack.
+  const minelayerDesign = designWhere(ctx, (s) => s.mines > 0 && !s.armed);
+  let minelayers = afloat((s) => s.mines > 0 && !s.armed) + queuedOf((q) => isShip(q, (s) => s.mines > 0 && !s.armed));
+  const wantMinelayers = minelayerDesign && (p.defense >= 5 || strategy.posture === "defend") ? (p.defense >= 7 ? 2 : 1) : 0;
   let settlers = ctx.fleets.filter((f) => f.colonize && !f.habitat).length + queuedOf((q) => isShip(q, (s) => s.colonize && !s.habitat));
   // One habitat ship at a time, when a free gas giant is known and the treasury can stand it.
   let habitats = ctx.fleets.filter((f) => f.habitat).length + queuedOf((q) => isShip(q, (s) => s.habitat));
@@ -164,6 +168,10 @@ export function planProduction(ctx: AiContext, strategy: Strategy, warshipId: st
     } else if (suppliers < wantSuppliers && big && supplyDesign && can({ kind: "ship", id: supplyDesign.id })) {
       pick = { kind: "ship", id: supplyDesign.id };
       suppliers++;
+    } else if (minelayers < wantMinelayers && big && minelayerDesign && can({ kind: "ship", id: minelayerDesign.id }) && designStats(pack, minelayerDesign, fx).upkeep <= room.upkeep) {
+      pick = { kind: "ship", id: minelayerDesign.id };
+      room.upkeep -= designStats(pack, minelayerDesign, fx).upkeep;
+      minelayers++;
     } else if (outposters < wantOutposters && big && !urgent && outpostDesign && can({ kind: "ship", id: outpostDesign.id })) {
       pick = { kind: "ship", id: outpostDesign.id };
       outposters++;
@@ -264,9 +272,10 @@ function colonyExposure(ctx: AiContext, colony: Colony): number {
   return exposure;
 }
 
-function defenseValue(d: { hp?: number; shield?: number; weapons?: { damage: number; accuracy: number; count: number }[]; troops?: number; mines?: number }): number {
+function defenseValue(d: { hp?: number; shield?: number; weapons?: { damage: number; accuracy: number; count: number }[]; troops?: number; mines?: number; satellites?: number }): number {
   const dpr = (d.weapons ?? []).reduce((n, w) => n + (w.damage * w.accuracy * w.count) / 100, 0);
-  return Math.floor((d.hp ?? 0) / 4 + dpr * 4 + (d.troops ?? 0) * 2 + (d.shield ?? 0) * 10 + (d.mines ?? 0) / 2);
+  // Hunter-killer satellites: a shot each a turn (about 6 damage, 70% hits) that keeps firing after the main defenses fall.
+  return Math.floor((d.hp ?? 0) / 4 + dpr * 4 + (d.troops ?? 0) * 2 + (d.shield ?? 0) * 10 + (d.mines ?? 0) / 2 + (d.satellites ?? 0) * 17);
 }
 
 /** Capital stays balanced; other colonies lean to the personality, or to food when the stock is running out. */

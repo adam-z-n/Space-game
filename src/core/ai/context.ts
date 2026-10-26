@@ -31,6 +31,8 @@ export interface FleetInfo {
   bombard: number;
   /** Commando teams aboard. */
   commandos: number;
+  /** Mines it lays a turn while waiting (minelayers). */
+  mines: number;
   maxSupply: number;
   /** Current hit points as a fraction of full, in percent. */
   hpPercent: number;
@@ -110,6 +112,7 @@ export function buildContext(state: GameState, pack: ContentPack, empireId: Empi
         troops: stats.reduce((n, s) => n + s.troops, 0),
         bombard: stats.reduce((n, s) => n + s.bombard, 0),
         commandos: stats.reduce((n, s) => n + s.commandos, 0),
+        mines: stats.reduce((n, s) => n + s.mines, 0),
         maxSupply: fleetMaxSupply(pack, state, fleet),
         hpPercent: maxHp > 0 ? Math.floor((hp * 100) / maxHp) : 0,
         idle: fleet.progress === 0 && fleet.route.length === 0,

@@ -3,7 +3,7 @@ import { commandCapacity, commandReady, commandUsed, findCommand, fleetPoints, f
 import { hasFlag } from "../economy";
 import { colonyOnBody, type FleetOrders, type NavalCommand, type OutpostKind, type Ship, type SystemId } from "../state";
 import { outpostBlocker, outpostConversionBlocker, outpostTechOk } from "../outposts";
-import { defenseStrength, fleetAt, frontier, interior, moveTo, withinReach, type AiContext, type FleetInfo } from "./context";
+import { defenseStrength, fleetAt, frontier, hops, interior, moveTo, withinReach, type AiContext, type FleetInfo } from "./context";
 import type { Strategy } from "./strategy";
 
 /**
@@ -16,6 +16,7 @@ export function planOperations(ctx: AiContext, strategy: Strategy): void {
   resupply(ctx);
   colonize(ctx, strategy);
   buildOutposts(ctx);
+  layMines(ctx, strategy);
   scout(ctx);
   defend(ctx, strategy);
   invade(ctx);
@@ -752,6 +753,46 @@ export function outpostTargets(ctx: AiContext): { systemId: SystemId; bodyId: nu
     }
   }
   return targets;
+}
+
+/**
+ * Minelayers sow minefields where the enemy will come: our colonies and combat outposts nearest the war target
+ * (or rival warships seen lately), up to the cap, one layer a site. They leave a site when enemy warships show up.
+ */
+function layMines(ctx: AiContext, strategy: Strategy): void {
+  const layers = ctx.fleets.filter((f) => f.mines > 0 && !f.armed && free(ctx, f));
+  if (layers.length === 0) return;
+  const cap = ctx.pack.combat.maxMines;
+  const sown = (systemId: SystemId) => ctx.state.minefields.find((m) => m.systemId === systemId && m.empireId === ctx.id)?.strength ?? 0;
+  const enemies = new Set(ctx.recentEnemies.map((s) => s.systemId));
+  const facing = [
+    ...ctx.rivalColonies.filter((c) => strategy.warTarget === null || c.empireId === strategy.warTarget).map((c) => c.systemId),
+    ...ctx.recentEnemies.map((s) => s.systemId),
+  ];
+  const front = (systemId: SystemId) => Math.min(...facing.map((f) => hops(ctx, systemId)[f]!), Infinity);
+  const sites = [...new Set([...ctx.colonies.map((c) => c.systemId), ...ctx.state.outposts.filter((o) => o.empireId === ctx.id && o.kind === "combat").map((o) => o.systemId)])]
+    .filter((s) => sown(s) < cap && !enemies.has(s))
+    .sort((a, b) => front(a) - front(b) || a - b);
+  const claimed = new Set<SystemId>();
+  for (const info of layers) {
+    const at = info.fleet.systemId;
+    if (info.idle && sites.includes(at) && !claimed.has(at)) {
+      claimed.add(at);
+      ctx.busy.add(info.fleet.id);
+      continue;
+    }
+    const open = sites.filter((s) => !claimed.has(s));
+    const site = open[0];
+    if (site === undefined) {
+      // Nothing left to sow (or it is under attack): wait at the nearest colony out of the enemy's way.
+      const safe = nearest(ctx, fleetAt(info), ctx.colonies.map((c) => c.systemId).filter((s) => !enemies.has(s)));
+      if (safe !== null) moveTo(ctx, info, safe);
+      else ctx.busy.add(info.fleet.id);
+      continue;
+    }
+    claimed.add(site);
+    moveTo(ctx, info, site);
+  }
 }
 
 function buildOutposts(ctx: AiContext): void {
