@@ -11,6 +11,9 @@
 - Outpost conversions: an outpost ship in the system can turn your combat outpost into a mining outpost or back
   (its depot and marks are lost), or abandon a gas giant habitat (not the capital) for an outpost; a habitat ship
   can settle a gas giant over your own outpost. The system sheet offers Convert buttons with a confirmation.
+- Balance (60 small all-AI games of 150 turns, same seeds as 1.5.0): the bonuses are mild. Raiders fight more
+  (36.0 → 40.6 battles per game) and score a little higher (792 → 811) but still win 5%; warlords win 6.7% (from
+  5.0%). Invasions 2.3 → 2.4 per game; no AI orders rejected; replays match.
 
 ## 1.5.0
 
