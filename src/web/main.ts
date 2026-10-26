@@ -968,7 +968,9 @@ function startGame(game: Game): void {
       if (!outpost && !colony) return button(`Build ${name}`, build, { className: "primary small-button", title: pack.outposts[kind].description });
       const lost = colony
         ? `${colony.name} is abandoned and its ${colony.population} people are lost.`
-        : [outpost!.depot ? "depot" : "", outpost!.mark > 0 ? "mark upgrades" : ""].filter(Boolean).map((x, i, all) => (i === 0 ? `Its ${x}` : ` and ${x}`)).join("") + (outpost!.depot || outpost!.mark > 0 ? " are lost." : "");
+        : outpost!.depot || outpost!.mark > 0
+          ? `The ${[outpost!.depot ? "depot" : "", outpost!.mark > 0 ? "mark upgrades" : ""].filter(Boolean).join(" and ")} will be lost.`
+          : "";
       return button(`Convert to ${name}`, () => {
         if (confirm(`Use the outpost ship to make this a ${name}? ${lost}`.trim())) build();
       }, { className: "small-button", title: pack.outposts[kind].description });

@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.6.0 (in progress)
+
+- AI personalities can carry bonuses, shown in their description: raiders get one more officer per naval command (a
+  second fleet each), warlords 4 more points per command.
+- Planets that can't be farmed (gas giant habitats, and worlds whose type grows nothing) grey out the Food focus
+  and the farmers "+" on the colony and Planets screens, and the game rejects farmers there.
+- Advanced Hydroponics (growth, 650 research, after Controlled Environments and Planetary Medicine) unlocks the
+  Hydroponic Complex: +6 food on any colony, even where nothing grows (80 industry, 2 upkeep).
+- Outpost conversions: an outpost ship in the system can turn your combat outpost into a mining outpost or back
+  (its depot and marks are lost), or abandon a gas giant habitat (not the capital) for an outpost; a habitat ship
+  can settle a gas giant over your own outpost. The system sheet offers Convert buttons with a confirmation.
+
 ## 1.5.0
 
 The fleet command overhaul (design: `docs/FLEET_COMMAND.md`). All five parts are built (rules, combat, AI, screens, balance checks):

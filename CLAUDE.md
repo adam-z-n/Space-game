@@ -44,7 +44,9 @@ state, all changes through commands); the rules data lives in `content/default/p
   and dimmed destinations, placing mode in `main.ts`, help topic `fleets`) and part 5 (balance sims: conquest
   roughly halves against 1.4, accepted by the owner; numbers in `CHANGELOG.md`). Also the ship designer's part
   categories. Command points per hull stay as they are (owner's decision; see the roadmap).
-- **1.6:** waiting for the owner's list of goals.
+- **1.6 (in progress, branch `claude/v1.6`):** AI personality bonuses (content `aiPersonalities[].effects`: raider
+  +1 officer, warlord +4 points), no farming controls where nothing grows (`colonyCanFarm`), Advanced Hydroponics and
+  the Hydroponic Complex, outpost and habitat conversions (`outpostConversionBlocker`).
 - **Next ideas** (`docs/ROADMAP.md`): diplomacy, espionage, trade, pass-and-play multiplayer; combat terrain,
   ambush, admirals, boarding.
 
