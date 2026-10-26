@@ -21,13 +21,15 @@ export const AI_SIEGE = { bombers: 2, infiltrators: 1 };
 export function planProduction(ctx: AiContext, strategy: Strategy, warshipId: string | null): void {
   const { pack, empire, personality: p } = ctx;
   manageFocus(ctx);
-  // Plan against taxes only: credits from idle industry vanish as soon as something is queued.
+  // Plan against steady income: credits from idle industry vanish as soon as something is queued.
   const eco = ctx.economy;
-  const steadyNet = eco.income - eco.buildingUpkeep - eco.shipUpkeep;
+  const steadyNet = steadyCredits(ctx);
   const margin = 2 + Math.floor(ctx.colonies.length / 3) + (empire.credits < 0 ? 4 : 0);
   // A healthy treasury is runway: every 40 credits banked can carry one more upkeep for a long while.
   const runway = Math.max(0, Math.floor((empire.credits - 60) / 40));
   const room = { upkeep: steadyNet - margin + runway };
+  // At war (or under attack) and short of warships, a big treasury pays for them faster: one more upkeep per 25 banked.
+  const warRunway = Math.max(0, Math.floor((empire.credits - 60) / 25)) - runway;
   // Warship upkeep may only use a share of income that depends on temperament.
   const fleetBudget = Math.floor((eco.income * (25 + p.military * 3)) / 100) + Math.floor(runway / 2);
   let fleetRoom = fleetBudget - ctx.economy.shipUpkeep;
@@ -115,7 +117,8 @@ export function planProduction(ctx: AiContext, strategy: Strategy, warshipId: st
     if (colony.queue.length > 0) continue;
     const options = buildOptions(ctx.state, pack, empire, colony);
     const can = (item: QueueItem | null): item is QueueItem => !!item && options.some((o) => o.kind === item.kind && o.id === item.id);
-    const affordable = !!warStats && warStats.upkeep <= room.upkeep && warStats.upkeep <= fleetRoom && warshipsAfloat + queuedWar < AI_MAX_WARSHIPS;
+    const warRoom = room.upkeep + (urgent && deficit > 0 ? warRunway : 0);
+    const affordable = !!warStats && warStats.upkeep <= warRoom && warStats.upkeep <= fleetRoom + (urgent ? warRunway : 0) && warshipsAfloat + queuedWar < AI_MAX_WARSHIPS;
     // One warship in three is its Guard twin (Screen formation) once the AI has one, to shield flagships.
     const guard = warship ? guardFor(ctx, warship) : null;
     const guards = ctx.fleets.reduce((n, f) => n + f.fleet.ships.filter((s) => s.designId === guard?.id).length, 0) + queuedGuards;
@@ -168,7 +171,9 @@ export function planProduction(ctx: AiContext, strategy: Strategy, warshipId: st
       // Warp gates at the capital and the colony nearest the war target, so fleets can jump to the front.
       pick = gateItem;
     } else {
-      pick = bestBuilding(ctx, colony, options, room.upkeep);
+      // Warlike temperaments short of warships keep a warship's upkeep free of new buildings.
+      const keep = deficit > 0 && p.military >= 6 && warStats ? warStats.upkeep : 0;
+      pick = bestBuilding(ctx, colony, options, room.upkeep - keep);
       if (!pick && deficit > 0 && big && can(warItem)) pick = warItem;
     }
     if (!pick) continue;
@@ -205,6 +210,12 @@ export function planProduction(ctx: AiContext, strategy: Strategy, warshipId: st
       ctx.commands.push({ type: "buyBuild", empireId: ctx.id, colonyId: colony.id });
     }
   }
+}
+
+/** Credits per turn the empire can count on: taxes, mining and food sales, less all upkeep (idle industry aside). */
+export function steadyCredits(ctx: AiContext): number {
+  const e = ctx.economy;
+  return e.income + e.miningIncome + e.foodSales - e.buildingUpkeep - e.shipUpkeep - e.outpostUpkeep;
 }
 
 /** Most value per industry among buildings the treasury can carry. */
@@ -277,7 +288,7 @@ function manageFocus(ctx: AiContext): void {
 
 /** Out of money: stop adding upkeep, cancel queued upkeep buildings, and in deep debt scrap the weakest warship group. */
 function avoidDebt(ctx: AiContext, strategy: Strategy, room: { upkeep: number }): void {
-  const steadyNet = ctx.economy.income - ctx.economy.buildingUpkeep - ctx.economy.shipUpkeep;
+  const steadyNet = steadyCredits(ctx);
   // Raise taxes while the treasury runs dry; lower them again once it has recovered.
   const tax = ctx.empire.taxLevel;
   if (tax === "normal" && ctx.empire.credits < 20 && steadyNet <= 0) ctx.commands.push({ type: "setTaxLevel", empireId: ctx.id, taxLevel: "high" });
