@@ -1,7 +1,7 @@
 import { buildOptions, buyCost, colonyOutput, findBody, itemCost, planetStats, prospectiveMaxPop } from "../economy";
-import { combatShipCount, designStats, fleetShipStats } from "../ships";
+import { combatShipCount, designStats, fleetShipStats, getDesign } from "../ships";
 import type { Colony, Focus, QueueItem } from "../state";
-import type { AiContext } from "./context";
+import type { AiContext, FleetInfo } from "./context";
 import { designWhere, guardFor } from "./designs";
 import { outpostTargets } from "./operations";
 import type { Strategy } from "./strategy";
@@ -64,7 +64,10 @@ export function planProduction(ctx: AiContext, strategy: Strategy, warshipId: st
   const wantSuppliers = strategy.posture === "attack" && strategy.warTarget !== null && supplyDesign ? 1 : 0;
   // One outpost ship at a time, while there are free asteroid fields or gas giants in supply range.
   let outposters = ctx.fleets.filter((f) => f.outpost).length + queuedOf((q) => isShip(q, (s) => s.outpost));
-  const wantOutposters = outpostDesign && ctx.state.outposts.filter((o) => o.empireId === ctx.id).length < ctx.colonies.length && outpostTargets(ctx).length > 0 ? 1 : 0;
+  // Conversions of our own outposts need an outpost ship too, whatever the count.
+  const outpostJobs = outpostTargets(ctx);
+  const roomForOutposts = ctx.state.outposts.filter((o) => o.empireId === ctx.id).length < ctx.colonies.length;
+  const wantOutposters = outpostDesign && outpostJobs.some((t) => t.convert || roomForOutposts) ? 1 : 0;
   // Invasion force: enough troops for the nearest war-target colony's last known defenders, with a margin.
   const carriedTroops = ctx.fleets.reduce((n, f) => n + f.troops, 0) + queuedOf((q) => isShip(q, (s) => s.troops > 0)) * (troopDesign ? designStats(pack, troopDesign, fx).troops : 0);
   let troopsWanted = 0;
@@ -303,11 +306,38 @@ function avoidDebt(ctx: AiContext, strategy: Strategy, room: { upkeep: number })
       }
     }
   }
-  if (ctx.empire.credits < -60 || (ctx.empire.credits < -20 && strategy.threat === 0)) {
-    const weakest = ctx.fleets.filter((f) => f.armed && !f.colonize && !ctx.busy.has(f.fleet.id)).sort((a, b) => a.strength - b.strength || a.fleet.id - b.fleet.id)[0];
-    if (weakest) {
-      ctx.busy.add(weakest.fleet.id);
-      ctx.commands.push({ type: "disbandFleet", empireId: ctx.id, fleetId: weakest.fleet.id });
-    }
+  scrapForDebt(ctx, steadyNet);
+}
+
+/**
+ * In debt and still losing credits each turn: scrap enough ships to cover the shortfall, at most a quarter of
+ * the fleets a turn. Loose groups go first, then unarmed support ships, then fleets, the least strength per
+ * credit of upkeep first; never the last warships at the capital, nor ships given orders this turn.
+ */
+function scrapForDebt(ctx: AiContext, steadyNet: number): void {
+  if (ctx.empire.credits >= 0 || steadyNet >= 0) return;
+  const { pack, empire } = ctx;
+  // Fleets only moved or given standing orders can still go; any other order this turn (merging, forming,
+  // invading...) would fail once they are gone.
+  const ordered = new Set(
+    ctx.commands.filter((c) => c.type !== "moveFleet" && c.type !== "setFleetOrders").flatMap((c) => [..."fleetId" in c ? [c.fleetId] : [], ..."intoFleetId" in c ? [c.intoFleetId] : []]),
+  );
+  const upkeep = (info: FleetInfo) => info.fleet.ships.reduce((n, ship) => n + designStats(pack, getDesign(empire, ship.designId), ctx.fx).upkeep, 0);
+  const capital = ctx.capital?.systemId;
+  const guards = ctx.fleets.filter((f) => f.armed && !f.colonize && f.fleet.systemId === capital && f.fleet.progress === 0);
+  const tier = (info: FleetInfo) => (info.fleet.command ? 2 : info.armed ? 0 : 1);
+  const candidates = ctx.fleets
+    .filter((f) => !f.colonize && !f.outpost && !f.recon && (f.armed || f.supplier || f.troops > 0) && !ordered.has(f.fleet.id) && upkeep(f) > 0)
+    .filter((f) => !(guards.length === 1 && guards[0] === f))
+    .sort((a, b) => tier(a) - tier(b) || a.strength * upkeep(b) - b.strength * upkeep(a) || a.fleet.id - b.fleet.id);
+  const most = Math.max(1, Math.floor(ctx.fleets.filter((f) => f.armed).length / 4));
+  let saved = 0;
+  let scrapped = 0;
+  for (const info of candidates) {
+    if (saved >= -steadyNet || scrapped >= most) break;
+    saved += upkeep(info);
+    scrapped++;
+    ctx.busy.add(info.fleet.id);
+    ctx.commands.push({ type: "disbandFleet", empireId: ctx.id, fleetId: info.fleet.id });
   }
 }

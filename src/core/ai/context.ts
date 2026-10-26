@@ -199,3 +199,38 @@ export function defenseStrength(defenseHp: number): number {
 export function lean(value: number): number {
   return 50 + value * 10;
 }
+
+const hopCache = new WeakMap<AiContext, Map<SystemId, number[]>>();
+
+/** Lane jumps from a system to every other (on the empire's known lanes); unreachable is Infinity. */
+export function hops(ctx: AiContext, from: SystemId): number[] {
+  let cache = hopCache.get(ctx);
+  if (!cache) hopCache.set(ctx, (cache = new Map()));
+  const known = cache.get(from);
+  if (known) return known;
+  const result = ctx.adj.map(() => Infinity);
+  result[from] = 0;
+  const queue = [from];
+  for (let i = 0; i < queue.length; i++) {
+    const at = queue[i]!;
+    for (const n of ctx.adj[at]!) {
+      if (result[n.id] !== Infinity) continue;
+      result[n.id] = result[at]! + 1;
+      queue.push(n.id);
+    }
+  }
+  cache.set(from, result);
+  return result;
+}
+
+/** Deep in our space: 3+ jumps from every known rival colony, and no armed rival fleet known within 2. */
+export function interior(ctx: AiContext, systemId: SystemId): boolean {
+  const h = hops(ctx, systemId);
+  return ctx.rivalColonies.every((c) => h[c.systemId]! >= 3) && ctx.empire.sightings.every((s) => !s.armed || h[s.systemId]! > 2);
+}
+
+/** On the front: within a jump of a known rival colony or of rival warships seen lately. */
+export function frontier(ctx: AiContext, systemId: SystemId): boolean {
+  const h = hops(ctx, systemId);
+  return ctx.rivalColonies.some((c) => h[c.systemId]! <= 1) || ctx.recentEnemies.some((s) => h[s.systemId]! <= 1);
+}
