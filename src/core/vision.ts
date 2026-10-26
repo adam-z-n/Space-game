@@ -151,5 +151,25 @@ export function updateSightings(state: GameState, pack: ContentPack, events: Gam
       if (sighting.turn !== state.turn && inSensorRange(sources, state.galaxy.systems[sighting.systemId]!)) colonies.delete(id);
     }
     empire.colonySightings = [...colonies.values()].sort((a, b) => a.colonyId - b.colonyId);
+
+    // Outposts: the same again, keyed by outpost id.
+    const outposts = new Map(empire.outpostSightings.map((o) => [o.outpostId, o]));
+    for (const outpost of state.outposts) {
+      if (outpost.empireId === empire.id || !inSensorRange(sources, state.galaxy.systems[outpost.systemId]!)) continue;
+      outposts.set(outpost.id, {
+        outpostId: outpost.id,
+        empireId: outpost.empireId,
+        systemId: outpost.systemId,
+        bodyId: outpost.bodyId,
+        kind: outpost.kind,
+        depot: outpost.depot,
+        defenseHp: outpost.defenseHp,
+        turn: state.turn,
+      });
+    }
+    for (const [id, sighting] of outposts) {
+      if (sighting.turn !== state.turn && inSensorRange(sources, state.galaxy.systems[sighting.systemId]!)) outposts.delete(id);
+    }
+    empire.outpostSightings = [...outposts.values()].sort((a, b) => a.outpostId - b.outpostId);
   }
 }

@@ -2,7 +2,7 @@ import type { ContentPack } from "../../content/schema";
 import type { Command } from "../commands";
 import type { EmpireId, GameState } from "../state";
 import { buildContext } from "./context";
-import { planBomber, planGuard, planWarship } from "./designs";
+import { planBomber, planGuard, planShade, planWarship } from "./designs";
 import { planOperations } from "./operations";
 import { planProduction } from "./production";
 import { chooseResearch, decideStrategy } from "./strategy";
@@ -28,6 +28,8 @@ export function planAiTurn(state: GameState, pack: ContentPack, empireId: Empire
   if (warship.create) ctx.commands.push({ type: "createDesign", empireId, design: warship.create });
   const guard = planGuard(ctx, warship.design);
   if (guard) ctx.commands.push({ type: "createDesign", empireId, design: guard });
+  const shade = planShade(ctx);
+  if (shade) ctx.commands.push({ type: "createDesign", empireId, design: shade });
   if (strategy.posture === "attack") {
     const bomber = planBomber(ctx);
     if (bomber) ctx.commands.push({ type: "createDesign", empireId, design: bomber });

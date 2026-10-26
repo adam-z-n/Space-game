@@ -2,7 +2,7 @@ import { buildOptions, buyCost, colonyOutput, findBody, itemCost, planetStats, p
 import { combatShipCount, designStats, fleetShipStats, getDesign } from "../ships";
 import type { Colony, Focus, QueueItem } from "../state";
 import type { AiContext, FleetInfo } from "./context";
-import { designWhere, guardFor } from "./designs";
+import { designWhere, guardFor, raidsCloaked, shadeDesign } from "./designs";
 import { outpostTargets } from "./operations";
 import type { Strategy } from "./strategy";
 
@@ -11,6 +11,9 @@ import type { Strategy } from "./strategy";
  * better designs; it also keeps late, open-ended games quick to play.
  */
 export const AI_MAX_WARSHIPS = 60;
+
+/** Most cloaked raiders (Shades) a raiding AI keeps. */
+export const AI_SHADES = 6;
 
 /** Siege ships and commando ships an AI empire keeps while at war (once researched). */
 export const AI_SIEGE = { bombers: 2, infiltrators: 1 };
@@ -119,6 +122,8 @@ export function planProduction(ctx: AiContext, strategy: Strategy, warshipId: st
 
   // Planets already being settled this turn (by colony ship or a colony base queued below).
   let queuedGuards = 0;
+  let queuedShades = 0;
+  const shade = raidsCloaked(ctx) ? shadeDesign(ctx) : null;
   const settling = new Set(ctx.commands.flatMap((c) => (c.type === "colonize" ? [c.bodyId] : [])));
   for (const colony of ctx.colonies) {
     if (colony.queue.length > 0) continue;
@@ -129,7 +134,10 @@ export function planProduction(ctx: AiContext, strategy: Strategy, warshipId: st
     // One warship in three is its Guard twin (Screen formation) once the AI has one, to shield flagships.
     const guard = warship ? guardFor(ctx, warship) : null;
     const guards = ctx.fleets.reduce((n, f) => n + f.fleet.ships.filter((s) => s.designId === guard?.id).length, 0) + queuedGuards;
-    const warDesign = guard && guards * 3 < warshipsAfloat + queuedWar ? guard : warship;
+    // Raiding temperaments make one warship in three a cloaked raider (Shade), up to AI_SHADES.
+    const shades = ctx.fleets.reduce((n, f) => n + f.fleet.ships.filter((s) => s.designId === shade?.id).length, 0) + queuedShades;
+    const warDesign =
+      shade && shades < AI_SHADES && shades * 3 < warshipsAfloat + queuedWar ? shade : guard && guards * 3 < warshipsAfloat + queuedWar ? guard : warship;
     const warItem = warDesign && affordable ? ({ kind: "ship", id: warDesign.id } as QueueItem) : null;
     const big = colony.population >= 3;
     let pick: QueueItem | null = null;
@@ -195,6 +203,7 @@ export function planProduction(ctx: AiContext, strategy: Strategy, warshipId: st
       deficit -= perWarship;
       queuedWar++;
       if (pick.id === guard?.id) queuedGuards++;
+      if (pick.id === shade?.id) queuedShades++;
     }
     ctx.commands.push({ type: "queueBuild", empireId: ctx.id, colonyId: colony.id, item: pick });
   }

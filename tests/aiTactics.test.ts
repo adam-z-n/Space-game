@@ -162,6 +162,29 @@ describe("AI outpost conversions", () => {
   });
 });
 
+describe("AI cloaked raiding", () => {
+  it("raiders design a cloaked warship and send drilled cloaked packs, on evade, after rival mining outposts they remember", () => {
+    const s = atWar(40, 10);
+    const ai = s.empires[1]!;
+    ai.personality = "raider";
+    // atWar's empire knows cloaking; its Shade: a cloaking device and guns on the biggest hull it fits.
+    const create = planAiTurn(s, pack, 1).find((c) => c.type === "createDesign" && c.design.name.startsWith("Shade"));
+    expect(create).toMatchObject({ design: { hull: "frigate", components: ["cloaking_device", expect.any(String), expect.any(String)] } });
+    ai.designs.push({ id: "shade", name: "Shade Mk 1", hull: "frigate", components: ["cloaking_device", "laser", "laser"], formation: "front", obsolete: false });
+
+    // A rival mining outpost it saw once, two systems from home.
+    const d = shortestPaths(knownAdjacency(s, 1), ai.homeSystemId).dist;
+    const prey = s.galaxy.systems.map((x) => x.id).filter((id) => d[id]! > 0 && d[id]! <= 450 && id !== target(s).systemId)[0]!;
+    ai.outpostSightings = [{ outpostId: 9800, empireId: 2, systemId: prey, bodyId: 9801, kind: "mining", depot: false, defenseHp: 0, turn: s.turn - 5 }];
+    const pack1 = enlist(s, newFleet(s, pack, ai, ["shade", "shade"], ai.homeSystemId));
+    s.fleets.push(pack1);
+    expect(ordersFor(planAiTurn(s, pack, 1), pack1.id)).toContainEqual(expect.objectContaining({ type: "moveFleet", destinationId: prey }));
+    // On its way, it raids on evade.
+    pack1.route = [prey];
+    expect(ordersFor(planAiTurn(s, pack, 1), pack1.id)).toContainEqual(expect.objectContaining({ type: "setFleetOrders", orders: expect.objectContaining({ mission: "evade" }) }));
+  });
+});
+
 describe("AI in debt", () => {
   it("scraps enough to stop the losses, loose groups first, a quarter of its fleets at most a turn", () => {
     const s = atWar(40, 10);

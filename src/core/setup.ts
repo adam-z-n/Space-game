@@ -72,6 +72,7 @@ export function createInitialState(settings: GameSettings, pack: ContentPack): G
       colonySensorRange: pack.economy.colonySensorRange,
       sightings: [],
       colonySightings: [],
+      outpostSightings: [],
       credits: pack.economy.startingCredits,
       food: pack.economy.startingFood,
       foodReserve: pack.economy.foodStockCap,

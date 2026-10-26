@@ -209,3 +209,38 @@ export function planBomber(ctx: AiContext, plague = false): Extract<Command, { t
   while (components.length < slots) components.push(armor?.id ?? weapon);
   return { name: plague ? "Blight Mk 1" : "Siege Mk 1", hull: hull.id, components, formation: "front" };
 }
+
+/** Raiders and warlike temperaments that know cloaking raid in cloaked packs. */
+export function raidsCloaked(ctx: AiContext): boolean {
+  return ctx.personality.designStyle === "raider" || ctx.personality.aggression >= 7;
+}
+
+/** The cloaked raider in use: armed and cloaked. */
+export function shadeDesign(ctx: AiContext): ShipDesign | null {
+  return designWhere(ctx, (s) => s.stealth && s.armed);
+}
+
+/**
+ * A cloaked raider (once cloaking is known, for temperaments that raid): the biggest hull a Cloaking Device fits,
+ * the device, and the best guns in every other slot. Null when not wanted or already designed.
+ */
+export function planShade(ctx: AiContext): Extract<Command, { type: "createDesign" }>["design"] | null {
+  const { pack, empire } = ctx;
+  if (!raidsCloaked(ctx) || shadeDesign(ctx)) return null;
+  const cloak = pack.components.find((c) => c.stealth > 0 && componentAvailable(pack, empire, c.id));
+  if (!cloak) return null;
+  const hull = pack.hulls
+    .filter((h) => hullAvailable(pack, empire, h.id) && componentFits(pack, empire, h.id, cloak.id) && h.slots >= 2)
+    .sort((a, b) => b.slots - a.slots || b.evasion - a.evasion || a.id.localeCompare(b.id))[0];
+  if (!hull) return null;
+  const shield = pack.components.filter((c) => c.kind === "shield" && componentAvailable(pack, empire, c.id)).sort((a, b) => b.shield - a.shield)[0];
+  const enemyShield = (shield?.shield ?? 0) * 2;
+  const weapon = pack.components
+    .filter((c) => c.kind === "weapon" && componentAvailable(pack, empire, c.id) && componentFits(pack, empire, hull.id, c.id) && c.size === 1 && !["ion", "emp", "pin"].includes(c.special ?? ""))
+    .sort((a, b) => weaponValue(b, enemyShield, "raider") - weaponValue(a, enemyShield, "raider") || a.id.localeCompare(b.id))[0];
+  if (!weapon) return null;
+  const slots = hullSlots(pack, empire, hull.id);
+  const components = [cloak.id, ...Array.from({ length: Math.max(1, slots - cloak.size) }, () => weapon.id)];
+  const mark = empire.designs.filter((d) => d.name.startsWith("Shade Mk ")).length + 1;
+  return { name: `Shade Mk ${mark}`, hull: hull.id, components, formation: "front" };
+}
