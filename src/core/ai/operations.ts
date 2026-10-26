@@ -1,7 +1,7 @@
 import { combatShipCount, fleetShipStats, fleetStrength } from "../ships";
 import { commandCapacity, commandReady, commandUsed, findCommand, fleetPoints, freeOfficers, suggestedFlagship, supportedCommands, infiltratorGroup, markTechs, outpostPathBlocker, shipPoints } from "../command";
 import { hasFlag } from "../economy";
-import { colonyOnBody, type FleetOrders, type OutpostKind, type Ship, type SystemId } from "../state";
+import { colonyOnBody, type FleetOrders, type NavalCommand, type OutpostKind, type Ship, type SystemId } from "../state";
 import { outpostBlocker, outpostTechOk } from "../outposts";
 import { defenseStrength, fleetAt, moveTo, withinReach, type AiContext, type FleetInfo } from "./context";
 import type { Strategy } from "./strategy";
@@ -256,8 +256,8 @@ function attack(ctx: AiContext, strategy: Strategy): void {
   for (const base of bases) {
     const home = base.homeSystemId!;
     const atBase = pool.filter((f) => f.idle && f.fleet.systemId === home && !ctx.busy.has(f.fleet.id));
-    let room = commandCapacity(ctx.state, ctx.pack, ctx.empire, base) - commandUsed(ctx.state, ctx.pack, ctx.empire, base);
-    let officers = freeOfficers(ctx.state, ctx.pack, ctx.empire, base);
+    let room = pointsLeft(ctx, base);
+    let officers = officersLeft(ctx, base);
     // The fleet that leads here: this command's strongest fleet at home.
     let anchor = atBase.filter((f) => f.fleet.command?.commandId === base.id).sort((a, b) => b.strength - a.strength || a.fleet.id - b.fleet.id)[0];
     const groups = atBase.filter((f) => !f.fleet.command).sort((a, b) => b.strength - a.strength || a.fleet.id - b.fleet.id);
@@ -300,6 +300,7 @@ function attack(ctx: AiContext, strategy: Strategy): void {
   // Only what the strike needs joins: troops for a safe landing (with a margin), one supply ship, one
   // commando team. Every ship that joins costs cohesion, so a steady trickle would keep it from launching.
   const troopsNeeded = Math.ceil((target.colony.troops * ctx.pack.combat.invasionMarginPercent * 6) / 500) + 1;
+  const joinedNow = new Set<number>();
   let supplied = (leader?.info.fleet.stores ?? 0) > 0;
   let commandos = (leader?.info.commandos ?? 0) > 0;
   for (const info of transports) {
@@ -315,6 +316,7 @@ function attack(ctx: AiContext, strategy: Strategy): void {
       supplied ||= info.supplier;
       commandos ||= info.commandos > 0;
       joining.set(leader.info.fleet.id, (joining.get(leader.info.fleet.id) ?? 0) + info.fleet.ships.length);
+      joinedNow.add(info.fleet.id);
       ctx.busy.add(info.fleet.id);
       ctx.commands.push({ type: "mergeFleets", empireId: ctx.id, fleetId: info.fleet.id, intoFleetId: leader.info.fleet.id });
     } else {
@@ -337,11 +339,22 @@ function attack(ctx: AiContext, strategy: Strategy): void {
   );
   // While troop ships are still on their way to staging (or joining this turn), a strike that would carry
   // none waits for them. Troop ships stuck at staging (no points to join) don't hold it up.
-  const troopsComing = transports.some((f) => f.troops > 0 && (f.fleet.systemId !== staging || f.fleet.progress > 0 || ctx.busy.has(f.fleet.id)));
+  // Fleets at home carrying troops but still drilling count as on their way too.
+  // Only troop ships really on their way count: joining this turn, or under way (or just ordered) to staging.
+  const bound = (f: FleetInfo) =>
+    f.fleet.route.at(-1) === staging || ctx.commands.some((c) => c.type === "moveFleet" && c.fleetId === f.fleet.id && c.destinationId === staging);
+  const troopsComing = transports.some((f) => f.troops > 0 && (joinedNow.has(f.fleet.id) || bound(f))) || waitingCarriers(ctx, homes, launchers);
   const troopsAboard = underway.troops + launchers.reduce((n, f) => n + f.troops, 0);
+  // A strike under way without troops is joined by the next drilled fleet carrying them, however strong it already is.
+  const bringTroops = underway.strength > 0 && underway.troops === 0 && launchers.some((f) => f.troops > 0);
   const waiting = pool.filter((f) => f.idle && f.fleet.command && !ctx.busy.has(f.fleet.id));
   const offered = launchers.reduce((n, f) => n + f.strength, 0);
-  if (launchers.length > 0 && underway.strength < needed && underway.strength + offered >= needed && !(troopsAboard === 0 && troopsComing)) {
+  if (bringTroops) {
+    for (const info of launchers) if (info.troops > 0) {
+      moveTo(ctx, info, target.colony.systemId);
+      ctx.commands.push({ type: "invade", empireId: ctx.id, fleetId: info.fleet.id, colonyId: target.colony.colonyId });
+    }
+  } else if (launchers.length > 0 && underway.strength < needed && underway.strength + offered >= needed && !(troopsAboard === 0 && troopsComing)) {
     const arrival = Math.max(underway.eta, ...launchers.map(eta));
     for (const info of launchers) {
       if (eta(info) < arrival - 1) continue;
@@ -349,19 +362,55 @@ function attack(ctx: AiContext, strategy: Strategy): void {
       if (info.troops > 0) ctx.commands.push({ type: "invade", empireId: ctx.id, fleetId: info.fleet.id, colonyId: target.colony.colonyId });
     }
   }
-  // Fleets not launching wait where they are (at their command's home, drilling).
-  for (const info of waiting) if (!ctx.busy.has(info.fleet.id) && ctx.empire.navalCommands.some((c) => c.homeSystemId === info.fleet.systemId)) ctx.busy.add(info.fleet.id);
-  // Groups and fleets elsewhere head for the nearest command home to form up; groups at a home stay as guards.
+  // Fleets not launching wait at their own command's home, drilling; fleets elsewhere head there.
+  const ownHome = (info: FleetInfo) => (info.fleet.command ? (findCommand(ctx.empire, info.fleet.command.commandId)?.homeSystemId ?? null) : null);
+  for (const info of waiting) if (!ctx.busy.has(info.fleet.id) && ownHome(info) === info.fleet.systemId) ctx.busy.add(info.fleet.id);
+  // Groups stay at a home where they can join a fleet or form one; others head for the nearest home where they can.
+  const canJoin = (base: NavalCommand) => anchors.has(base.homeSystemId!) || officersLeft(ctx, base) > 0;
   for (const info of pool) {
     if (ctx.busy.has(info.fleet.id)) continue;
-    if (info.idle && anchors.has(info.fleet.systemId)) {
+    const d = ctx.dist(fleetAt(info));
+    const own = ownHome(info);
+    if (own !== null && d[own] !== Infinity) {
+      moveTo(ctx, info, own);
+      continue;
+    }
+    const here = bases.find((b) => b.homeSystemId === info.fleet.systemId);
+    if (info.idle && here && canJoin(here)) {
       ctx.busy.add(info.fleet.id);
       continue;
     }
-    const d = ctx.dist(fleetAt(info));
-    const home = bases.map((b) => b.homeSystemId!).filter((h) => d[h] !== Infinity).sort((a, b) => d[a]! - d[b]! || a - b)[0];
-    if (home !== undefined) moveTo(ctx, info, home);
+    const reachable = bases.filter((b) => d[b.homeSystemId!] !== Infinity);
+    const pick = (list: NavalCommand[]) => list.sort((a, b) => d[a.homeSystemId!]! - d[b.homeSystemId!]! || a.id - b.id)[0];
+    const dest = pick(reachable.filter(canJoin)) ?? pick(reachable);
+    if (dest) moveTo(ctx, info, dest.homeSystemId!);
+    else ctx.busy.add(info.fleet.id);
   }
+}
+
+/** A command's free officers, less those taken by fleets ordered to form at its home this turn. */
+function officersLeft(ctx: AiContext, base: NavalCommand): number {
+  const forming = ctx.commands.filter((c) => c.type === "formFleet" && ctx.state.fleets.find((f) => f.id === c.fleetId)?.systemId === base.homeSystemId).length;
+  return freeOfficers(ctx.state, ctx.pack, ctx.empire, base) - forming;
+}
+
+/** Points a command has left, less those taken by fleets formed or merged at its home this turn. */
+function pointsLeft(ctx: AiContext, base: NavalCommand): number {
+  let taken = 0;
+  for (const c of ctx.commands) {
+    if (c.type !== "formFleet" && c.type !== "mergeFleets") continue;
+    const fleet = ctx.state.fleets.find((f) => f.id === c.fleetId);
+    if (!fleet || fleet.systemId !== base.homeSystemId || fleet.command) continue;
+    const split = ctx.commands.find((x) => x.type === "splitFleet" && x.fleetId === fleet.id);
+    const gone = new Set(split?.type === "splitFleet" ? split.shipIds : []);
+    taken += fleet.ships.filter((ship) => !gone.has(ship.id)).reduce((n, ship) => n + shipPoints(ctx.pack, ctx.empire, ship), 0);
+  }
+  return commandCapacity(ctx.state, ctx.pack, ctx.empire, base) - commandUsed(ctx.state, ctx.pack, ctx.empire, base) - taken;
+}
+
+/** Fleets at a command home carrying troops that aren't ready to launch yet (still drilling). */
+function waitingCarriers(ctx: AiContext, homes: Set<SystemId>, launchers: FleetInfo[]): boolean {
+  return ctx.fleets.some((f) => f.fleet.command && f.troops > 0 && f.idle && homes.has(f.fleet.systemId) && !launchers.includes(f) && !ctx.busy.has(f.fleet.id));
 }
 
 /**
@@ -394,8 +443,6 @@ function trimTo(ctx: AiContext, info: FleetInfo, room: number, lead: boolean): {
 
 /** Raider packs: launch every drilled fleet at the target, and form idle groups at command homes. */
 function raidPacks(ctx: AiContext, pool: FleetInfo[], targetSystem: SystemId): void {
-  // Officers and points taken by packs formed this turn, per command.
-  const taken = new Map<number, { officers: number; points: number }>();
   for (const info of pool) {
     if (!info.idle || ctx.busy.has(info.fleet.id)) continue;
     const command = info.fleet.command;
@@ -405,12 +452,9 @@ function raidPacks(ctx: AiContext, pool: FleetInfo[], targetSystem: SystemId): v
       continue;
     }
     const home = ctx.empire.navalCommands.find((c) => c.homeSystemId === info.fleet.systemId);
-    const used = taken.get(home?.id ?? -1) ?? { officers: 0, points: 0 };
-    if (!home || !commandReady(ctx.state, home) || freeOfficers(ctx.state, ctx.pack, ctx.empire, home) - used.officers <= 0) continue;
-    const room = commandCapacity(ctx.state, ctx.pack, ctx.empire, home) - commandUsed(ctx.state, ctx.pack, ctx.empire, home) - used.points;
-    const kept = trimTo(ctx, info, room, true);
+    if (!home || !commandReady(ctx.state, home) || officersLeft(ctx, home) <= 0) continue;
+    const kept = trimTo(ctx, info, pointsLeft(ctx, home), true);
     if (!kept) continue;
-    taken.set(home.id, { officers: used.officers + 1, points: used.points + kept.points });
     const flagship = suggestedFlagship(ctx.pack, ctx.state, info.fleet)!;
     ctx.commands.push({ type: "formFleet", empireId: ctx.id, fleetId: info.fleet.id, flagshipId: flagship.id });
     ctx.formedNow.add(info.fleet.id);
@@ -594,15 +638,15 @@ function gather(ctx: AiContext, strategy: Strategy): void {
     // At a command's home with an officer to spare, a group forms into a fleet, so it is drilled when war comes.
     const base = ctx.empire.navalCommands.find((c) => c.homeSystemId === systemId && commandReady(ctx.state, c));
     let formed: { points: number } | null = null;
-    if (!anchor.fleet.command && base && freeOfficers(ctx.state, ctx.pack, ctx.empire, base) > 0) {
-      formed = trimTo(ctx, anchor, commandCapacity(ctx.state, ctx.pack, ctx.empire, base) - commandUsed(ctx.state, ctx.pack, ctx.empire, base), true);
+    if (!anchor.fleet.command && base && officersLeft(ctx, base) > 0) {
+      formed = trimTo(ctx, anchor, pointsLeft(ctx, base), true);
       if (formed) {
         ctx.commands.push({ type: "formFleet", empireId: ctx.id, fleetId: anchor.fleet.id, flagshipId: suggestedFlagship(ctx.pack, ctx.state, anchor.fleet)!.id });
         ctx.formedNow.add(anchor.fleet.id);
       }
     }
     const own = anchor.fleet.command ? findCommand(ctx.empire, anchor.fleet.command.commandId) : formed ? base : undefined;
-    let room = own ? commandCapacity(ctx.state, ctx.pack, ctx.empire, own) - commandUsed(ctx.state, ctx.pack, ctx.empire, own) - (formed?.points ?? 0) : Infinity;
+    let room = own ? pointsLeft(ctx, own) : Infinity;
     ctx.busy.add(anchor.fleet.id);
     for (const other of group.slice(1)) {
       ctx.busy.add(other.fleet.id);

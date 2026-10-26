@@ -42,6 +42,7 @@ for (const galaxySize of sizes) {
     msPerTurn: [] as number[],
     shipsLost: 0,
     rejections: 0,
+    rejectionReasons: new Map<string, number>(),
   };
   const reasons = new Map<string, number>();
   const events = new Map<string, number>();
@@ -98,6 +99,10 @@ for (const galaxySize of sizes) {
     stats.msPerTurn.push((performance.now() - start) / turns);
     stats.length.push(game.state.outcome!.turn);
     stats.rejections += game.aiRejections.length;
+    for (const r of game.aiRejections) {
+      const key = `${r.command.split(" ")[0]}: ${r.error}`;
+      stats.rejectionReasons.set(key, (stats.rejectionReasons.get(key) ?? 0) + 1);
+    }
     baseline.games++;
     if (game.state.outcome!.winnerId === 0) baseline.wins++;
     reasons.set(game.state.outcome!.reason, (reasons.get(game.state.outcome!.reason) ?? 0) + 1);
@@ -146,6 +151,7 @@ for (const galaxySize of sizes) {
   console.log(`  invasions            ${fmt(landings / games)} per game, ${fmt(captures / games)} colonies captured per game, defenses knocked out ${ev("defensesDown")} per empire, mine hits ${ev("mineHits")} per empire, capitals lost ${fmt(capitalMoves / games)} per game`);
   console.log(`  resolution time      ${avg(stats.msPerTurn).toFixed(1)} ms per turn (including AI)`);
   console.log(`  AI command rejections ${stats.rejections}`);
+  for (const [reason, n] of [...stats.rejectionReasons].sort((a, b) => b[1] - a[1]).slice(0, 5)) console.log(`    ${n} × ${reason}`);
   const proxy = baseline.games ? fmt((baseline.wins * 100) / baseline.games) : "-";
   const fair = fmt(100 / (Number(values.ai) + 1));
   console.log(`  baseline empire (no difficulty modifiers) won ${proxy}% of games (an even share is ${fair}%)`);
