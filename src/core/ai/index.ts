@@ -2,7 +2,7 @@ import type { ContentPack } from "../../content/schema";
 import type { Command } from "../commands";
 import type { EmpireId, GameState } from "../state";
 import { buildContext } from "./context";
-import { planBomber, planGuard, planShade, planWarship } from "./designs";
+import { planBomber, planCracker, planGuard, planShade, planWarship } from "./designs";
 import { planOperations } from "./operations";
 import { planProduction } from "./production";
 import { chooseResearch, decideStrategy } from "./strategy";
@@ -36,6 +36,8 @@ export function planAiTurn(state: GameState, pack: ContentPack, empireId: Empire
     // Plague bombs only for the endgame drive (and the coalition against a human player).
     const blight = strategy.endgame ? planBomber(ctx, true) : null;
     if (blight) ctx.commands.push({ type: "createDesign", empireId, design: blight });
+    const cracker = strategy.endgame ? planCracker(ctx) : null;
+    if (cracker) ctx.commands.push({ type: "createDesign", empireId, design: cracker });
   }
 
   planOperations(ctx, strategy);

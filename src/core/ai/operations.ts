@@ -585,11 +585,15 @@ function siege(ctx: AiContext, strategy: Strategy): void {
     const troops = landed(ctx, fleets.reduce((n, f) => n + f.troops, 0));
     const short = troops < Math.ceil((colony.troops * ctx.pack.combat.invasionMarginPercent) / 100);
     const bombers = fleets.filter((f) => f.bombard > 0);
+    // A colony held by far more troops than the empire can bring (CRACK times) is not worth invading: in the
+    // endgame drive a planet cracker destroys it. Otherwise cracker fleets hold their fire (it would destroy the prize).
+    const ourTroops = landed(ctx, ctx.fleets.reduce((n, f) => n + f.troops, 0));
+    const fortress = strategy.endgame && colony.troops > Math.max(1, ourTroops) * SIEGE.crackPercent / 100;
     for (const info of bombers) {
       handled.add(info.fleet.id);
       // Bomb the prize down, not out: stop at a couple of colonists unless this is the endgame drive.
       const spare = strategy.endgame || colony.population > SIEGE.minPopulation;
-      const want = short && spare && colony.defenseHp <= 0 ? colony.colonyId : null;
+      const want = colony.defenseHp > 0 ? null : info.cracker ? (fortress ? colony.colonyId : null) : short && spare ? colony.colonyId : null;
       if (info.fleet.bombardColonyId !== want) ctx.commands.push({ type: "bombard", empireId: ctx.id, fleetId: info.fleet.id, colonyId: want });
     }
     if (short && bombers.length === 0 && troops * 100 >= colony.troops * SIEGE.allOutPercent) {
@@ -601,8 +605,12 @@ function siege(ctx: AiContext, strategy: Strategy): void {
   }
 }
 
-/** Troops, in percent of the defenders, worth an all-out landing when no bombers can soften the target. */
-export const SIEGE = { allOutPercent: 110, minPopulation: 2 };
+/**
+ * allOutPercent: troops, in percent of the defenders, worth an all-out landing when no bombers can soften the target.
+ * minPopulation: bombing stops at this many colonists (outside the endgame drive).
+ * crackPercent: in the endgame drive, a colony whose troops exceed this percent of all ours is cracked, not invaded.
+ */
+export const SIEGE = { allOutPercent: 110, minPopulation: 2, crackPercent: 300 };
 
 /** Commandos (cloaked infiltrators) go ahead of the strike force: they knock out the defenses, then thin the garrison. */
 function raid(ctx: AiContext, strategy: Strategy): void {

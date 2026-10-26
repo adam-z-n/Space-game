@@ -54,6 +54,24 @@ describe("AI siege tactics", () => {
     expect(ordersFor(planAiTurn(s, pack, 1), bombers.id)).toContainEqual(expect.objectContaining({ type: "bombard", colonyId: null }));
   });
 
+  it("in the endgame drive, cracks a colony held by far more troops than it can bring, and spares the rest", () => {
+    const s = atWar(0, 60);
+    s.coalition = true; // an endgame drive of its own
+    const ai = s.empires[1]!;
+    ai.techs.push("dreadnought_hulls", "planet_cracker");
+    ai.designs.push({ id: "sunder", name: "Sundering Mk 1", hull: "dreadnought", components: ["planet_cracker", "laser", "laser", "armor_plating", "armor_plating", "armor_plating", "armor_plating"], formation: "front", obsolete: false });
+    const at = target(s).systemId;
+    const crackers = enlist(s, newFleet(s, pack, ai, ["sunder"], at));
+    crackers.supply = 20;
+    s.fleets.push(crackers);
+    s.fleets.push(newFleet(s, pack, ai, ["troop_transport"], ai.homeSystemId)); // 10 troops: 60 is far beyond them
+    expect(ordersFor(planAiTurn(s, pack, 1), crackers.id)).toContainEqual(expect.objectContaining({ type: "bombard", colonyId: target(s).id }));
+    // A colony we could take is spared.
+    ai.colonySightings[0]!.troops = 15;
+    crackers.bombardColonyId = target(s).id;
+    expect(ordersFor(planAiTurn(s, pack, 1), crackers.id)).toContainEqual(expect.objectContaining({ type: "bombard", colonyId: null }));
+  });
+
   it("without bombers, goes all-out when the troops in orbit are close to even", () => {
     const s = atWar(0, 9);
     const at = target(s).systemId;

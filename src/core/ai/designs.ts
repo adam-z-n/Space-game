@@ -244,3 +244,26 @@ export function planShade(ctx: AiContext): Extract<Command, { type: "createDesig
   const mark = empire.designs.filter((d) => d.name.startsWith("Shade Mk ")).length + 1;
   return { name: `Shade Mk ${mark}`, hull: hull.id, components, formation: "front" };
 }
+
+/**
+ * Endgame drive only: a planet-cracker dreadnought, for colonies too strongly held to invade. The cracker, a gun or
+ * two to count as a warship, the rest armor. Null when not wanted, not researched, or already designed.
+ */
+export function planCracker(ctx: AiContext): Extract<Command, { type: "createDesign" }>["design"] | null {
+  const { pack, empire } = ctx;
+  if (designWhere(ctx, (s) => s.cracker && s.armed)) return null;
+  const cracker = pack.components.find((c) => c.cracker && componentAvailable(pack, empire, c.id));
+  const current = currentWarship(ctx);
+  if (!cracker || !current) return null;
+  const hull = pack.hulls
+    .filter((h) => hullAvailable(pack, empire, h.id) && componentFits(pack, empire, h.id, cracker.id))
+    .sort((a, b) => b.slots - a.slots || a.id.localeCompare(b.id))[0];
+  if (!hull) return null;
+  const slots = hullSlots(pack, empire, hull.id);
+  const weapon = current.components.find((id) => pack.components.find((c) => c.id === id)?.kind === "weapon" && componentFits(pack, empire, hull.id, id));
+  const armor = pack.components.filter((c) => c.kind === "armor" && componentAvailable(pack, empire, c.id)).sort((a, b) => b.hp - a.hp || a.id.localeCompare(b.id))[0];
+  if (!weapon) return null;
+  const components = [cracker.id, weapon, weapon];
+  while (slotsUsed(pack, components) < slots) components.push(armor?.id ?? weapon);
+  return { name: "Sundering Mk 1", hull: hull.id, components, formation: "front" };
+}

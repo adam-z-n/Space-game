@@ -35,6 +35,8 @@ export interface FleetInfo {
   mines: number;
   /** Armed, and every ship cloaked: a raider that can slip in unseen. */
   cloaked: boolean;
+  /** Carries a planet cracker. */
+  cracker: boolean;
   maxSupply: number;
   /** Current hit points as a fraction of full, in percent. */
   hpPercent: number;
@@ -115,6 +117,7 @@ export function buildContext(state: GameState, pack: ContentPack, empireId: Empi
         bombard: stats.reduce((n, s) => n + s.bombard, 0),
         commandos: stats.reduce((n, s) => n + s.commandos, 0),
         mines: stats.reduce((n, s) => n + s.mines, 0),
+        cracker: stats.some((s) => s.cracker),
         cloaked: stats.length > 0 && stats.every((s) => s.stealth) && stats.some((s) => s.armed),
         maxSupply: fleetMaxSupply(pack, state, fleet),
         hpPercent: maxHp > 0 ? Math.floor((hp * 100) / maxHp) : 0,

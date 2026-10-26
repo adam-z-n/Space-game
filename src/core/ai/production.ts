@@ -87,7 +87,10 @@ export function planProduction(ctx: AiContext, strategy: Strategy, warshipId: st
   const bomberDesign = plagueBomber ?? plainBomber;
   const infiltratorDesign = designWhere(ctx, (s) => s.commandos > 0 && s.stealth && !s.armed);
   const atWar = strategy.posture === "attack" && strategy.targetColony !== null;
-  let bombers = afloat((s) => s.bombard > 0) + queuedOf((q) => isShip(q, (s) => s.bombard > 0));
+  let bombers = afloat((s) => s.bombard > 0 && !s.cracker) + queuedOf((q) => isShip(q, (s) => s.bombard > 0 && !s.cracker));
+  // One planet cracker in the endgame drive, once designed.
+  const crackerDesign = strategy.endgame ? designWhere(ctx, (s) => s.cracker && s.armed) : null;
+  let crackers = afloat((s) => s.cracker) + queuedOf((q) => isShip(q, (s) => s.cracker));
   const wantBombers = atWar && bomberDesign ? AI_SIEGE.bombers : 0;
   let infiltrators = afloat((s) => s.commandos > 0 && !s.armed) + queuedOf((q) => isShip(q, (s) => s.commandos > 0 && !s.armed));
   const wantInfiltrators = atWar && infiltratorDesign && strategy.targetColony!.defenseHp > 0 ? AI_SIEGE.infiltrators : 0;
@@ -173,6 +176,10 @@ export function planProduction(ctx: AiContext, strategy: Strategy, warshipId: st
       pick = { kind: "ship", id: bomberDesign.id };
       room.upkeep -= designStats(pack, bomberDesign, fx).upkeep;
       bombers++;
+    } else if (crackerDesign && crackers < 1 && big && atWar && can({ kind: "ship", id: crackerDesign.id }) && designStats(pack, crackerDesign, fx).upkeep <= room.upkeep) {
+      pick = { kind: "ship", id: crackerDesign.id };
+      room.upkeep -= designStats(pack, crackerDesign, fx).upkeep;
+      crackers++;
     } else if (suppliers < wantSuppliers && big && supplyDesign && can({ kind: "ship", id: supplyDesign.id })) {
       pick = { kind: "ship", id: supplyDesign.id };
       suppliers++;
