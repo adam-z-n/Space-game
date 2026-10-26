@@ -139,6 +139,20 @@ describe("production", () => {
     expect(applyCommand(once, { type: "queueBuild", empireId: 0, colonyId, item: { kind: "building", id: "factory" } }, pack).ok).toBe(false);
   });
 
+  it("Advanced Hydroponics unlocks the Hydroponic Complex: +6 food, even on a gas giant habitat", () => {
+    const s = fresh();
+    const colony = capital(s);
+    const queue = (state: GameState) => applyCommand(state, { type: "queueBuild", empireId: 0, colonyId: colony.id, item: { kind: "building", id: "hydroponic_complex" } }, pack);
+    expect(queue(s)).toMatchObject({ ok: false, error: "needs advanced_hydroponics" });
+    s.empires[0]!.techs.push("advanced_hydroponics");
+    expect(queue(s).ok).toBe(true);
+    const system = s.galaxy.systems[colony.systemId]!;
+    system.bodies = system.bodies.map((b) => (b.id === colony.bodyId ? { id: b.id, kind: "gasGiant" as const } : b));
+    const before = colonyOutput(s, pack, colony).food;
+    colony.buildings.push("hydroponic_complex");
+    expect(colonyOutput(s, pack, colony).food).toBe(before + 6);
+  });
+
   it("turns idle industry into credits", () => {
     const s = fresh();
     const eco = empireEconomy(s, pack, 0);

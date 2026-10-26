@@ -78,15 +78,16 @@ export function getBuilding(pack: ContentPack, id: string): Building {
 function innateEffects(pack: ContentPack, empire: Empire): Effects[] {
   const species = pack.species.find((s) => s.id === empire.species)?.effects;
   const difficulty = empire.difficulty ? pack.difficulties.find((d) => d.id === empire.difficulty)?.effects : undefined;
+  const personality = empire.personality ? pack.aiPersonalities.find((p) => p.id === empire.personality)?.effects : undefined;
   const tax = taxLevel(pack, empire).effects;
-  return [...(species ? [species] : []), ...(difficulty ? [difficulty] : []), tax];
+  return [...(species ? [species] : []), ...(difficulty ? [difficulty] : []), ...(personality ? [personality] : []), tax];
 }
 
 export function taxLevel(pack: ContentPack, empire: Empire): ContentPack["taxLevels"][number] {
   return pack.taxLevels.find((t) => t.id === empire.taxLevel) ?? pack.taxLevels.find((t) => t.id === "normal")!;
 }
 
-/** Empire-wide modifiers: researched techs, species traits, and difficulty bonuses for AI empires. */
+/** Empire-wide modifiers: researched techs, species traits, and difficulty and personality bonuses for AI empires. */
 export function empireEffects(pack: ContentPack, empire: Empire): Totals {
   return sumEffects([...empire.techs.map((id) => getTech(pack, id).effects), ...innateEffects(pack, empire)]);
 }
@@ -104,6 +105,12 @@ const pct = (value: number, percent: number) => Math.floor((value * (100 + perce
 
 export function findBody(state: GameState, systemId: number, bodyId: number): Body | undefined {
   return getSystem(state, systemId).bodies.find((b) => b.id === bodyId);
+}
+
+/** Whether a colony's planet can be farmed (gas giant habitats and some planet types can't). */
+export function colonyCanFarm(state: GameState, pack: ContentPack, colony: Colony): boolean {
+  const body = findBody(state, colony.systemId, colony.bodyId);
+  return !!body && planetStats(pack, body).foodYield > 0;
 }
 
 export function planetStats(pack: ContentPack, body: Body) {

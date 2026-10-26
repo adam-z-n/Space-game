@@ -493,6 +493,8 @@ const Personality = z.object({
   designStyle: z.enum(["raider", "line", "fortress"]),
   /** Weight per research field id (missing fields count as 1). */
   researchFields: z.record(z.string(), z.number().int().min(0).max(10)),
+  /** Bonuses this temperament's empires get (like a species trait). */
+  effects: EffectsSchema.default({}),
 });
 export type PersonalityData = z.infer<typeof Personality>;
 

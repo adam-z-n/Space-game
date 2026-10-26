@@ -91,6 +91,20 @@ describe("naval commands", () => {
     expect(commandCapacity(s, pack, empire, command)).toBe(12 + 2 + 4 + 8);
   });
 
+  it("AI personalities: warlords get 4 more points per command, raiders one more officer (a second fleet)", () => {
+    const s = line();
+    const empire = s.empires[0]!;
+    const command = empire.navalCommands[0]!;
+    const base = commandCapacity(s, pack, empire, command);
+    expect(freeOfficers(s, pack, empire, command)).toBe(1);
+    empire.personality = "warlord";
+    expect(commandCapacity(s, pack, empire, command)).toBe(base + 4);
+    expect(freeOfficers(s, pack, empire, command)).toBe(1);
+    empire.personality = "raider";
+    expect(commandCapacity(s, pack, empire, command)).toBe(base);
+    expect(freeOfficers(s, pack, empire, command)).toBe(2);
+  });
+
   it("one command per five colonies, each placed at a colony of yours, one per system, ready in 3 turns", () => {
     let s = line();
     expect(supportedCommands(s, pack, 0)).toBe(1);

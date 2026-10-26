@@ -29,7 +29,7 @@ import {
   type QueueItem,
   type SystemId,
 } from "./state";
-import { buildBlocker, buyCost, colonizeBlocker, empireEffects, findBody, hasFlag, itemCost, newColony, techAvailable } from "./economy";
+import { buildBlocker, buyCost, colonizeBlocker, colonyCanFarm, empireEffects, findBody, hasFlag, itemCost, newColony, techAvailable } from "./economy";
 import { designBlocker, designStats, fleetCanColonize, fleetMaxSupply, fleetShipStats, getDesign, refreshFleetStats, settlerIndex } from "./ships";
 import { fleetMaxStores, suppliedSystems, warpGateAt } from "./supply";
 import { outpostBlocker, outpostDefense, outpostTechOk } from "./outposts";
@@ -251,7 +251,8 @@ export function validateCommand(state: GameState, command: Command, pack: Conten
     case "setFocus": {
       const colony = ownColony(state, command.empireId, command.colonyId);
       if (typeof colony === "string") return colony;
-      return FOCUSES.includes(command.focus) ? null : `unknown focus ${command.focus}`;
+      if (!FOCUSES.includes(command.focus)) return `unknown focus ${command.focus}`;
+      return command.focus === "food" && !colonyCanFarm(state, pack, colony) ? "this planet can't be farmed" : null;
     }
     case "queueBuild": {
       const colony = ownColony(state, command.empireId, command.colonyId);
@@ -342,6 +343,7 @@ export function validateCommand(state: GameState, command: Command, pack: Conten
       if (w === null) return null;
       const counts = [w.farmers, w.industry, w.research];
       if (!counts.every((n) => Number.isInteger(n) && n >= 0)) return "worker counts must be whole numbers";
+      if (w.farmers > 0 && !colonyCanFarm(state, pack, colony)) return "this planet can't be farmed";
       return counts.reduce((a, b) => a + b, 0) === colony.population ? null : `workers must add up to the population (${colony.population})`;
     }
     case "setTaxLevel":

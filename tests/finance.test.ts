@@ -64,6 +64,18 @@ describe("hand-placed workers", () => {
     expect(colonyOutput(s, pack, capital(s)).workers.farmers).toBeGreaterThan(0);
   });
 
+  it("can't farm a planet that grows nothing (a gas giant habitat)", () => {
+    let s = fresh();
+    const colony = capital(s);
+    const system = s.galaxy.systems[colony.systemId]!;
+    system.bodies = system.bodies.map((b) => (b.id === colony.bodyId ? { id: b.id, kind: "gasGiant" as const } : b));
+    const id = colony.id;
+    expect(applyCommand(s, { type: "setWorkers", empireId: 0, colonyId: id, workers: { farmers: 1, industry: 4, research: 0 } }, pack)).toMatchObject({ ok: false, error: "this planet can't be farmed" });
+    expect(applyCommand(s, { type: "setFocus", empireId: 0, colonyId: id, focus: "food" }, pack)).toMatchObject({ ok: false });
+    s = run(s, { type: "setWorkers", empireId: 0, colonyId: id, workers: { farmers: 0, industry: 4, research: 1 } }, { type: "setFocus", empireId: 0, colonyId: id, focus: "industry" });
+    expect(colonyOutput(s, pack, capital(s)).workers.farmers).toBe(0);
+  });
+
   it("follow population changes: growth joins industry, losses come from research, then industry, then farms", () => {
     expect(fitWorkers({ farmers: 2, industry: 1, research: 2 }, 7)).toEqual({ farmers: 2, industry: 3, research: 2 });
     expect(fitWorkers({ farmers: 2, industry: 1, research: 2 }, 2)).toEqual({ farmers: 2, industry: 0, research: 0 });

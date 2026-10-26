@@ -144,8 +144,10 @@ describe("AI naval commands", () => {
 
   it("forms a strike fleet at its command's home within the points, and launches only once drilled", () => {
     const { s, groupId } = strikeReady();
+    // Two more destroyers: 20 points, 16 in a warlord's command (12 + 4): the extras split off, the rest form a fleet and wait.
+    const strike = s.fleets.find((f) => f.id === groupId)!;
+    for (let i = 0; i < 2; i++) strike.ships.push({ ...structuredClone(strike.ships[0]!), id: s.nextId++ });
     const orders = ordersFor(planAiTurn(s, pack, 1), groupId);
-    // 16 points of destroyers, 12 in the command: the extras split off, the rest form a fleet and wait.
     expect(orders).toContainEqual(expect.objectContaining({ type: "splitFleet" }));
     expect(orders).toContainEqual(expect.objectContaining({ type: "formFleet" }));
     expect(orders).not.toContainEqual(expect.objectContaining({ type: "moveFleet", destinationId: target(s).systemId }));
