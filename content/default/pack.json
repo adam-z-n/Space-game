@@ -632,6 +632,18 @@
       "school": "genetic_engineering"
     },
     {
+      "id": "advanced_hydroponics",
+      "name": "Advanced Hydroponics",
+      "field": "growth",
+      "cost": 650,
+      "requires": [
+        "controlled_environments",
+        "planetary_medicine"
+      ],
+      "effects": {},
+      "description": "Unlocks Hydroponic Complexes: +6 food on any colony, even where nothing grows."
+    },
+    {
       "id": "soil_enrichment",
       "name": "Soil Enrichment",
       "field": "growth",
@@ -2390,6 +2402,18 @@
       "buildable": true
     },
     {
+      "id": "hydroponic_complex",
+      "name": "Hydroponic Complex",
+      "cost": 80,
+      "upkeep": 2,
+      "effects": {
+        "food": 6
+      },
+      "requires": "advanced_hydroponics",
+      "description": "+6 food.",
+      "buildable": true
+    },
+    {
       "id": "habitat_dome",
       "name": "Habitat Dome",
       "cost": 60,
@@ -3725,7 +3749,7 @@
     {
       "id": "raider",
       "name": "Raider",
-      "description": "Fast, cheap ships that hit weak colonies and run.",
+      "description": "Fast, cheap ships that hit weak colonies and run. Bonus: +1 officer per naval command (one more fleet each).",
       "expansion": 5,
       "military": 7,
       "research": 4,
@@ -3738,12 +3762,15 @@
         "propulsion": 3,
         "weapons": 2,
         "logistics": 2
+      },
+      "effects": {
+        "commandOfficers": 1
       }
     },
     {
       "id": "warlord",
       "name": "Warlord",
-      "description": "Builds a big battle fleet and goes looking for a fight.",
+      "description": "Builds a big battle fleet and goes looking for a fight. Bonus: +4 points per naval command.",
       "expansion": 5,
       "military": 9,
       "research": 4,
@@ -3756,6 +3783,9 @@
         "weapons": 3,
         "engineering": 2,
         "defense": 2
+      },
+      "effects": {
+        "commandPoints": 4
       }
     },
     {

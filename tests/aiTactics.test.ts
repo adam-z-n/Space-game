@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { buildContext, createInitialState, decideStrategy, newFleet, planAiTurn, type Command, type GameState } from "../src/core";
+import { buildContext, createInitialState, decideStrategy, fleetStrength, knownAdjacency, newCommand, newColony, newFleet, planAiTurn, shortestPaths, type Command, type GameState } from "../src/core";
 import { defaultPack } from "../src/content/defaultPack";
 import { chartAll, enlist } from "./helpers";
+import { steadyCredits } from "../src/core/ai/production";
+import { hops, interior } from "../src/core/ai/context";
 
 const pack = defaultPack();
 
@@ -50,6 +52,24 @@ describe("AI siege tactics", () => {
     bombers.bombardColonyId = target(s).id;
     transports.ships.push(...newFleet(s, pack, ai, ["troop_transport", "troop_transport"], at).ships);
     expect(ordersFor(planAiTurn(s, pack, 1), bombers.id)).toContainEqual(expect.objectContaining({ type: "bombard", colonyId: null }));
+  });
+
+  it("in the endgame drive, cracks a colony held by far more troops than it can bring, and spares the rest", () => {
+    const s = atWar(0, 60);
+    s.coalition = true; // an endgame drive of its own
+    const ai = s.empires[1]!;
+    ai.techs.push("dreadnought_hulls", "planet_cracker");
+    ai.designs.push({ id: "sunder", name: "Sundering Mk 1", hull: "dreadnought", components: ["planet_cracker", "laser", "laser", "armor_plating", "armor_plating", "armor_plating", "armor_plating"], formation: "front", obsolete: false });
+    const at = target(s).systemId;
+    const crackers = enlist(s, newFleet(s, pack, ai, ["sunder"], at));
+    crackers.supply = 20;
+    s.fleets.push(crackers);
+    s.fleets.push(newFleet(s, pack, ai, ["troop_transport"], ai.homeSystemId)); // 10 troops: 60 is far beyond them
+    expect(ordersFor(planAiTurn(s, pack, 1), crackers.id)).toContainEqual(expect.objectContaining({ type: "bombard", colonyId: target(s).id }));
+    // A colony we could take is spared.
+    ai.colonySightings[0]!.troops = 15;
+    crackers.bombardColonyId = target(s).id;
+    expect(ordersFor(planAiTurn(s, pack, 1), crackers.id)).toContainEqual(expect.objectContaining({ type: "bombard", colonyId: null }));
   });
 
   it("without bombers, goes all-out when the troops in orbit are close to even", () => {
@@ -126,6 +146,85 @@ describe("AI siege tactics", () => {
   });
 });
 
+describe("AI outpost conversions", () => {
+  it("arms a mining outpost on the front and mines with a combat outpost deep inside; settles a habitat over an inner gas giant outpost", () => {
+    const s = atWar(40, 10);
+    const ai = s.empires[1]!;
+    ai.techs.push("outpost_construction", "asteroid_mining", "gas_giant_habitats");
+    const ctx = () => buildContext(s, pack, 1);
+    // Front: a system next to the target.
+    const lane = s.galaxy.lanes.find((l) => l.a === target(s).systemId || l.b === target(s).systemId)!;
+    const front = lane.a === target(s).systemId ? lane.b : lane.a;
+    s.galaxy.systems[front]!.bodies.push({ id: 9700, kind: "asteroids" });
+    s.outposts.push({ id: 9701, empireId: 1, systemId: front, bodyId: 9700, kind: "mining", depot: false, mark: 0, defenseHp: 0 });
+    const builder = newFleet(s, pack, ai, ["outpost_ship"], front);
+    s.fleets.push(builder);
+    expect(ordersFor(planAiTurn(s, pack, 1), builder.id)).toContainEqual({ type: "buildOutpost", empireId: 1, fleetId: builder.id, bodyId: 9700, kind: "combat" });
+
+    // Deep inside: a plain combat outpost on an asteroid field becomes a mining outpost.
+    s.outposts = [];
+    const inner = s.galaxy.systems.map((x) => x.id).find((id) => interior(ctx(), id) && hops(ctx(), ai.homeSystemId)[id]! <= 2)!;
+    expect(inner).toBeDefined();
+    s.galaxy.systems[inner]!.bodies.push({ id: 9702, kind: "asteroids" }, { id: 9704, kind: "gasGiant" });
+    s.outposts.push({ id: 9703, empireId: 1, systemId: inner, bodyId: 9702, kind: "combat", depot: false, mark: 0, defenseHp: 60 });
+    builder.systemId = inner;
+    expect(ordersFor(planAiTurn(s, pack, 1), builder.id)).toContainEqual({ type: "buildOutpost", empireId: 1, fleetId: builder.id, bodyId: 9702, kind: "mining" });
+    // ...but not once it is a depot.
+    s.outposts[0]!.depot = true;
+    expect(ordersFor(planAiTurn(s, pack, 1), builder.id)).not.toContainEqual(expect.objectContaining({ type: "buildOutpost", bodyId: 9702 }));
+
+    // A combat outpost on a gas giant deep inside is a habitat target.
+    ai.explored = [...new Set([...ai.explored, inner])];
+    s.outposts.push({ id: 9705, empireId: 1, systemId: inner, bodyId: 9704, kind: "combat", depot: false, mark: 0, defenseHp: 60 });
+    expect(decideStrategy(ctx()).colonyTargets).toContainEqual(expect.objectContaining({ bodyId: 9704, habitat: true }));
+  });
+});
+
+describe("AI cloaked raiding", () => {
+  it("raiders design a cloaked warship and send drilled cloaked packs, on evade, after rival mining outposts they remember", () => {
+    const s = atWar(40, 10);
+    const ai = s.empires[1]!;
+    ai.personality = "raider";
+    // atWar's empire knows cloaking; its Shade: a cloaking device and guns on the biggest hull it fits.
+    const create = planAiTurn(s, pack, 1).find((c) => c.type === "createDesign" && c.design.name.startsWith("Shade"));
+    expect(create).toMatchObject({ design: { hull: "frigate", components: ["cloaking_device", expect.any(String), expect.any(String)] } });
+    ai.designs.push({ id: "shade", name: "Shade Mk 1", hull: "frigate", components: ["cloaking_device", "laser", "laser"], formation: "front", obsolete: false });
+
+    // A rival mining outpost it saw once, two systems from home.
+    const d = shortestPaths(knownAdjacency(s, 1), ai.homeSystemId).dist;
+    const prey = s.galaxy.systems.map((x) => x.id).filter((id) => d[id]! > 0 && d[id]! <= 450 && id !== target(s).systemId)[0]!;
+    ai.outpostSightings = [{ outpostId: 9800, empireId: 2, systemId: prey, bodyId: 9801, kind: "mining", depot: false, defenseHp: 0, turn: s.turn - 5 }];
+    const pack1 = enlist(s, newFleet(s, pack, ai, ["shade", "shade"], ai.homeSystemId));
+    s.fleets.push(pack1);
+    expect(ordersFor(planAiTurn(s, pack, 1), pack1.id)).toContainEqual(expect.objectContaining({ type: "moveFleet", destinationId: prey }));
+    // On its way, it raids on evade.
+    pack1.route = [prey];
+    expect(ordersFor(planAiTurn(s, pack, 1), pack1.id)).toContainEqual(expect.objectContaining({ type: "setFleetOrders", orders: expect.objectContaining({ mission: "evade" }) }));
+  });
+});
+
+describe("AI in debt", () => {
+  it("scraps enough to stop the losses, loose groups first, a quarter of its fleets at most a turn", () => {
+    const s = atWar(40, 10);
+    const ai = s.empires[1]!;
+    const capital = s.colonies.find((c) => c.empireId === 1 && c.capital)!;
+    const elsewhere = s.galaxy.lanes.find((l) => l.a === capital.systemId || l.b === capital.systemId)!;
+    const away = elsewhere.a === capital.systemId ? elsewhere.b : elsewhere.a;
+    for (let i = 0; i < 12; i++) s.fleets.push(newFleet(s, pack, ai, ["frigate", "frigate", "frigate"], away));
+    ai.credits = -5;
+    const ctx = buildContext(s, pack, 1);
+    expect(steadyCredits(ctx)).toBeLessThan(0);
+    const disbanded = planAiTurn(s, pack, 1).flatMap((c) => (c.type === "disbandFleet" ? [c.fleetId] : []));
+    expect(disbanded.length).toBeGreaterThan(0);
+    const armed = s.fleets.filter((f) => f.empireId === 1).length;
+    expect(disbanded.length).toBeLessThanOrEqual(Math.max(1, Math.floor(armed / 4)));
+    for (const id of disbanded) expect(s.fleets.find((f) => f.id === id)!.command).toBeNull();
+    // Out of debt: nothing is scrapped.
+    ai.credits = 50;
+    expect(planAiTurn(s, pack, 1).some((c) => c.type === "disbandFleet")).toBe(false);
+  });
+});
+
 describe("AI naval commands", () => {
   /** atWar, with only the 8-destroyer group for empire 1's warships (no starting fleet). */
   function strikeReady(): { s: GameState; groupId: number } {
@@ -144,8 +243,10 @@ describe("AI naval commands", () => {
 
   it("forms a strike fleet at its command's home within the points, and launches only once drilled", () => {
     const { s, groupId } = strikeReady();
+    // Two more destroyers: 20 points, 16 in a warlord's command (12 + 4): the extras split off, the rest form a fleet and wait.
+    const strike = s.fleets.find((f) => f.id === groupId)!;
+    for (let i = 0; i < 2; i++) strike.ships.push({ ...structuredClone(strike.ships[0]!), id: s.nextId++ });
     const orders = ordersFor(planAiTurn(s, pack, 1), groupId);
-    // 16 points of destroyers, 12 in the command: the extras split off, the rest form a fleet and wait.
     expect(orders).toContainEqual(expect.objectContaining({ type: "splitFleet" }));
     expect(orders).toContainEqual(expect.objectContaining({ type: "formFleet" }));
     expect(orders).not.toContainEqual(expect.objectContaining({ type: "moveFleet", destinationId: target(s).systemId }));
@@ -157,6 +258,86 @@ describe("AI naval commands", () => {
     expect(ordersFor(planAiTurn(s, pack, 1), groupId)).toContainEqual(expect.objectContaining({ type: "moveFleet", destinationId: target(s).systemId }));
     group.command!.cohesion = 60;
     expect(ordersFor(planAiTurn(s, pack, 1), groupId)).not.toContainEqual(expect.objectContaining({ type: "moveFleet", destinationId: target(s).systemId }));
+  });
+
+  /** Guard the target so that `share` percent of `strength` is just what a strike needs (with the warlord's nerve). */
+  function guardFor(s: GameState, strength: number, share: number): void {
+    const nerve = 100 + pack.aiPersonalities.find((p) => p.id === "warlord")!.caution * 10;
+    const hp = Math.floor((((strength * share) / 100) * 100 * 5) / nerve / 6);
+    target(s).defenseHp = hp;
+    s.empires[1]!.colonySightings[0]!.defenseHp = hp;
+  }
+
+  it("a spare officer forms a second fleet when the first, drilled, isn't enough", () => {
+    const { s, groupId } = strikeReady();
+    const ai = s.empires[1]!;
+    ai.techs.push("officer_academy");
+    const group = s.fleets.find((f) => f.id === groupId)!;
+    const first = newFleet(s, pack, ai, ["frigate", "frigate", "frigate", "frigate"], group.systemId);
+    s.fleets.push(enlist(s, first));
+    group.ships = group.ships.slice(0, 4);
+    guardFor(s, fleetStrength(pack, s, first) * 2, 85);
+    const orders = planAiTurn(s, pack, 1);
+    expect(ordersFor(orders, groupId)).toContainEqual(expect.objectContaining({ type: "formFleet" }));
+    expect(ordersFor(orders, groupId)).not.toContainEqual(expect.objectContaining({ type: "mergeFleets" }));
+    expect(ordersFor(orders, first.id).some((c) => c.type === "moveFleet")).toBe(false); // not enough alone: it waits
+  });
+
+  it("fleets from two commands strike together, timed to arrive on the same turn", () => {
+    const { s, groupId } = strikeReady();
+    const ai = s.empires[1]!;
+    const home = s.fleets.find((f) => f.id === groupId)!;
+    const near = enlist(s, home);
+    near.ships = near.ships.slice(0, 4);
+    // A second command based at a colony farther from the target, with a drilled fleet of its own.
+    const adj = knownAdjacency(s, 1);
+    const toTarget = shortestPaths(adj, target(s).systemId).dist;
+    const speed = near.speed;
+    const eta = (id: number) => Math.ceil(toTarget[id]! / speed);
+    const far = s.galaxy.systems.map((x) => x.id).filter((id) => toTarget[id]! !== Infinity && eta(id) >= eta(near.systemId) + 2 && eta(id) <= eta(near.systemId) + 4)[0]!;
+    const body = { id: 9500, kind: "planet" as const, planetType: "terran", size: "medium", richness: "normal" };
+    s.galaxy.systems[far]!.bodies.push(body);
+    s.colonies.push(newColony(s, ai, far, body.id, 8, false));
+    const second = newCommand(s, ai, far, 0);
+    const away = newFleet(s, pack, ai, ["frigate", "frigate", "frigate", "frigate"], far);
+    away.command = { commandId: second.id, officer: { id: 99_001, name: "Far", xp: 0 }, flagshipId: away.ships[0]!.id, cohesion: 100 };
+    s.fleets.push(away);
+    ai.explored = s.galaxy.systems.map((x) => x.id);
+    guardFor(s, fleetStrength(pack, s, near) + fleetStrength(pack, s, away), 90);
+    // The far fleet leaves first; the near one waits until its trip matches.
+    const orders = planAiTurn(s, pack, 1);
+    expect(ordersFor(orders, away.id)).toContainEqual(expect.objectContaining({ type: "moveFleet", destinationId: target(s).systemId }));
+    expect(ordersFor(orders, near.id).some((c) => c.type === "moveFleet")).toBe(false);
+    // Once the far fleet is close enough, the near one goes too.
+    away.route = [target(s).systemId];
+    away.systemId = near.systemId;
+    expect(ordersFor(planAiTurn(s, pack, 1), near.id)).toContainEqual(expect.objectContaining({ type: "moveFleet", destinationId: target(s).systemId }));
+  });
+
+  it("campaigns: a fleet holding a colony near the next target pushes on with its troops, or holds and calls them up", () => {
+    const s = atWar(0, 4);
+    const ai = s.empires[1]!;
+    s.fleets = s.fleets.filter((f) => f.empireId !== 1);
+    // A colony of ours (just taken, say) next door to the target, far from our command's home.
+    const lane = s.galaxy.lanes.find((l) => (l.a === target(s).systemId || l.b === target(s).systemId) && l.a !== ai.homeSystemId && l.b !== ai.homeSystemId)!;
+    const front = lane.a === target(s).systemId ? lane.b : lane.a;
+    const body = { id: 9600, kind: "planet" as const, planetType: "terran", size: "medium", richness: "normal" };
+    s.galaxy.systems[front]!.bodies.push(body);
+    s.colonies.push(newColony(s, ai, front, body.id, 5, false));
+    const fleet = enlist(s, newFleet(s, pack, ai, ["frigate", "frigate", "frigate", "troop_transport"], front));
+    fleet.command!.cohesion = 70;
+    s.fleets.push(fleet);
+    let orders = ordersFor(planAiTurn(s, pack, 1), fleet.id);
+    expect(orders).toContainEqual(expect.objectContaining({ type: "moveFleet", destinationId: target(s).systemId }));
+    expect(orders).toContainEqual(expect.objectContaining({ type: "invade", colonyId: target(s).id }));
+
+    // Without troops it holds, and troop ships at home head for it.
+    fleet.ships = fleet.ships.slice(0, 3);
+    const troops = newFleet(s, pack, ai, ["troop_transport"], ai.homeSystemId);
+    s.fleets.push(troops);
+    const all = planAiTurn(s, pack, 1);
+    expect(ordersFor(all, fleet.id).some((c) => c.type === "moveFleet")).toBe(false);
+    expect(ordersFor(all, troops.id)).toContainEqual(expect.objectContaining({ type: "moveFleet", destinationId: front }));
   });
 
   it("bases a new command at a colony when it can support one", () => {

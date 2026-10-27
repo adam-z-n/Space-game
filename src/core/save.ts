@@ -273,6 +273,12 @@ export function migrateState(state: GameState, pack: ContentPack): GameState {
     old.version = 18;
   }
 
+  if (old.version === 18) {
+    // v19: empires remember rival outposts they have seen (filled in by the sightings update below).
+    for (const empire of migrated.empires) empire.outpostSightings = [];
+    old.version = 19;
+  }
+
   if (startVersion !== migrated.version) {
     for (const empire of migrated.empires) refreshEmpireStats(migrated, pack, empire);
     updateSightings(migrated, pack, null, migrated.turn);

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { chartAll, enlist } from "./helpers";
 import { defaultPack } from "../src/content/defaultPack";
-import { applyCommand, createInitialState, migrateState, newFleet, type Command, type GameState } from "../src/core";
+import { applyCommand, createInitialState, migrateState, newFleet, STATE_VERSION, type Command, type GameState } from "../src/core";
 import { commandCapacity, commandUsed, fleetPoints, freeOfficers, knownHostileSystems, supportedCommands } from "../src/core/command";
 import { outpostDefense, outpostFinances } from "../src/core/outposts";
 import { leadership } from "../src/core/combat";
@@ -89,6 +89,20 @@ describe("naval commands", () => {
     expect(commandCapacity(s, pack, empire, command)).toBe(12 + 2);
     empire.techs.push("naval_staff_college", "fleet_admiralty");
     expect(commandCapacity(s, pack, empire, command)).toBe(12 + 2 + 4 + 8);
+  });
+
+  it("AI personalities: warlords get 4 more points per command, raiders one more officer (a second fleet)", () => {
+    const s = line();
+    const empire = s.empires[0]!;
+    const command = empire.navalCommands[0]!;
+    const base = commandCapacity(s, pack, empire, command);
+    expect(freeOfficers(s, pack, empire, command)).toBe(1);
+    empire.personality = "warlord";
+    expect(commandCapacity(s, pack, empire, command)).toBe(base + 4);
+    expect(freeOfficers(s, pack, empire, command)).toBe(1);
+    empire.personality = "raider";
+    expect(commandCapacity(s, pack, empire, command)).toBe(base);
+    expect(freeOfficers(s, pack, empire, command)).toBe(2);
   });
 
   it("one command per five colonies, each placed at a colony of yours, one per system, ready in 3 turns", () => {
@@ -403,7 +417,7 @@ describe("saves from 1.4", () => {
     for (const f of old.fleets) delete (f as Partial<typeof f>).command;
     for (const o of old.outposts) delete (o as Partial<typeof o>).mark;
     const migrated = migrateState(old, pack);
-    expect(migrated.version).toBe(18);
+    expect(migrated.version).toBe(STATE_VERSION);
     const empire = migrated.empires[0]!;
     expect(empire.navalCommands.map((c) => c.homeSystemId)).toEqual([0, 2]);
     const formed = migrated.fleets.filter((f) => f.empireId === 0 && f.command).map((f) => f.id);

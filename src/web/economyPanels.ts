@@ -5,6 +5,7 @@ import {
   buyCost,
   colonyDefense,
   colonyOutput,
+  colonyCanFarm,
   defendingTroops,
   coloniesMissing,
   schoolsAllowed,
@@ -187,6 +188,7 @@ const JOB_LABELS = { farmers: "Farmers", industry: "Industry", research: "Resear
 function workerControls(ctx: PanelContext, colony: Colony): HTMLElement {
   const { game, pack } = ctx;
   const out = colonyOutput(game.state, pack, colony);
+  const canFarm = colonyCanFarm(game.state, pack, colony);
   const moveWorker = (to: (typeof JOBS)[number]) => {
     const w = { ...out.workers };
     const from = JOBS.filter((j) => j !== to && w[j] > 0).sort((a, b) => w[b] - w[a])[0];
@@ -199,7 +201,11 @@ function workerControls(ctx: PanelContext, colony: Colony): HTMLElement {
     "div",
     { className: "workers" },
     ...JOBS.map((j) =>
-      h("div", { className: "worker" }, h("span", { textContent: `${JOB_LABELS[j]} ${out.workers[j]}` }), button("+", () => moveWorker(j), { ariaLabel: `Move a worker to ${JOB_LABELS[j]}`, disabled: out.workers[j] === colony.population })),
+      h("div", { className: "worker" }, h("span", { textContent: `${JOB_LABELS[j]} ${out.workers[j]}` }), button("+", () => moveWorker(j), {
+          ariaLabel: `Move a worker to ${JOB_LABELS[j]}`,
+          disabled: out.workers[j] === colony.population || (j === "farmers" && !canFarm),
+          title: j === "farmers" && !canFarm ? "This planet can't be farmed" : "",
+        })),
     ),
     colony.workers ? button("Auto", () => ctx.issue({ type: "setWorkers", empireId: game.playerId, colonyId: colony.id, workers: null }), { title: "Let the focus place workers again" }) : null,
   );
@@ -328,6 +334,8 @@ export function colonyPanel(ctx: PanelContext, colonyId: ColonyId): HTMLElement 
         {
           className: f === colony.focus && !colony.workers ? "on" : "",
           ariaPressed: String(f === colony.focus && !colony.workers),
+          disabled: f === "food" && !colonyCanFarm(game.state, pack, colony),
+          title: f === "food" && !colonyCanFarm(game.state, pack, colony) ? "This planet can't be farmed" : "",
         },
       ),
     );

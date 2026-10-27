@@ -1,5 +1,61 @@
 # Changelog
 
+## 1.6.0 (in progress)
+
+- AI personalities can carry bonuses, shown in their description: raiders get one more officer per naval command (a
+  second fleet each), warlords 4 more points per command.
+- Planets that can't be farmed (gas giant habitats, and worlds whose type grows nothing) grey out the Food focus
+  and the farmers "+" on the colony and Planets screens, and the game rejects farmers there.
+- Advanced Hydroponics (growth, 650 research, after Controlled Environments and Planetary Medicine) unlocks the
+  Hydroponic Complex: +6 food on any colony, even where nothing grows (80 industry, 2 upkeep).
+- Outpost conversions: an outpost ship in the system can turn your combat outpost into a mining outpost or back
+  (its depot and marks are lost), or abandon a gas giant habitat (not the capital) for an outpost; a habitat ship
+  can settle a gas giant over your own outpost. The system sheet offers Convert buttons with a confirmation.
+- AI overhaul (design: `docs/AI_1_6.md`):
+  - Strikes from every naval command: each command home forms fleets, a spare officer forms a second fleet, and
+    drilled fleets from several commands launch timed to arrive on the same turn. Troop ships ride with the strike
+    fleet at their command home, and strikes wait for troop ships still on their way.
+  - Campaigns: a fleet holding a colony it just took pushes on to the next target if still strong and steady
+    enough (75% of the strength needed, 60% cohesion); short of troops it holds there and troop ships come to it.
+  - Production counts mining, food sales and all upkeep: before, empires believed they were broke and stopped
+    building while their treasury grew. At war, banked credits pay for warships faster.
+  - In debt and still losing credits, the AI scraps enough to cover the shortfall (at most a quarter of its fleets
+    a turn), loose groups and support ships first, never the last warships at the capital.
+  - Outpost conversions: mining outposts on the front become combat outposts; plain combat outposts on asteroid
+    fields deep inside become mining outposts; inner gas giant outposts are settled as habitats.
+  - Warship designs value special weapons for what they do: pierce and nanite weapons ignore shields, area weapons
+    hit several ships, line designs mix in ion cannons and (warlike temperaments) a graviton lance, fortress designs
+    an EMP torpedo and flak; raiders prefer phase torpedoes. Exposed colonies build hunter-killer satellites.
+  - Minelayers for defensive temperaments, sowing the colonies and combat outposts nearest the enemy.
+  - Cloaked raiders: raiders and warlike temperaments design a Shade (cloaking device and guns) once cloaking is
+    known and send cloaked packs, on evade, after rival mining outposts. Empires now remember rival outposts they
+    have seen (saves move to state version 19). Raider packs also land troops on the weak colonies they hit.
+  - Planet crackers in the endgame drive only, on a colony held by more than three times the troops the AI has.
+  - Balance (all-AI sims, same seeds, before and after the overhaul):
+
+    | | Small, 60 games, 150 turns | Medium, 20 games, 200 turns |
+    |---|---|---|
+    | Invasions per game | 2.4 → 3.7 | 5.6 → 6.6 |
+    | Ships lost in battle per empire | 7.5 → 9.7 | 18.8 → 25.1 |
+    | Mine hits per empire | 2.4 → 6.4 | 13.8 → 22.3 |
+    | Games ended by domination | 10 → 14 | 4 → 5 |
+    | AI orders rejected | 0 → 0 | 0 → 0 |
+
+    | Wins by personality | Small before | Small after | Medium before | Medium after |
+    |---|---|---|---|---|
+    | Expansionist | 46.7% | 48.3% | 60% | 65% |
+    | Technocrat | 21.7% | 18.3% | 25% | 30% |
+    | Turtle | 20.0% | 21.7% | 10% | 0% |
+    | Raider | 5.0% | 6.7% | 5% | 5% |
+    | Warlord | 6.7% | 5.0% | 0% | 0% |
+
+    Raiders and warlords conquer more (warlords hold the most colonies after expansionists) but still win under
+    10%: at the turn limit they score low on population and research. Doubling their personality bonuses (warlords
+    +8 points, raiders +2 officers) moved warlords to 8.3% and raiders to 6.7% in small games (invasions 4.1).
+- Balance (60 small all-AI games of 150 turns, same seeds as 1.5.0): the bonuses are mild. Raiders fight more
+  (36.0 → 40.6 battles per game) and score a little higher (792 → 811) but still win 5%; warlords win 6.7% (from
+  5.0%). Invasions 2.3 → 2.4 per game; no AI orders rejected; replays match.
+
 ## 1.5.0
 
 The fleet command overhaul (design: `docs/FLEET_COMMAND.md`). All five parts are built (rules, combat, AI, screens, balance checks):

@@ -17,15 +17,40 @@ export function outpostTechOk(pack: ContentPack, empire: Empire, kind: OutpostKi
   return !req || empire.techs.includes(req);
 }
 
-/** Why `empire` can't build a `kind` outpost on `body`, or null. */
-export function outpostBlocker(state: GameState, pack: ContentPack, empire: Empire, body: Body, kind: OutpostKind): string | null {
+/** Why `empire` can't put a `kind` outpost on `body` at all (research, or the wrong kind of body), or null. */
+function outpostKindBlocker(pack: ContentPack, empire: Empire, body: Body, kind: OutpostKind): string | null {
   const config = pack.outposts[kind];
   if (!outpostTechOk(pack, empire, kind)) return `${config.name} needs research`;
   const gas = kind === "mining" && body.kind === "gasGiant" && hasFlag(pack, empire, "gasMining");
   if (!config.bodies.includes(body.kind) && !gas) return `a ${config.name} can't be built on that`;
+  return null;
+}
+
+/** Why `empire` can't build a `kind` outpost on `body`, or null. */
+export function outpostBlocker(state: GameState, pack: ContentPack, empire: Empire, body: Body, kind: OutpostKind): string | null {
+  const blocker = outpostKindBlocker(pack, empire, body, kind);
+  if (blocker) return blocker;
   if (state.outposts.some((o) => o.bodyId === body.id)) return "there is already an outpost there";
   if (state.colonies.some((c) => c.bodyId === body.id)) return "a colony is there";
   return null;
+}
+
+/**
+ * Building with an outpost ship on a body the empire already holds: its own outpost of another kind is
+ * converted (marks and depot are lost), and its own gas giant habitat is abandoned (its people are lost).
+ * Why it can't, or null. Bodies the empire doesn't hold go through `outpostBlocker`.
+ */
+export function outpostConversionBlocker(state: GameState, pack: ContentPack, empire: Empire, body: Body, kind: OutpostKind): string | null {
+  const outpost = state.outposts.find((o) => o.bodyId === body.id);
+  const colony = state.colonies.find((c) => c.bodyId === body.id);
+  if (outpost?.empireId === empire.id) {
+    if (outpost.kind === kind) return `it is already a ${pack.outposts[kind].name}`;
+  } else if (colony?.empireId === empire.id) {
+    if (colony.capital) return "you can't abandon your capital";
+  } else {
+    return outpostBlocker(state, pack, empire, body, kind);
+  }
+  return outpostKindBlocker(pack, empire, body, kind);
 }
 
 /** A combat outpost's guns and hit points, acting in battle like a colony's defenses. */

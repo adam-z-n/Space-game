@@ -5,7 +5,7 @@ import type { BodyKind, Formation } from "../content/schema";
  * so it can be cloned, saved, hashed, and sent over a network unchanged.
  */
 
-export const STATE_VERSION = 18;
+export const STATE_VERSION = 19;
 
 export type SystemId = number;
 export type EmpireId = number;
@@ -92,6 +92,8 @@ export interface Empire {
   sightings: FleetSighting[];
   /** Last-known colonies of other empires, by colony id. */
   colonySightings: ColonySighting[];
+  /** Last-known outposts of other empires, by outpost id. */
+  outpostSightings: OutpostSighting[];
   /** Treasury. Negative means in debt. */
   credits: number;
   /** Stored food, shared by all colonies. */
@@ -220,6 +222,18 @@ export interface ColonySighting {
   /** Orbital defense hit points and ground troops (garrison plus militia) as observed. */
   defenseHp: number;
   troops: number;
+  turn: number;
+}
+
+export interface OutpostSighting {
+  outpostId: number;
+  empireId: EmpireId;
+  systemId: SystemId;
+  bodyId: BodyId;
+  kind: OutpostKind;
+  depot: boolean;
+  /** Defense hit points as observed (combat outposts). */
+  defenseHp: number;
   turn: number;
 }
 

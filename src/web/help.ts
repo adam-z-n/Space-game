@@ -109,7 +109,7 @@ export const HELP_TOPICS: HelpTopic[] = [
     id: "more",
     title: "Outposts, special operations and gates",
     paragraphs: [
-      "Outpost ships build combat outposts (guns and sensors) or mining outposts (credits) on asteroid fields and gas giants. A combat outpost can become a supply depot.",
+      "Outpost ships build combat outposts (guns and sensors) or mining outposts (credits) on asteroid fields and gas giants. A combat outpost can become a supply depot. Another outpost ship can convert an outpost to the other kind (losing its depot and marks), and a habitat ship can settle a gas giant over your own outpost.",
       "Weapons research unlocks upgrade marks (I to V) for combat outposts and depots: more hit points and guns, for credits. An outpost can be upgraded only while its way home to one of your colonies is clear of known enemies.",
       "Commando ships sabotage a rival colony's defenses, garrison or buildings; cloaked ships are hard to see and slip past blockades.",
       "Warp gates (late research) let a fleet jump between two of your gated colonies in one turn.",

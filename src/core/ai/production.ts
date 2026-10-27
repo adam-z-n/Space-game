@@ -1,8 +1,8 @@
 import { buildOptions, buyCost, colonyOutput, findBody, itemCost, planetStats, prospectiveMaxPop } from "../economy";
-import { combatShipCount, designStats, fleetShipStats } from "../ships";
+import { combatShipCount, designStats, fleetShipStats, getDesign } from "../ships";
 import type { Colony, Focus, QueueItem } from "../state";
-import type { AiContext } from "./context";
-import { designWhere, guardFor } from "./designs";
+import type { AiContext, FleetInfo } from "./context";
+import { designWhere, guardFor, raidsCloaked, shadeDesign } from "./designs";
 import { outpostTargets } from "./operations";
 import type { Strategy } from "./strategy";
 
@@ -11,6 +11,9 @@ import type { Strategy } from "./strategy";
  * better designs; it also keeps late, open-ended games quick to play.
  */
 export const AI_MAX_WARSHIPS = 60;
+
+/** Most cloaked raiders (Shades) a raiding AI keeps. */
+export const AI_SHADES = 6;
 
 /** Siege ships and commando ships an AI empire keeps while at war (once researched). */
 export const AI_SIEGE = { bombers: 2, infiltrators: 1 };
@@ -21,13 +24,15 @@ export const AI_SIEGE = { bombers: 2, infiltrators: 1 };
 export function planProduction(ctx: AiContext, strategy: Strategy, warshipId: string | null): void {
   const { pack, empire, personality: p } = ctx;
   manageFocus(ctx);
-  // Plan against taxes only: credits from idle industry vanish as soon as something is queued.
+  // Plan against steady income: credits from idle industry vanish as soon as something is queued.
   const eco = ctx.economy;
-  const steadyNet = eco.income - eco.buildingUpkeep - eco.shipUpkeep;
+  const steadyNet = steadyCredits(ctx);
   const margin = 2 + Math.floor(ctx.colonies.length / 3) + (empire.credits < 0 ? 4 : 0);
   // A healthy treasury is runway: every 40 credits banked can carry one more upkeep for a long while.
   const runway = Math.max(0, Math.floor((empire.credits - 60) / 40));
   const room = { upkeep: steadyNet - margin + runway };
+  // At war (or under attack) and short of warships, a big treasury pays for them faster: one more upkeep per 25 banked.
+  const warRunway = Math.max(0, Math.floor((empire.credits - 60) / 25)) - runway;
   // Warship upkeep may only use a share of income that depends on temperament.
   const fleetBudget = Math.floor((eco.income * (25 + p.military * 3)) / 100) + Math.floor(runway / 2);
   let fleetRoom = fleetBudget - ctx.economy.shipUpkeep;
@@ -62,7 +67,10 @@ export function planProduction(ctx: AiContext, strategy: Strategy, warshipId: st
   const wantSuppliers = strategy.posture === "attack" && strategy.warTarget !== null && supplyDesign ? 1 : 0;
   // One outpost ship at a time, while there are free asteroid fields or gas giants in supply range.
   let outposters = ctx.fleets.filter((f) => f.outpost).length + queuedOf((q) => isShip(q, (s) => s.outpost));
-  const wantOutposters = outpostDesign && ctx.state.outposts.filter((o) => o.empireId === ctx.id).length < ctx.colonies.length && outpostTargets(ctx).length > 0 ? 1 : 0;
+  // Conversions of our own outposts need an outpost ship too, whatever the count.
+  const outpostJobs = outpostTargets(ctx);
+  const roomForOutposts = ctx.state.outposts.filter((o) => o.empireId === ctx.id).length < ctx.colonies.length;
+  const wantOutposters = outpostDesign && outpostJobs.some((t) => t.convert || roomForOutposts) ? 1 : 0;
   // Invasion force: enough troops for the nearest war-target colony's last known defenders, with a margin.
   const carriedTroops = ctx.fleets.reduce((n, f) => n + f.troops, 0) + queuedOf((q) => isShip(q, (s) => s.troops > 0)) * (troopDesign ? designStats(pack, troopDesign, fx).troops : 0);
   let troopsWanted = 0;
@@ -79,10 +87,17 @@ export function planProduction(ctx: AiContext, strategy: Strategy, warshipId: st
   const bomberDesign = plagueBomber ?? plainBomber;
   const infiltratorDesign = designWhere(ctx, (s) => s.commandos > 0 && s.stealth && !s.armed);
   const atWar = strategy.posture === "attack" && strategy.targetColony !== null;
-  let bombers = afloat((s) => s.bombard > 0) + queuedOf((q) => isShip(q, (s) => s.bombard > 0));
+  let bombers = afloat((s) => s.bombard > 0 && !s.cracker) + queuedOf((q) => isShip(q, (s) => s.bombard > 0 && !s.cracker));
+  // One planet cracker in the endgame drive, once designed.
+  const crackerDesign = strategy.endgame ? designWhere(ctx, (s) => s.cracker && s.armed) : null;
+  let crackers = afloat((s) => s.cracker) + queuedOf((q) => isShip(q, (s) => s.cracker));
   const wantBombers = atWar && bomberDesign ? AI_SIEGE.bombers : 0;
   let infiltrators = afloat((s) => s.commandos > 0 && !s.armed) + queuedOf((q) => isShip(q, (s) => s.commandos > 0 && !s.armed));
   const wantInfiltrators = atWar && infiltratorDesign && strategy.targetColony!.defenseHp > 0 ? AI_SIEGE.infiltrators : 0;
+  // Minelayers: defensive temperaments keep one (two for the most defensive), and anyone under attack.
+  const minelayerDesign = designWhere(ctx, (s) => s.mines > 0 && !s.armed);
+  let minelayers = afloat((s) => s.mines > 0 && !s.armed) + queuedOf((q) => isShip(q, (s) => s.mines > 0 && !s.armed));
+  const wantMinelayers = minelayerDesign && (p.defense >= 5 || strategy.posture === "defend") ? (p.defense >= 7 ? 2 : 1) : 0;
   let settlers = ctx.fleets.filter((f) => f.colonize && !f.habitat).length + queuedOf((q) => isShip(q, (s) => s.colonize && !s.habitat));
   // One habitat ship at a time, when a free gas giant is known and the treasury can stand it.
   let habitats = ctx.fleets.filter((f) => f.habitat).length + queuedOf((q) => isShip(q, (s) => s.habitat));
@@ -110,16 +125,22 @@ export function planProduction(ctx: AiContext, strategy: Strategy, warshipId: st
 
   // Planets already being settled this turn (by colony ship or a colony base queued below).
   let queuedGuards = 0;
+  let queuedShades = 0;
+  const shade = raidsCloaked(ctx) ? shadeDesign(ctx) : null;
   const settling = new Set(ctx.commands.flatMap((c) => (c.type === "colonize" ? [c.bodyId] : [])));
   for (const colony of ctx.colonies) {
     if (colony.queue.length > 0) continue;
     const options = buildOptions(ctx.state, pack, empire, colony);
     const can = (item: QueueItem | null): item is QueueItem => !!item && options.some((o) => o.kind === item.kind && o.id === item.id);
-    const affordable = !!warStats && warStats.upkeep <= room.upkeep && warStats.upkeep <= fleetRoom && warshipsAfloat + queuedWar < AI_MAX_WARSHIPS;
+    const warRoom = room.upkeep + (urgent && deficit > 0 ? warRunway : 0);
+    const affordable = !!warStats && warStats.upkeep <= warRoom && warStats.upkeep <= fleetRoom + (urgent ? warRunway : 0) && warshipsAfloat + queuedWar < AI_MAX_WARSHIPS;
     // One warship in three is its Guard twin (Screen formation) once the AI has one, to shield flagships.
     const guard = warship ? guardFor(ctx, warship) : null;
     const guards = ctx.fleets.reduce((n, f) => n + f.fleet.ships.filter((s) => s.designId === guard?.id).length, 0) + queuedGuards;
-    const warDesign = guard && guards * 3 < warshipsAfloat + queuedWar ? guard : warship;
+    // Raiding temperaments make one warship in three a cloaked raider (Shade), up to AI_SHADES.
+    const shades = ctx.fleets.reduce((n, f) => n + f.fleet.ships.filter((s) => s.designId === shade?.id).length, 0) + queuedShades;
+    const warDesign =
+      shade && shades < AI_SHADES && shades * 3 < warshipsAfloat + queuedWar ? shade : guard && guards * 3 < warshipsAfloat + queuedWar ? guard : warship;
     const warItem = warDesign && affordable ? ({ kind: "ship", id: warDesign.id } as QueueItem) : null;
     const big = colony.population >= 3;
     let pick: QueueItem | null = null;
@@ -155,9 +176,17 @@ export function planProduction(ctx: AiContext, strategy: Strategy, warshipId: st
       pick = { kind: "ship", id: bomberDesign.id };
       room.upkeep -= designStats(pack, bomberDesign, fx).upkeep;
       bombers++;
+    } else if (crackerDesign && crackers < 1 && big && atWar && can({ kind: "ship", id: crackerDesign.id }) && designStats(pack, crackerDesign, fx).upkeep <= room.upkeep) {
+      pick = { kind: "ship", id: crackerDesign.id };
+      room.upkeep -= designStats(pack, crackerDesign, fx).upkeep;
+      crackers++;
     } else if (suppliers < wantSuppliers && big && supplyDesign && can({ kind: "ship", id: supplyDesign.id })) {
       pick = { kind: "ship", id: supplyDesign.id };
       suppliers++;
+    } else if (minelayers < wantMinelayers && big && minelayerDesign && can({ kind: "ship", id: minelayerDesign.id }) && designStats(pack, minelayerDesign, fx).upkeep <= room.upkeep) {
+      pick = { kind: "ship", id: minelayerDesign.id };
+      room.upkeep -= designStats(pack, minelayerDesign, fx).upkeep;
+      minelayers++;
     } else if (outposters < wantOutposters && big && !urgent && outpostDesign && can({ kind: "ship", id: outpostDesign.id })) {
       pick = { kind: "ship", id: outpostDesign.id };
       outposters++;
@@ -168,7 +197,9 @@ export function planProduction(ctx: AiContext, strategy: Strategy, warshipId: st
       // Warp gates at the capital and the colony nearest the war target, so fleets can jump to the front.
       pick = gateItem;
     } else {
-      pick = bestBuilding(ctx, colony, options, room.upkeep);
+      // Warlike temperaments short of warships keep a warship's upkeep free of new buildings.
+      const keep = deficit > 0 && p.military >= 6 && warStats ? warStats.upkeep : 0;
+      pick = bestBuilding(ctx, colony, options, room.upkeep - keep);
       if (!pick && deficit > 0 && big && can(warItem)) pick = warItem;
     }
     if (!pick) continue;
@@ -179,6 +210,7 @@ export function planProduction(ctx: AiContext, strategy: Strategy, warshipId: st
       deficit -= perWarship;
       queuedWar++;
       if (pick.id === guard?.id) queuedGuards++;
+      if (pick.id === shade?.id) queuedShades++;
     }
     ctx.commands.push({ type: "queueBuild", empireId: ctx.id, colonyId: colony.id, item: pick });
   }
@@ -205,6 +237,12 @@ export function planProduction(ctx: AiContext, strategy: Strategy, warshipId: st
       ctx.commands.push({ type: "buyBuild", empireId: ctx.id, colonyId: colony.id });
     }
   }
+}
+
+/** Credits per turn the empire can count on: taxes, mining and food sales, less all upkeep (idle industry aside). */
+export function steadyCredits(ctx: AiContext): number {
+  const e = ctx.economy;
+  return e.income + e.miningIncome + e.foodSales - e.buildingUpkeep - e.shipUpkeep - e.outpostUpkeep;
 }
 
 /** Most value per industry among buildings the treasury can carry. */
@@ -250,9 +288,10 @@ function colonyExposure(ctx: AiContext, colony: Colony): number {
   return exposure;
 }
 
-function defenseValue(d: { hp?: number; shield?: number; weapons?: { damage: number; accuracy: number; count: number }[]; troops?: number; mines?: number }): number {
+function defenseValue(d: { hp?: number; shield?: number; weapons?: { damage: number; accuracy: number; count: number }[]; troops?: number; mines?: number; satellites?: number }): number {
   const dpr = (d.weapons ?? []).reduce((n, w) => n + (w.damage * w.accuracy * w.count) / 100, 0);
-  return Math.floor((d.hp ?? 0) / 4 + dpr * 4 + (d.troops ?? 0) * 2 + (d.shield ?? 0) * 10 + (d.mines ?? 0) / 2);
+  // Hunter-killer satellites: a shot each a turn (about 6 damage, 70% hits) that keeps firing after the main defenses fall.
+  return Math.floor((d.hp ?? 0) / 4 + dpr * 4 + (d.troops ?? 0) * 2 + (d.shield ?? 0) * 10 + (d.mines ?? 0) / 2 + (d.satellites ?? 0) * 17);
 }
 
 /** Capital stays balanced; other colonies lean to the personality, or to food when the stock is running out. */
@@ -277,7 +316,7 @@ function manageFocus(ctx: AiContext): void {
 
 /** Out of money: stop adding upkeep, cancel queued upkeep buildings, and in deep debt scrap the weakest warship group. */
 function avoidDebt(ctx: AiContext, strategy: Strategy, room: { upkeep: number }): void {
-  const steadyNet = ctx.economy.income - ctx.economy.buildingUpkeep - ctx.economy.shipUpkeep;
+  const steadyNet = steadyCredits(ctx);
   // Raise taxes while the treasury runs dry; lower them again once it has recovered.
   const tax = ctx.empire.taxLevel;
   if (tax === "normal" && ctx.empire.credits < 20 && steadyNet <= 0) ctx.commands.push({ type: "setTaxLevel", empireId: ctx.id, taxLevel: "high" });
@@ -292,11 +331,38 @@ function avoidDebt(ctx: AiContext, strategy: Strategy, room: { upkeep: number })
       }
     }
   }
-  if (ctx.empire.credits < -60 || (ctx.empire.credits < -20 && strategy.threat === 0)) {
-    const weakest = ctx.fleets.filter((f) => f.armed && !f.colonize && !ctx.busy.has(f.fleet.id)).sort((a, b) => a.strength - b.strength || a.fleet.id - b.fleet.id)[0];
-    if (weakest) {
-      ctx.busy.add(weakest.fleet.id);
-      ctx.commands.push({ type: "disbandFleet", empireId: ctx.id, fleetId: weakest.fleet.id });
-    }
+  scrapForDebt(ctx, steadyNet);
+}
+
+/**
+ * In debt and still losing credits each turn: scrap enough ships to cover the shortfall, at most a quarter of
+ * the fleets a turn. Loose groups go first, then unarmed support ships, then fleets, the least strength per
+ * credit of upkeep first; never the last warships at the capital, nor ships given orders this turn.
+ */
+function scrapForDebt(ctx: AiContext, steadyNet: number): void {
+  if (ctx.empire.credits >= 0 || steadyNet >= 0) return;
+  const { pack, empire } = ctx;
+  // Fleets only moved or given standing orders can still go; any other order this turn (merging, forming,
+  // invading...) would fail once they are gone.
+  const ordered = new Set(
+    ctx.commands.filter((c) => c.type !== "moveFleet" && c.type !== "setFleetOrders").flatMap((c) => [..."fleetId" in c ? [c.fleetId] : [], ..."intoFleetId" in c ? [c.intoFleetId] : []]),
+  );
+  const upkeep = (info: FleetInfo) => info.fleet.ships.reduce((n, ship) => n + designStats(pack, getDesign(empire, ship.designId), ctx.fx).upkeep, 0);
+  const capital = ctx.capital?.systemId;
+  const guards = ctx.fleets.filter((f) => f.armed && !f.colonize && f.fleet.systemId === capital && f.fleet.progress === 0);
+  const tier = (info: FleetInfo) => (info.fleet.command ? 2 : info.armed ? 0 : 1);
+  const candidates = ctx.fleets
+    .filter((f) => !f.colonize && !f.outpost && !f.recon && (f.armed || f.supplier || f.troops > 0) && !ordered.has(f.fleet.id) && upkeep(f) > 0)
+    .filter((f) => !(guards.length === 1 && guards[0] === f))
+    .sort((a, b) => tier(a) - tier(b) || a.strength * upkeep(b) - b.strength * upkeep(a) || a.fleet.id - b.fleet.id);
+  const most = Math.max(1, Math.floor(ctx.fleets.filter((f) => f.armed).length / 4));
+  let saved = 0;
+  let scrapped = 0;
+  for (const info of candidates) {
+    if (saved >= -steadyNet || scrapped >= most) break;
+    saved += upkeep(info);
+    scrapped++;
+    ctx.busy.add(info.fleet.id);
+    ctx.commands.push({ type: "disbandFleet", empireId: ctx.id, fleetId: info.fleet.id });
   }
 }

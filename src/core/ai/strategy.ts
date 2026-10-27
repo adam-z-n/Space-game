@@ -1,7 +1,7 @@
 import { availableTechs, colonizeBlocker, prospectiveMaxPop, researchAccess, techCost } from "../economy";
 import { colonyOnBody, type ColonySighting, type EmpireId, type SystemId } from "../state";
 import { populationShares, victoryMode } from "../victory";
-import { defenseStrength, lean, type AiContext } from "./context";
+import { defenseStrength, interior, lean, type AiContext } from "./context";
 
 /**
  * The strategic layer: what the empire is trying to do this turn.
@@ -72,7 +72,9 @@ export function decideStrategy(ctx: AiContext): Strategy {
     for (const body of state.galaxy.systems[systemId]!.bodies) {
       if (taken.has(body.id) || colonizeBlocker(pack, empire, body) !== null) continue;
       if (colonyOnBody(state, body.id)?.empireId === ctx.id) continue;
-      if (state.outposts.some((o) => o.empireId === ctx.id && o.bodyId === body.id)) continue; // our own outpost holds it
+      // Our own outpost holds it: only a plain combat outpost on a gas giant deep in our space gives way to a habitat.
+      const outpost = state.outposts.find((o) => o.empireId === ctx.id && o.bodyId === body.id);
+      if (outpost && !(outpost.kind === "combat" && !outpost.depot && outpost.mark === 0 && body.kind === "gasGiant" && interior(ctx, systemId))) continue;
       colonyTargets.push({ systemId, bodyId: body.id, value: prospectiveMaxPop(pack, empire, body), habitat: body.kind === "gasGiant" });
     }
   }

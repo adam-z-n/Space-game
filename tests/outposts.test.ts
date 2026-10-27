@@ -8,6 +8,8 @@ import {
   generateGalaxy,
   newFleet,
   suppliedSystems,
+  updateSightings,
+  migrateState,
   Rng,
   type Command,
   type GameState,
@@ -127,6 +129,70 @@ describe("outposts", () => {
     expect(s.empires[0]!.credits).toBe(100 - pack.outposts.depot.cost);
     expect(suppliedSystems(s, pack, 0).has(3)).toBe(true);
     expect(suppliedSystems(s, pack, 0).has(4)).toBe(false);
+  });
+
+  it("an outpost ship converts your outpost to another kind; marks and depot are lost", () => {
+    let s = line();
+    s.empires[0]!.techs.push("outpost_construction", "asteroid_mining");
+    s.outposts.push({ id: 7003, empireId: 0, systemId: 1, bodyId: 9001, kind: "combat", depot: true, mark: 2, defenseHp: 40 });
+    const fleet = withOutposter(s);
+    const build = (kind: "combat" | "mining"): Command => ({ type: "buildOutpost", empireId: 0, fleetId: fleet.id, bodyId: 9001, kind });
+    expect(applyCommand(s, build("combat"), pack)).toMatchObject({ ok: false, error: "it is already a Combat Outpost" });
+    s = run(s, build("mining"));
+    expect(s.outposts).toEqual([expect.objectContaining({ empireId: 0, bodyId: 9001, kind: "mining", depot: false, mark: 0 })]);
+    expect(s.fleets.some((f) => f.id === fleet.id)).toBe(false);
+    // A rival's outpost can't be converted.
+    s.outposts[0]!.empireId = 1;
+    expect(applyCommand(s, { type: "buildOutpost", empireId: 0, fleetId: withOutposter(s).id, bodyId: 9001, kind: "combat" }, pack)).toMatchObject({ ok: false, error: "there is already an outpost there" });
+  });
+
+  it("a habitat ship settles over your gas giant outpost, and an outpost ship can turn a habitat back into an outpost", () => {
+    let s = line();
+    s.empires[0]!.techs.push("outpost_construction", "gas_giant_habitats");
+    s.outposts.push({ id: 7004, empireId: 0, systemId: 1, bodyId: 9002, kind: "combat", depot: false, mark: 0, defenseHp: 60 });
+    const habitat = newFleet(s, pack, s.empires[0]!, ["habitat_ship"], 1);
+    s.fleets.push(habitat);
+    s = run(s, { type: "colonize", empireId: 0, fleetId: habitat.id, bodyId: 9002 });
+    expect(s.outposts).toEqual([]);
+    expect(s.colonies.some((c) => c.empireId === 0 && c.bodyId === 9002)).toBe(true);
+
+    const fleet = withOutposter(s);
+    s = run(s, { type: "buildOutpost", empireId: 0, fleetId: fleet.id, bodyId: 9002, kind: "combat" });
+    expect(s.colonies.some((c) => c.bodyId === 9002)).toBe(false);
+    expect(s.outposts).toEqual([expect.objectContaining({ empireId: 0, bodyId: 9002, kind: "combat" })]);
+    // Never the capital.
+    const capital = s.colonies.find((c) => c.empireId === 0 && c.capital)!;
+    s.galaxy.systems[1]!.bodies.push({ id: 9005, kind: "gasGiant" });
+    capital.systemId = 1;
+    capital.bodyId = 9005;
+    expect(applyCommand(s, { type: "buildOutpost", empireId: 0, fleetId: withOutposter(s).id, bodyId: 9005, kind: "combat" }, pack)).toMatchObject({ ok: false, error: "you can't abandon your capital" });
+  });
+});
+
+describe("outpost sightings", () => {
+  it("empires remember rival outposts they have seen, and forget them once they see the spot empty", () => {
+    const s = line();
+    s.outposts.push({ id: 7010, empireId: 1, systemId: 1, bodyId: 9001, kind: "mining", depot: false, mark: 0, defenseHp: 0 });
+    // Empire 0's capital at 0 sees system 1 next door.
+    updateSightings(s, pack, null, s.turn);
+    expect(s.empires[0]!.outpostSightings).toEqual([expect.objectContaining({ outpostId: 7010, empireId: 1, systemId: 1, kind: "mining" })]);
+    // Out of sight, it stays remembered; seen gone, it is forgotten.
+    s.empires[0]!.capitalSensorRange = 0;
+    s.empires[0]!.colonySensorRange = 0;
+    s.outposts = [];
+    updateSightings(s, pack, null, s.turn + 1);
+    expect(s.empires[0]!.outpostSightings.map((o) => o.outpostId)).toEqual([7010]);
+  });
+
+  it("saves from version 18 load with empty outpost memories, filled from what is in view", () => {
+    const s = line();
+    s.outposts.push({ id: 7011, empireId: 1, systemId: 1, bodyId: 9001, kind: "combat", depot: false, mark: 0, defenseHp: 60 });
+    const old = JSON.parse(JSON.stringify(s)) as GameState;
+    old.version = 18;
+    for (const e of old.empires) delete (e as Partial<typeof e>).outpostSightings;
+    const migrated = migrateState(old, pack);
+    expect(migrated.version).toBe(19);
+    expect(migrated.empires[0]!.outpostSightings.map((o) => o.outpostId)).toEqual([7011]);
   });
 });
 

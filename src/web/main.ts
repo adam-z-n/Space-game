@@ -28,7 +28,7 @@ import {
   serializeSave,
   OUTPOST_KINDS,
   SABOTAGE_MISSIONS,
-  outpostBlocker,
+  outpostConversionBlocker,
   outpostName,
   outpostTechOk,
   sabotageOdds,
@@ -447,7 +447,7 @@ function startGame(game: Game): void {
     if (ships.length === 0) return [];
     const system = game.state.galaxy.systems[systemId]!;
     return system.bodies
-      .filter((b) => !colonyOnBody(game.state, b.id) && !game.state.outposts.some((o) => o.bodyId === b.id) && colonizeBlocker(pack, empireState, b) === null)
+      .filter((b) => !colonyOnBody(game.state, b.id) && !game.state.outposts.some((o) => o.bodyId === b.id && o.empireId !== game.playerId) && colonizeBlocker(pack, empireState, b) === null)
       .flatMap((b) => {
         // A habitat ship for a gas giant, a colony ship for a planet.
         const fleet = ships.find((f) => settlerIndex(pack, game.state, f, b) >= 0);
@@ -456,6 +456,8 @@ function startGame(game: Game): void {
   }
 
   function colonize(fleetId: FleetId, bodyId: number): void {
+    const outpost = game.state.outposts.find((o) => o.bodyId === bodyId);
+    if (outpost && !confirm(`Settle here? The habitat replaces your ${outpostName(pack, outpost)}.`)) return;
     if (ctx.issue({ type: "colonize", empireId: game.playerId, fleetId, bodyId })) {
       const colony = colonyOnBody(game.state, bodyId);
       ui.selectedFleet = null;
@@ -946,7 +948,10 @@ function startGame(game: Game): void {
     );
   }
 
-  /** Buttons for building outposts on a body with an own outpost ship stopped in its system. */
+  /**
+   * Buttons for building outposts on a body with an own outpost ship stopped in its system, or converting
+   * the player's own outpost or gas giant habitat there to another kind.
+   */
   function outpostBuilders(systemId: SystemId, bodyId: number): HTMLElement[] {
     const body = game.state.galaxy.systems[systemId]!.bodies.find((b) => b.id === bodyId);
     if (!body || body.kind === "planet") return [];
@@ -955,12 +960,21 @@ function startGame(game: Game): void {
     );
     if (!builder) return [];
     const me = game.state.empires[game.playerId]!;
-    return OUTPOST_KINDS.filter((kind) => outpostBlocker(game.state, pack, me, body, kind) === null).map((kind) =>
-      button(`Build ${pack.outposts[kind].name}`, () => ctx.issue({ type: "buildOutpost", empireId: game.playerId, fleetId: builder.id, bodyId, kind }), {
-        className: "primary small-button",
-        title: pack.outposts[kind].description,
-      }),
-    );
+    const outpost = game.state.outposts.find((o) => o.bodyId === bodyId && o.empireId === game.playerId);
+    const colony = game.state.colonies.find((c) => c.bodyId === bodyId && c.empireId === game.playerId);
+    return OUTPOST_KINDS.filter((kind) => outpostConversionBlocker(game.state, pack, me, body, kind) === null).map((kind) => {
+      const name = pack.outposts[kind].name;
+      const build = () => ctx.issue({ type: "buildOutpost", empireId: game.playerId, fleetId: builder.id, bodyId, kind });
+      if (!outpost && !colony) return button(`Build ${name}`, build, { className: "primary small-button", title: pack.outposts[kind].description });
+      const lost = colony
+        ? `${colony.name} is abandoned and its ${colony.population} people are lost.`
+        : outpost!.depot || outpost!.mark > 0
+          ? `The ${[outpost!.depot ? "depot" : "", outpost!.mark > 0 ? "mark upgrades" : ""].filter(Boolean).join(" and ")} will be lost.`
+          : "";
+      return button(`Convert to ${name}`, () => {
+        if (confirm(`Use the outpost ship to make this a ${name}? ${lost}`.trim())) build();
+      }, { className: "small-button", title: pack.outposts[kind].description });
+    });
   }
 
   function systemSheet(): HTMLElement | null {
@@ -1025,13 +1039,13 @@ function startGame(game: Game): void {
         }
         const builders = outpostBuilders(system.id, body.id);
         const option = settle.get(body.id);
-        row.append(
-          option
-            ? button(`Colonize · max ${option.maxPop}`, () => colonize(option.fleetId, option.bodyId), { className: "primary small-button" })
-            : builders.length
-              ? h("span", { className: "column" }, ...builders)
-              : detail,
-        );
+        const actions = [
+          ...(option ? [button(`Colonize · max ${option.maxPop}`, () => colonize(option.fleetId, option.bodyId), { className: "primary small-button" })] : []),
+          ...builders,
+        ];
+        // Own outposts and colonies keep their usual controls next to any conversion buttons.
+        const keep = outpost?.own || colony?.own;
+        row.append(actions.length ? h("span", { className: "column" }, ...actions, ...(keep ? [detail] : [])) : detail);
         bodies.append(row);
       }
     }
