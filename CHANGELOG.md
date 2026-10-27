@@ -1,6 +1,6 @@
 # Changelog
 
-## 1.6.0 (in progress)
+## 1.6.0
 
 - AI personalities can carry bonuses, shown in their description: raiders get one more officer per naval command (a
   second fleet each), warlords 4 more points per command.
