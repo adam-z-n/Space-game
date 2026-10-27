@@ -14,6 +14,8 @@ marks; design in `docs/FLEET_COMMAND.md`) and sorted the ship designer's parts b
   unarmed ships 1). Escorts look underpriced on raw slots and hit points, but larger ships have advantages that
   don't show in those numbers: they can raise their defenses while spending a smaller share of their slots on
   armor and shields, and key weapons are limited to the larger classes.
+- **Naval command homes stay put** (decided in 1.6): a command moves only after losing its home, for players and
+  the AI alike. AI campaigns hold at a captured colony and bring troops there instead.
 
 ## Future versions (requested)
 
@@ -45,8 +47,6 @@ marks; design in `docs/FLEET_COMMAND.md`) and sorted the ship designer's parts b
 - AI tuning after 1.6: expansionists still win about half of all-AI games, raiders and warlords under 10%.
   Warlords conquer but score low at the turn limit (little research and population). Ideas: stronger personality
   bonuses, a score or research lean for warlike temperaments, earlier launches.
-- Moving a naval command's home forward (to a colony just taken) while it still has a home: today only a command
-  that lost its home can move, for players and AI alike. The AI's campaigns would use it.
 - More AI raiding: cloaked packs hunting transports in flight and blockading weak colonies (1.6 has them hunt
   mining outposts); an AI that remembers how fast it is losing colonies, to scrap down sooner.
 - Weapon ideas not taken up in 1.4: Siphon Beam (damage recharges the firer's shields), Decoy Drones (draw fire
