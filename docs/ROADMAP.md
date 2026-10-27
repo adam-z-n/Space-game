@@ -42,17 +42,15 @@ marks; design in `docs/FLEET_COMMAND.md`) and sorted the ship designer's parts b
 
 ## Other candidates noted along the way
 
-- AI tuning: the warlord and turtle personalities rarely win; expansionists win most. 1.5's command rules halved
-  conquest in all-AI games and hit raiders and warlords hardest; ideas: strikes launched from several commands at
-  once, using spare officers for second fleets, and longer campaigns (pushing on to the next target).
-- Teach the AI the remaining 1.1 tools: minelayers and cloaked raiding (1.3 taught it bombardment, commando raids
-  and supply depots).
-- AI debt in collapsing empires: an empire losing colonies to conquest keeps its fleet and runs deep into debt
-  (seen in long Total domination games); it should scrap ships faster as its income shrinks.
+- AI tuning after 1.6: expansionists still win about half of all-AI games, raiders and warlords under 10%.
+  Warlords conquer but score low at the turn limit (little research and population). Ideas: stronger personality
+  bonuses, a score or research lean for warlike temperaments, earlier launches.
+- Moving a naval command's home forward (to a colony just taken) while it still has a home: today only a command
+  that lost its home can move, for players and AI alike. The AI's campaigns would use it.
+- More AI raiding: cloaked packs hunting transports in flight and blockading weak colonies (1.6 has them hunt
+  mining outposts); an AI that remembers how fast it is losing colonies, to scrap down sooner.
 - Weapon ideas not taken up in 1.4: Siphon Beam (damage recharges the firer's shields), Decoy Drones (draw fire
   away from the carrier).
-- AI use of the 1.4 weapons beyond picking its best gun: graviton lances to stop retreats, EMP and ion cannons in
-  mixed designs, hunter-killer satellites at border colonies, planet crackers.
 - Fleet command ideas not taken up in 1.5: escape pods (officer survives losing the flagship half the time),
   command relays (a depot upgrade that counts as a command post), doctrines per command (Assault, Defensive, Rapid,
   Siege), officer traits (the full Admirals idea), patrol orders for groups, officer upkeep, battle honors.

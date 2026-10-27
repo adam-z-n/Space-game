@@ -46,7 +46,12 @@ state, all changes through commands); the rules data lives in `content/default/p
   categories. Command points per hull stay as they are (owner's decision; see the roadmap).
 - **1.6 (in progress, branch `claude/v1.6`):** AI personality bonuses (content `aiPersonalities[].effects`: raider
   +1 officer, warlord +4 points), no farming controls where nothing grows (`colonyCanFarm`), Advanced Hydroponics and
-  the Hydroponic Complex, outpost and habitat conversions (`outpostConversionBlocker`).
+  the Hydroponic Complex, outpost and habitat conversions (`outpostConversionBlocker`). AI overhaul, approved design
+  `docs/AI_1_6.md`: strikes from every command home with second fleets, timed to arrive together; campaigns
+  (`CAMPAIGN`); troop ships ride with strike fleets; production counts steady income (`steadyCredits`); debt
+  scrapping (`scrapForDebt`); outpost conversions; special weapons in designs (`weaponValue`); satellites;
+  minelayers (`layMines`); cloaked raiders (Shade designs, `cloakedRaids`, `RAID_PACK_POINTS`) using
+  `empire.outpostSightings` (state version 19); raider landings; planet crackers in the endgame (`SIEGE.crackPercent`).
 - **Next ideas** (`docs/ROADMAP.md`): diplomacy, espionage, trade, pass-and-play multiplayer; combat terrain,
   ambush, admirals, boarding.
 
@@ -74,7 +79,7 @@ state, all changes through commands); the rules data lives in `content/default/p
 
 - All randomness from the seeded `Rng`; no `Math.random`, clocks, or trig/exp/log/pow in `src/core`.
 - Iterate in a fixed order and break ties by id. Replays must reproduce the final state hash.
-- Changing persisted state means bumping `STATE_VERSION` in `src/core/state.ts` (now 18) and adding a step to
+- Changing persisted state means bumping `STATE_VERSION` in `src/core/state.ts` (now 19) and adding a step to
   `migrateState` in `src/core/save.ts`, with a test.
 - New content fields go in the zod schema (with `superRefine` checks for cross-references). New effect keys must
   also be added to the effect list in `src/core/economy.ts`.
@@ -82,7 +87,7 @@ state, all changes through commands); the rules data lives in `content/default/p
 
 ## Tools and testing
 
-- `npm run typecheck`, `npm test` (vitest; about 440 tests), `npm run build`.
+- `npm run typecheck`, `npm test` (vitest; about 490 tests), `npm run build`.
 - `npm run sim -- --games N --size small|medium|large --ai 4 --turns 150` plays all-AI games, checks replays, and
   reports by personality and by race (empire 0 rotates through the races). Extra flags: `--victory <mode>`
   (open-ended modes are capped at 1000 turns), `--open-research` (every race gets full research access; a balance
@@ -94,8 +99,11 @@ state, all changes through commands); the rules data lives in `content/default/p
 - `tests/helpers.ts` has `testPack`, `testFleet`, `relocateCapitals`, `chartAll`, and `enlist`/`enlistFor` (put a
   fleet in a naval command without the forming rules, for tests of attacks). Full AI-game tests need a
   `30_000` ms timeout.
-- AI tuning knobs: `ENDGAME` in `src/core/ai/strategy.ts`, `AI_MAX_WARSHIPS` in `src/core/ai/production.ts`,
-  attack planning in `attack()` in `src/core/ai/operations.ts`.
+- AI tuning knobs: `ENDGAME` in `src/core/ai/strategy.ts`, `AI_MAX_WARSHIPS` and `AI_SHADES` in
+  `src/core/ai/production.ts`, attack planning in `attack()` and `AI_LAUNCH_COHESION`, `CAMPAIGN`, `SIEGE` in
+  `src/core/ai/operations.ts`.
+- The batch sim lists the top AI rejection reasons. For per-game comparisons a small probe script running a seed
+  range (`sim-small-N` seeds, same settings as the sim) in two processes is much faster than a full sim.
 
 ## Gotchas
 
