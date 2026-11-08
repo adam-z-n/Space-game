@@ -169,6 +169,14 @@ describe("AI outpost conversions", () => {
     s.outposts.push({ id: 9703, empireId: 1, systemId: inner, bodyId: 9702, kind: "combat", depot: false, mark: 0, defenseHp: 60 });
     builder.systemId = inner;
     expect(ordersFor(planAiTurn(s, pack, 1), builder.id)).toContainEqual({ type: "buildOutpost", empireId: 1, fleetId: builder.id, bodyId: 9702, kind: "mining" });
+    // Converting it, the AI doesn't also buy it a mark (the outpost is replaced).
+    ai.credits = 5000;
+    ai.techs.push("forward_depots");
+    const orders = planAiTurn(s, pack, 1);
+    expect(orders).toContainEqual(expect.objectContaining({ type: "buildOutpost", bodyId: 9702 }));
+    expect(orders).not.toContainEqual(expect.objectContaining({ type: "upgradeOutpostMark", outpostId: 9703 }));
+    expect(orders).not.toContainEqual(expect.objectContaining({ type: "upgradeOutpost", outpostId: 9703 }));
+    ai.credits = 0;
     // ...but not once it is a depot.
     s.outposts[0]!.depot = true;
     expect(ordersFor(planAiTurn(s, pack, 1), builder.id)).not.toContainEqual(expect.objectContaining({ type: "buildOutpost", bodyId: 9702 }));

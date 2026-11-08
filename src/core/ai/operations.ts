@@ -701,6 +701,8 @@ function depots(ctx: AiContext, strategy: Strategy): void {
   const nearestSupply = Math.min(...[...ctx.supplied].map((s) => toTarget[s]!), Infinity);
   const outpost = ctx.state.outposts
     .filter((o) => o.empireId === ctx.id && o.kind === "combat" && !o.depot && o.defenseHp > 0)
+    // Not one being converted this turn (it is replaced by a new outpost).
+    .filter((o) => !ctx.commands.some((c) => c.type === "buildOutpost" && c.bodyId === o.bodyId))
     .sort((a, b) => toTarget[a.systemId]! - toTarget[b.systemId]! || a.id - b.id)[0];
   if (outpost && toTarget[outpost.systemId]! < nearestSupply) ctx.commands.push({ type: "upgradeOutpost", empireId: ctx.id, outpostId: outpost.id });
 }
@@ -722,8 +724,10 @@ function outpostMarks(ctx: AiContext, strategy: Strategy): void {
       return !!mark && known >= mark.weaponsTechs && ctx.empire.credits >= mark.cost + reserve;
     })
     .sort((a, b) => front(a.systemId) - front(b.systemId) || a.mark - b.mark || a.id - b.id);
+  // An outpost being converted this turn is replaced by a new one: no mark for it.
+  const converting = new Set(ctx.commands.flatMap((c) => (c.type === "buildOutpost" ? [c.bodyId] : [])));
   for (const outpost of candidates) {
-    if (outpostPathBlocker(ctx.state, ctx.pack, ctx.id, outpost.systemId)) continue;
+    if (converting.has(outpost.bodyId) || outpostPathBlocker(ctx.state, ctx.pack, ctx.id, outpost.systemId)) continue;
     ctx.commands.push({ type: "upgradeOutpostMark", empireId: ctx.id, outpostId: outpost.id });
     return;
   }
