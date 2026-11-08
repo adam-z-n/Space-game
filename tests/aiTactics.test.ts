@@ -348,6 +348,20 @@ describe("AI naval commands", () => {
     expect(ordersFor(all, troops.id)).toContainEqual(expect.objectContaining({ type: "moveFleet", destinationId: front }));
   });
 
+  it("at Veteran, a strike counts rival warships seen next door to the target, and holds back from a trap", () => {
+    const { s, groupId } = strikeReady();
+    const ai = s.empires[1]!;
+    ai.difficulty = "veteran";
+    const fleet = enlist(s, s.fleets.find((f) => f.id === groupId)!);
+    fleet.ships = fleet.ships.slice(0, 6);
+    expect(ordersFor(planAiTurn(s, pack, 1), fleet.id)).toContainEqual(expect.objectContaining({ type: "moveFleet", destinationId: target(s).systemId }));
+    // A strong rival fleet seen last turn one jump from the target: not this time.
+    const lane = s.galaxy.lanes.find((l) => (l.a === target(s).systemId || l.b === target(s).systemId) && l.a !== ai.homeSystemId && l.b !== ai.homeSystemId)!;
+    const beside = lane.a === target(s).systemId ? lane.b : lane.a;
+    ai.sightings = [{ fleetId: 991, empireId: 2, name: "Home Fleet", systemId: beside, nextSystemId: null, progress: 0, ships: 6, hull: "frigate", strength: fleetStrength(pack, s, fleet) * 2, armed: true, turn: s.turn - 1 }];
+    expect(ordersFor(planAiTurn(s, pack, 1), fleet.id).some((c) => c.type === "moveFleet" && c.destinationId === target(s).systemId)).toBe(false);
+  });
+
   it("bases a new command at a colony when it can support one", () => {
     const s = atWar(0, 0);
     moreColonies(s, 5);

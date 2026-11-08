@@ -4,7 +4,7 @@ import { hasFlag } from "../economy";
 import { colonyOnBody, type ColonySighting, type FleetOrders, type NavalCommand, type OutpostKind, type Ship, type SystemId } from "../state";
 import { outpostBlocker, outpostConversionBlocker, outpostTechOk } from "../outposts";
 import { defenseStrength, fleetAt, frontier, hops, interior, moveTo, withinReach, type AiContext, type FleetInfo } from "./context";
-import type { Strategy } from "./strategy";
+import { nearbyRivalStrength, targetCost, type Strategy } from "./strategy";
 import { raidsCloaked } from "./designs";
 
 /**
@@ -212,15 +212,19 @@ function attack(ctx: AiContext, strategy: Strategy): void {
   // The endgame drive also steadies cautious temperaments: a 20% edge is enough.
   const nerve = strategy.endgame ? Math.min(120, 100 + ctx.personality.caution * 10) : 100 + ctx.personality.caution * 10;
   // Known warships there plus the colony's orbital defenses as last seen.
+  // Veteran play also counts rival warships seen in the last 5 turns within two jumps: they could join the battle.
   const guardAt = (systemId: SystemId) =>
-    ctx.recentEnemies.filter((s) => s.systemId === systemId).reduce((n, s) => n + s.strength, 0) +
+    (ctx.skill.strategic
+      ? nearbyRivalStrength(ctx, systemId, 5)
+      : ctx.recentEnemies.filter((s) => s.systemId === systemId).reduce((n, s) => n + s.strength, 0)) +
     ctx.rivalColonies.filter((c) => c.systemId === systemId).reduce((n, c) => n + defenseStrength(c.defenseHp), 0);
   const lead = [...pool].sort((a, b) => b.strength - a.strength || a.fleet.id - b.fleet.id)[0]!;
 
   const candidates = ctx.rivalColonies
     .filter((c) => raider || c.empireId === strategy.warTarget)
     .filter((c) => withinReach(ctx, lead, c.systemId))
-    .map((c) => ({ colony: c, guard: guardAt(c.systemId), d: ctx.dist(ctx.capital!.systemId)[c.systemId]! }))
+    // Veteran play ranks targets by what they cost to take for what they are worth, not by distance from the capital.
+    .map((c) => ({ colony: c, guard: guardAt(c.systemId), d: ctx.skill.strategic ? targetCost(ctx, c) : ctx.dist(ctx.capital!.systemId)[c.systemId]! }))
     .filter((c) => Math.floor((c.guard * nerve) / 100) < total)
     .sort((a, b) => (raider ? a.guard - b.guard : 0) || a.d - b.d || a.colony.colonyId - b.colony.colonyId);
   const target = candidates[0];

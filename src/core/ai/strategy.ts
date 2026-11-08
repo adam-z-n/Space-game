@@ -1,7 +1,7 @@
 import { availableTechs, colonizeBlocker, prospectiveMaxPop, researchAccess, techCost } from "../economy";
 import { colonyOnBody, type ColonySighting, type EmpireId, type SystemId } from "../state";
 import { populationShares, victoryMode } from "../victory";
-import { defenseStrength, interior, lean, type AiContext } from "./context";
+import { defenseStrength, hops, interior, lean, type AiContext } from "./context";
 import { currentWarship, weaponValue } from "./designs";
 
 /**
@@ -96,7 +96,11 @@ export function decideStrategy(ctx: AiContext): Strategy {
     const leader = humans.find((h) => ctx.rivalColonies.some((c) => c.empireId === h.id));
     if (leader) candidates = ctx.rivalColonies.filter((c) => c.empireId === leader.id);
   }
-  if (ctx.capital) {
+  const picked = ctx.skill.strategic && !state.coalition ? strategicTarget(ctx, candidates) : null;
+  if (picked) {
+    warTarget = picked.empireId;
+    targetDefense = defenseStrength(picked.defenseHp);
+  } else if (ctx.capital) {
     const fromCapital = ctx.dist(ctx.capital.systemId);
     for (const colony of candidates) {
       const defense = defenseStrength(colony.defenseHp);
@@ -153,8 +157,8 @@ export function decideStrategy(ctx: AiContext): Strategy {
     wantedStrength = Math.max(wantedStrength, Math.floor((targetStrength * nerve) / 100));
   }
 
-  let targetColony: ColonySighting | null = null;
-  if (warTarget !== null && ctx.capital) {
+  let targetColony: ColonySighting | null = picked;
+  if (!picked && warTarget !== null && ctx.capital) {
     const fromCapital = ctx.dist(ctx.capital.systemId);
     targetColony = ctx.rivalColonies.filter((c) => c.empireId === warTarget).sort((a, b) => fromCapital[a.systemId]! - fromCapital[b.systemId]! || a.colonyId - b.colonyId)[0] ?? null;
   }
@@ -211,4 +215,43 @@ export function improvesWarship(ctx: AiContext, techId: string): boolean {
       c.requires === techId &&
       ((c.kind === "weapon" && weaponValue(c, shield, style) > bestGun) || (c.kind === "armor" && c.hp > bestArmor) || (c.kind === "shield" && c.shield > bestShield)),
   );
+}
+
+/** Rival warship strength seen in the last `turns` turns within two jumps of a system (Veteran play). */
+export function nearbyRivalStrength(ctx: AiContext, systemId: SystemId, turns: number, ownerId?: EmpireId): number {
+  const h = hops(ctx, systemId);
+  return ctx.empire.sightings
+    .filter((s) => s.armed && s.turn >= ctx.state.turn - turns && h[s.systemId]! <= 2 && (ownerId === undefined || s.empireId === ownerId))
+    .reduce((n, s) => n + s.strength, 0);
+}
+
+/**
+ * What a rival colony costs to take for what it is worth (lower is better), seen from our nearest command home:
+ * the distance, plus its defenses and the rival warships seen near it (a strength of 100 counts like 300 distance),
+ * over its people.
+ */
+export function targetCost(ctx: AiContext, colony: ColonySighting): number {
+  const homes = ctx.empire.navalCommands.map((c) => c.homeSystemId).filter((h): h is SystemId => h !== null);
+  if (homes.length === 0 && ctx.capital) homes.push(ctx.capital.systemId);
+  const distance = Math.min(...homes.map((h) => ctx.dist(h)[colony.systemId]!), Infinity);
+  if (distance === Infinity) return Infinity;
+  const strength = defenseStrength(colony.defenseHp) + nearbyRivalStrength(ctx, colony.systemId, 15, colony.empireId);
+  return Math.floor(((distance + strength * 3) * 10) / (colony.population + 3));
+}
+
+/**
+ * Veteran play: the war target is the rival colony with the lowest `targetCost`. A rival clearly running away with
+ * the game (half as many known colonies again as any other empire, ours included, and at least 4) is the target
+ * whenever one of its colonies is within reach. Only what the empire has seen counts.
+ */
+export function strategicTarget(ctx: AiContext, candidates: ColonySighting[]): ColonySighting | null {
+  const counts = new Map<EmpireId, number>();
+  for (const c of candidates) counts.set(c.empireId, (counts.get(c.empireId) ?? 0) + 1);
+  const ranked = [...counts].sort((a, b) => b[1] - a[1] || a[0] - b[0]);
+  const [leader, lead] = ranked[0] ?? [null, 0];
+  const runnerUp = Math.max(ranked[1]?.[1] ?? 0, ctx.colonies.length);
+  const runaway = leader !== null && lead >= 4 && lead * 2 >= runnerUp * 3;
+  const costed = candidates.map((c) => ({ c, cost: targetCost(ctx, c) })).filter((x) => x.cost !== Infinity);
+  const pool = runaway && costed.some((x) => x.c.empireId === leader) ? costed.filter((x) => x.c.empireId === leader) : costed;
+  return pool.sort((a, b) => a.cost - b.cost || a.c.colonyId - b.c.colonyId)[0]?.c ?? null;
 }
