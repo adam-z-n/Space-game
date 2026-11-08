@@ -200,7 +200,8 @@ export function planProduction(ctx: AiContext, strategy: Strategy, warshipId: st
       // Warlike temperaments short of warships keep a warship's upkeep free of new buildings.
       const keep = deficit > 0 && p.military >= 6 && warStats ? warStats.upkeep : 0;
       pick = bestBuilding(ctx, colony, options, room.upkeep - keep);
-      if (!pick && deficit > 0 && big && can(warItem)) pick = warItem;
+      // Veteran play keeps industry busy: with nothing better to build, another warship if its upkeep fits.
+      if (!pick && (deficit > 0 || ctx.skill.busyQueues) && big && can(warItem)) pick = warItem;
     }
     if (!pick) continue;
     if (pick.kind === "building") room.upkeep -= pack.buildings.find((b) => b.id === pick!.id)!.upkeep;

@@ -514,6 +514,8 @@ export const AiSkillSchema = z.object({
   upgradeResearch: z.number().int().min(0).max(50).default(0),
   /** Banked credits (above 60) that can carry one more upkeep for a long while: a lower number spends the war chest. */
   runwayCredits: z.number().int().positive().default(40),
+  /** A colony with nothing better to build adds a warship whenever the empire can carry its upkeep (no idle industry). */
+  busyQueues: z.boolean().default(false),
   /** Credits kept back before buying builds: this much plus this much per colony. */
   buyReserve: z.number().int().nonnegative().default(30),
   buyReservePerColony: z.number().int().nonnegative().default(8),
