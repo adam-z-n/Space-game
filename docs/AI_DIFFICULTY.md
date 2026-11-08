@@ -22,8 +22,8 @@ wins measures the difficulty (an even share is 20% with five empires).
 | Baseline wins | Small, 60 games, 150 turns | Medium, 20 games, 200 turns |
 |---|---|---|
 | Normal | 25.0% | 30% |
-| Hard | HARD_SMALL | HARD_MEDIUM |
-| **Veteran (target)** | about halfway | about halfway |
+| Hard | 11.7% | 20% |
+| **Veteran (target)** | about 18% | about 25% |
 
 ## 3. What the Veteran AI does differently
 
