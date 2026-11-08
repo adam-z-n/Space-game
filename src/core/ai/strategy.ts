@@ -2,6 +2,7 @@ import { availableTechs, colonizeBlocker, prospectiveMaxPop, researchAccess, tec
 import { colonyOnBody, type ColonySighting, type EmpireId, type SystemId } from "../state";
 import { populationShares, victoryMode } from "../victory";
 import { defenseStrength, interior, lean, type AiContext } from "./context";
+import { currentWarship, weaponValue } from "./designs";
 
 /**
  * The strategic layer: what the empire is trying to do this turn.
@@ -179,6 +180,8 @@ export function chooseResearch(ctx: AiContext, strategy: Strategy): string | nul
     if ((fx.commandPoints ?? 0) > 0 || (fx.commandOfficers ?? 0) > 0) weight += 5 + p.military;
     if (tech.flags.includes("subspaceCommand")) weight += 5 + p.aggression;
     if (tech.flags.includes("flagshipTargeting") || tech.flags.includes("chainOfCommand")) weight += Math.floor((p.military + p.aggression) / 2);
+    // Better play: techs that would improve the current warship (a better gun, armor, shield or hull) come first.
+    if (ctx.skill.upgradeResearch > 0 && improvesWarship(ctx, tech.id)) weight += ctx.skill.upgradeResearch;
     // Specialists lean into their affinity field (it also costs less there).
     if (researchAccess(pack, empire).affinity === tech.field) weight += 10;
     const score = Math.floor((weight * 10000) / techCost(pack, empire, tech));
@@ -188,4 +191,24 @@ export function chooseResearch(ctx: AiContext, strategy: Strategy): string | nul
     }
   }
   return bestId;
+}
+
+/** Whether a tech unlocks something better than what the current warship carries: a gun, armor, shield or a bigger hull. */
+export function improvesWarship(ctx: AiContext, techId: string): boolean {
+  const { pack } = ctx;
+  const warship = currentWarship(ctx);
+  if (!warship) return false;
+  const parts = warship.components.map((id) => pack.components.find((c) => c.id === id)!);
+  const shield = (pack.components.filter((c) => c.kind === "shield" && ctx.empire.techs.includes(c.requires ?? "")).sort((a, b) => b.shield - a.shield)[0]?.shield ?? 0) * 2;
+  const style = ctx.personality.designStyle;
+  const bestGun = Math.max(0, ...parts.filter((c) => c.kind === "weapon").map((c) => weaponValue(c, shield, style)));
+  const bestArmor = Math.max(0, ...parts.filter((c) => c.kind === "armor").map((c) => c.hp));
+  const bestShield = Math.max(0, ...parts.filter((c) => c.kind === "shield").map((c) => c.shield));
+  const hull = pack.hulls.find((h) => h.id === warship.hull)!;
+  if (pack.hulls.some((h) => h.requires === techId && h.slots > hull.slots)) return true;
+  return pack.components.some(
+    (c) =>
+      c.requires === techId &&
+      ((c.kind === "weapon" && weaponValue(c, shield, style) > bestGun) || (c.kind === "armor" && c.hp > bestArmor) || (c.kind === "shield" && c.shield > bestShield)),
+  );
 }

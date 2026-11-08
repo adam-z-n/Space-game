@@ -224,7 +224,7 @@ export function planProduction(ctx: AiContext, strategy: Strategy, warshipId: st
       (c.type === "upgradeOutpost" ? ctx.pack.outposts.depot.cost : 0),
     0,
   );
-  let spendable = empire.credits - committed - (30 + ctx.colonies.length * 8);
+  let spendable = empire.credits - committed - (ctx.skill.buyReserve + ctx.colonies.length * ctx.skill.buyReservePerColony);
   const order = [...ctx.colonies].sort((a, b) => Number(b.capital) - Number(a.capital) || a.id - b.id);
   for (const colony of order) {
     const first = colony.queue[0];

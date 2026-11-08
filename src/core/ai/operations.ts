@@ -253,7 +253,7 @@ function attack(ctx: AiContext, strategy: Strategy): void {
   let staging = bases[0]!.homeSystemId!;
   const needed = Math.floor((target.guard * nerve) / 100) + 1;
   const rules = ctx.pack.combat.command;
-  const drilledNow = (info: FleetInfo) => !!info.fleet.command && !ctx.formedNow.has(info.fleet.id) && info.fleet.command.cohesion >= AI_LAUNCH_COHESION;
+  const drilledNow = (info: FleetInfo) => !!info.fleet.command && !ctx.formedNow.has(info.fleet.id) && info.fleet.command.cohesion >= ctx.skill.launchCohesion;
   const troopsNeeded = Math.ceil((target.colony.troops * ctx.pack.combat.invasionMarginPercent * 6) / 500) + 1;
 
   // Campaigns: fleets idle at one of our colonies away from any command home (a colony just taken, say) push
@@ -275,7 +275,7 @@ function attack(ctx: AiContext, strategy: Strategy): void {
     const strength = fleets.reduce((n, f) => n + f.strength, 0);
     if (!fleets.every((f) => withinReach(ctx, f, target.colony.systemId)) || strength * 100 < needed * CAMPAIGN.strengthPercent) continue;
     // Below the cohesion to go on (troop ships just joined, say), they hold and drill.
-    const steady = fleets.every((f) => f.fleet.command!.cohesion >= CAMPAIGN.cohesion);
+    const steady = fleets.every((f) => f.fleet.command!.cohesion >= ctx.skill.campaignCohesion);
     const troops = fleets.reduce((n, f) => n + f.troops, 0);
     if (steady && (landed(ctx, troops) >= troopsNeeded || underway.troops > 0)) {
       for (const info of fleets) {
@@ -389,7 +389,7 @@ function attack(ctx: AiContext, strategy: Strategy): void {
   // Strikes leave from command homes (fleets back from resupply call there first, for troops and reinforcements).
   const homes = new Set(bases.map((b) => b.homeSystemId!));
   const launchers = pool.filter(
-    (f) => f.idle && !ctx.busy.has(f.fleet.id) && homes.has(f.fleet.systemId) && drilledNow(f) && cohesionAfter(f) >= AI_LAUNCH_COHESION && withinReach(ctx, f, target.colony.systemId),
+    (f) => f.idle && !ctx.busy.has(f.fleet.id) && homes.has(f.fleet.systemId) && drilledNow(f) && cohesionAfter(f) >= ctx.skill.launchCohesion && withinReach(ctx, f, target.colony.systemId),
   );
   // While troop ships are still on their way to staging (or joining this turn), a strike that would carry
   // none waits for them. Troop ships stuck at staging (no points to join) don't hold it up.
@@ -507,7 +507,7 @@ function raidPacks(ctx: AiContext, pool: FleetInfo[], target: ColonySighting): v
   // Troop ships ride with a pack still drilling at a command home, so a raid can take a weak colony.
   const troopsNeeded = Math.ceil((target.troops * ctx.pack.combat.invasionMarginPercent) / 100) + 1;
   const homes = new Set(ctx.empire.navalCommands.filter((c) => commandReady(ctx.state, c)).map((c) => c.homeSystemId!));
-  const drilling = pool.filter((f) => f.fleet.command && f.idle && !ctx.busy.has(f.fleet.id) && homes.has(f.fleet.systemId) && f.fleet.command.cohesion < AI_LAUNCH_COHESION);
+  const drilling = pool.filter((f) => f.fleet.command && f.idle && !ctx.busy.has(f.fleet.id) && homes.has(f.fleet.systemId) && f.fleet.command.cohesion < ctx.skill.launchCohesion);
   const aboard = new Map(drilling.map((f) => [f.fleet.id, f.troops]));
   const transports = ctx.fleets.filter((f) => f.troops > 0 && !f.armed && !f.fleet.command && f.idle && free(ctx, f));
   for (const info of transports) {
@@ -526,7 +526,7 @@ function raidPacks(ctx: AiContext, pool: FleetInfo[], target: ColonySighting): v
     if (!info.idle || ctx.busy.has(info.fleet.id)) continue;
     const command = info.fleet.command;
     if (command) {
-      if (command.cohesion >= AI_LAUNCH_COHESION) {
+      if (command.cohesion >= ctx.skill.launchCohesion) {
         moveTo(ctx, info, targetSystem);
         if (info.troops > 0 && headingFor(ctx, info, targetSystem)) ctx.commands.push({ type: "invade", empireId: ctx.id, fleetId: info.fleet.id, colonyId: target.colonyId });
       } else ctx.busy.add(info.fleet.id);
@@ -543,11 +543,11 @@ function raidPacks(ctx: AiContext, pool: FleetInfo[], target: ColonySighting): v
   }
 }
 
-/** Cohesion (percent) a strike fleet waits for before it launches. */
-export const AI_LAUNCH_COHESION = 80;
-
-/** A campaign fleet pushes on from a colony it holds with this much cohesion and strength (percent of what the next target needs). */
-export const CAMPAIGN = { cohesion: 60, strengthPercent: 75 };
+/**
+ * A campaign fleet pushes on from a colony it holds with this much strength (percent of what the next target needs).
+ * The cohesion it needs, and the cohesion a strike waits for, come from the difficulty (`ctx.skill`).
+ */
+export const CAMPAIGN = { strengthPercent: 75 };
 
 /** Fleets with troops sitting at a known rival colony keep an invasion order on it. */
 function invade(ctx: AiContext): void {
@@ -661,7 +661,7 @@ function cloakedRaids(ctx: AiContext): void {
     if (ctx.busy.has(info.fleet.id)) continue;
     if (info.fleet.command) {
       if (!info.idle) continue;
-      if (info.fleet.command.cohesion < AI_LAUNCH_COHESION) {
+      if (info.fleet.command.cohesion < ctx.skill.launchCohesion) {
         ctx.busy.add(info.fleet.id);
         continue;
       }

@@ -1,4 +1,4 @@
-import type { ContentPack, PersonalityData } from "../../content/schema";
+import { AiSkillSchema, type AiSkill, type ContentPack, type PersonalityData } from "../../content/schema";
 import { planMove, type Command } from "../commands";
 import { fleetOrderBlocker, knownHostileSystems } from "../command";
 import { empireEconomy, empireEffects, type EmpireEconomy, type Totals } from "../economy";
@@ -48,7 +48,10 @@ export interface AiContext {
   pack: ContentPack;
   empire: Empire;
   id: EmpireId;
+  /** The empire's temperament, shifted by its difficulty's `ai` block. */
   personality: PersonalityData;
+  /** How well it plays at its difficulty (Normal's play for empires without one). */
+  skill: AiSkill;
   fx: Totals;
   adj: Neighbor[][];
   /** Lane distances from a system (cached). */
@@ -79,7 +82,15 @@ export interface AiContext {
 
 export function buildContext(state: GameState, pack: ContentPack, empireId: EmpireId): AiContext {
   const empire = state.empires[empireId]!;
-  const personality = pack.aiPersonalities.find((p) => p.id === empire.personality) ?? pack.aiPersonalities[0]!;
+  const skill = aiSkill(pack, empire);
+  const base = pack.aiPersonalities.find((p) => p.id === empire.personality) ?? pack.aiPersonalities[0]!;
+  const shift = (value: number, by: number) => Math.max(0, Math.min(10, value + by));
+  const personality: PersonalityData = {
+    ...base,
+    aggression: shift(base.aggression, skill.aggression),
+    caution: shift(base.caution, skill.caution),
+    military: shift(base.military, skill.military),
+  };
   const adj = knownAdjacency(state, empireId);
   const cache = new Map<SystemId, ReturnType<typeof shortestPaths>>();
   const paths = (from: SystemId) => {
@@ -137,6 +148,7 @@ export function buildContext(state: GameState, pack: ContentPack, empireId: Empi
     empire,
     id: empireId,
     personality,
+    skill,
     fx: empireEffects(pack, empire),
     adj,
     dist,
@@ -202,6 +214,13 @@ export function withinReach(ctx: AiContext, info: FleetInfo, systemId: SystemId)
 /** A colony's orbital defenses (as last seen), on the same scale as fleet strength. */
 export function defenseStrength(defenseHp: number): number {
   return Math.floor((Math.max(0, defenseHp) * 6) / 5);
+}
+
+const NORMAL_SKILL: AiSkill = AiSkillSchema.parse({});
+
+/** How well an empire's AI plays: its difficulty's `ai` block, or Normal's play. */
+export function aiSkill(pack: ContentPack, empire: Empire): AiSkill {
+  return (empire.difficulty ? pack.difficulties.find((d) => d.id === empire.difficulty)?.ai : undefined) ?? NORMAL_SKILL;
 }
 
 /** 0-10 personality value as a percent multiplier around 100 (5 = 100%). */
