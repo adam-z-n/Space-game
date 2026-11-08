@@ -500,10 +500,11 @@ export type PersonalityData = z.infer<typeof Personality>;
 
 /** How well AI empires play at a difficulty. The defaults are Normal's play. */
 export const AiSkillSchema = z.object({
-  /** Added to every personality's aggression, caution and military (each kept within 0-10). */
+  /** Added to every personality's aggression, caution, military and expansion (each kept within 0-10). */
   aggression: z.number().int().min(-10).max(10).default(0),
   caution: z.number().int().min(-10).max(10).default(0),
   military: z.number().int().min(-10).max(10).default(0),
+  expansion: z.number().int().min(-10).max(10).default(0),
   /** Cohesion (percent) a strike fleet waits for before it launches, and a campaign fleet needs to push on. */
   launchCohesion: z.number().int().min(0).max(100).default(80),
   campaignCohesion: z.number().int().min(0).max(100).default(60),

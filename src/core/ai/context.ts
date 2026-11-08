@@ -90,6 +90,7 @@ export function buildContext(state: GameState, pack: ContentPack, empireId: Empi
     aggression: shift(base.aggression, skill.aggression),
     caution: shift(base.caution, skill.caution),
     military: shift(base.military, skill.military),
+    expansion: shift(base.expansion, skill.expansion),
   };
   const adj = knownAdjacency(state, empireId);
   const cache = new Map<SystemId, ReturnType<typeof shortestPaths>>();
