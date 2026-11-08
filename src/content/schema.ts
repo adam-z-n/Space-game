@@ -512,7 +512,11 @@ export const AiSkillSchema = z.object({
   designSwitchPercent: z.number().int().min(0).max(100).default(10),
   /** Research weight added to techs that improve the current warship (a better gun, armor, shield or hull). */
   upgradeResearch: z.number().int().min(0).max(50).default(0),
-  /** Banked credits (above 60) that can carry one more upkeep for a long while: a lower number spends the war chest. */
+  /**
+   * Banked credits count toward upkeep room: those above `runwayThreshold`, one upkeep per `runwayCredits` of them
+   * (a lower number spends the war chest faster; 1 counts them like steady income).
+   */
+  runwayThreshold: z.number().int().nonnegative().default(60),
   runwayCredits: z.number().int().positive().default(40),
   /** A colony with nothing better to build adds a warship whenever the empire can carry its upkeep (no idle industry). */
   busyQueues: z.boolean().default(false),
