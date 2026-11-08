@@ -28,11 +28,11 @@ export function planProduction(ctx: AiContext, strategy: Strategy, warshipId: st
   const eco = ctx.economy;
   const steadyNet = steadyCredits(ctx);
   const margin = 2 + Math.floor(ctx.colonies.length / 3) + (empire.credits < 0 ? 4 : 0);
-  // A healthy treasury is runway: every 40 credits banked can carry one more upkeep for a long while.
-  const runway = Math.max(0, Math.floor((empire.credits - 60) / 40));
+  // A healthy treasury is runway: every 40 credits banked (fewer at Veteran) can carry one more upkeep for a long while.
+  const runway = Math.max(0, Math.floor((empire.credits - 60) / ctx.skill.runwayCredits));
   const room = { upkeep: steadyNet - margin + runway };
   // At war (or under attack) and short of warships, a big treasury pays for them faster: one more upkeep per 25 banked.
-  const warRunway = Math.max(0, Math.floor((empire.credits - 60) / 25)) - runway;
+  const warRunway = Math.max(0, Math.floor((empire.credits - 60) / Math.min(25, ctx.skill.runwayCredits)) - runway);
   // Warship upkeep may only use a share of income that depends on temperament.
   const fleetBudget = Math.floor((eco.income * (25 + p.military * 3)) / 100) + Math.floor(runway / 2);
   let fleetRoom = fleetBudget - ctx.economy.shipUpkeep;

@@ -512,6 +512,8 @@ export const AiSkillSchema = z.object({
   designSwitchPercent: z.number().int().min(0).max(100).default(10),
   /** Research weight added to techs that improve the current warship (a better gun, armor, shield or hull). */
   upgradeResearch: z.number().int().min(0).max(50).default(0),
+  /** Banked credits (above 60) that can carry one more upkeep for a long while: a lower number spends the war chest. */
+  runwayCredits: z.number().int().positive().default(40),
   /** Credits kept back before buying builds: this much plus this much per colony. */
   buyReserve: z.number().int().nonnegative().default(30),
   buyReservePerColony: z.number().int().nonnegative().default(8),
