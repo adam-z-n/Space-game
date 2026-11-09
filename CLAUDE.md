@@ -12,7 +12,8 @@ state, all changes through commands); the rules data lives in `content/default/p
 
 ## Where things stand
 
-- **Released:** v1.0.0, v1.3.0 (which includes 1.1 and 1.2), v1.4.0, v1.5.0 and v1.6.0. The owner publishes releases
+- **Released:** v1.0.0, v1.3.0 (which includes 1.1 and 1.2), v1.4.0, v1.5.0, v1.6.0, and v1.7.0 once its release PR merges and
+  the owner tags it. The owner publishes releases
   through the GitHub UI (in a browser, not the mobile app: https://github.com/adam-z-n/Space-game/releases/new, tag
   `vX.Y.Z` created on publish from `main`, title `vX.Y.Z`, the changelog section as notes).
   To release: a small PR that bumps `version` (`npm version X.Y.Z --no-git-tag-version`) and retitles the changelog
@@ -53,7 +54,7 @@ state, all changes through commands); the rules data lives in `content/default/p
   scrapping (`scrapForDebt`); outpost conversions; special weapons in designs (`weaponValue`); satellites;
   minelayers (`layMines`); cloaked raiders (Shade designs, `cloakedRaids`, `RAID_PACK_POINTS`) using
   `empire.outpostSightings` (state version 19); raider landings; planet crackers in the endgame (`SIEGE.crackPercent`).
-- **1.7 (in progress, branch `claude/v1.7`):** the Veteran difficulty (design `docs/AI_DIFFICULTY.md`): content
+- **1.7 contents (merged):** the Veteran difficulty (design `docs/AI_DIFFICULTY.md`): content
   `difficulties[].ai` (`AiSkillSchema` in `schema.ts`, `ctx.skill` in the AI) shifts temperament and sets launch and
   campaign cohesion, design switch margin, research lean, buy reserve, banked-credit runway (`runwayThreshold`,
   `runwayCredits`), `busyQueues`, `playerTargetPercent` and `strategic` play (`strategicTarget`, `targetCost` in

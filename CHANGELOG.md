@@ -1,6 +1,6 @@
 # Changelog
 
-## 1.7.0 (in progress)
+## 1.7.0
 
 - New difficulty level, **Veteran**, between Normal and Hard (design: `docs/AI_DIFFICULTY.md`). Its AI empires get no
   production, research, credit or sensor bonuses; they play bolder and smarter instead:
