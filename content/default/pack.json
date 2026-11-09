@@ -3838,7 +3838,9 @@
         "upgradeResearch": 10,
         "buyReserve": 20,
         "buyReservePerColony": 5,
-        "strategic": true
+        "strategic": true,
+        "runwayThreshold": 20,
+        "runwayCredits": 1
       }
     },
     {
@@ -3861,7 +3863,9 @@
         "upgradeResearch": 10,
         "buyReserve": 20,
         "buyReservePerColony": 5,
-        "strategic": true
+        "strategic": true,
+        "runwayThreshold": 20,
+        "runwayCredits": 1
       }
     }
   ],

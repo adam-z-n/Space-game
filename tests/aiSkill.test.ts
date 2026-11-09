@@ -12,10 +12,10 @@ describe("difficulty levels", () => {
     expect(pack.difficulties.map((d) => d.id)).toEqual(["easy", "normal", "veteran", "hard"]);
     const veteran = pack.difficulties.find((d) => d.id === "veteran")!;
     expect(veteran.effects).toEqual({});
-    expect(veteran.ai).toMatchObject({ aggression: 2, caution: -2, military: 1, launchCohesion: 70, strategic: true });
+    expect(veteran.ai).toMatchObject({ aggression: 2, caution: -2, military: 1, launchCohesion: 70, strategic: true, runwayThreshold: 20, runwayCredits: 1 });
     // Hard plays the same way, with its bonuses on top; Normal is the default play.
     expect(pack.difficulties.find((d) => d.id === "hard")!.ai).toEqual(veteran.ai);
-    expect(pack.difficulties.find((d) => d.id === "normal")!.ai).toMatchObject({ aggression: 0, launchCohesion: 80, strategic: false });
+    expect(pack.difficulties.find((d) => d.id === "normal")!.ai).toMatchObject({ aggression: 0, launchCohesion: 80, strategic: false, runwayThreshold: 60, runwayCredits: 40 });
   });
 
   it("shift an AI's temperament within 0-10 and set how it plays; the human's empire plays Normal", () => {
