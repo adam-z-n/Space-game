@@ -106,7 +106,7 @@ state, all changes through commands); the rules data lives in `content/default/p
   fleet in a naval command without the forming rules, for tests of attacks). Full AI-game tests need a
   `30_000` ms timeout.
 - AI tuning knobs: the difficulty `ai` blocks in the content pack, `ENDGAME` in `src/core/ai/strategy.ts`, `AI_MAX_WARSHIPS` and `AI_SHADES` in
-  `src/core/ai/production.ts`, attack planning in `attack()` and `AI_LAUNCH_COHESION`, `CAMPAIGN`, `SIEGE` in
+  `src/core/ai/production.ts`, attack planning in `attack()`, `CAMPAIGN` and `SIEGE` in
   `src/core/ai/operations.ts`.
 - The batch sim lists the top AI rejection reasons. For per-game comparisons a small probe script running a seed
   range (`sim-small-N` seeds, same settings as the sim) in two processes is much faster than a full sim.
