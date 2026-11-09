@@ -1,6 +1,7 @@
 # A smarter difficulty level: design proposal
 
-Revision 1, for the owner's approval. Nothing here is built yet.
+Revision 1, approved by the owner and built in 1.7, with two additions the owner chose after the first sims (see
+section 7).
 
 ## 1. The idea
 
@@ -83,3 +84,17 @@ mostly from less caution.
 2. Temperament shifts and the operations and production numbers (section 3, tables). Tests, sims.
 3. Strategy: war target choice, reinforcement-aware strikes, turning on the leader. Tests, sims.
 4. Balance: sims at Normal, Veteran and Hard on the same seeds; tune the numbers to land near the target; changelog.
+
+## 7. As built
+
+Sims showed the smarter play of section 3 alone did not make Veteran harder: the stand-in won 22–33% across six
+variants (Normal 25%). Every AI, at every level, is capped by upkeep: from mid-game most colonies have nothing to build
+because income can't carry more upkeep, so better tactics spend the same fleet differently, mostly on other AIs.
+The owner then chose two additions, for Veteran and Hard:
+
+- Banked credits above 20 count toward upkeep room like steady income (`runwayThreshold` 20, `runwayCredits` 1;
+  Normal keeps 60 and 40).
+- The human player's colonies count as half the cost of any other target (`playerTargetPercent` 50).
+
+Results (stand-in wins): Veteran 18.3% small, 25% medium; Hard 10% and 10%; Normal 25% and 30%. Settings tried and
+left off for Veteran: an expansion shift and `busyQueues`.

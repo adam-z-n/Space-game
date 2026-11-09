@@ -47,6 +47,9 @@ marks; design in `docs/FLEET_COMMAND.md`) and sorted the ship designer's parts b
 - AI tuning after 1.6: expansionists still win about half of all-AI games, raiders and warlords under 10%.
   Warlords conquer but score low at the turn limit (little research and population). Ideas: stronger personality
   bonuses, a score or research lean for warlike temperaments, earlier launches.
+- A way to turn surplus industry into credits (a Trade focus or project) better than the 25% idle conversion: in
+  1.7 sims most AI colonies sit idle from mid-game because upkeep, paid in credits, caps every empire, and
+  industry-only buildings like the Nano Forge can't pay their own upkeep. A rule change for everyone.
 - More AI raiding: cloaked packs hunting transports in flight and blockading weak colonies (1.6 has them hunt
   mining outposts); an AI that remembers how fast it is losing colonies, to scrap down sooner.
 - Weapon ideas not taken up in 1.4: Siphon Beam (damage recharges the firer's shields), Decoy Drones (draw fire

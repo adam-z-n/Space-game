@@ -1,5 +1,34 @@
 # Changelog
 
+## 1.7.0 (in progress)
+
+- New difficulty level, **Veteran**, between Normal and Hard (design: `docs/AI_DIFFICULTY.md`). Its AI empires get no
+  production, research, credit or sensor bonuses; they play bolder and smarter instead:
+  - Temperaments shifted: aggression +2, caution −2, military +1. Strikes launch at 70% cohesion (Normal 80%),
+    campaigns push on at 50% (60%); new warship designs are adopted when 3% better (10%); research leans to techs
+    that improve the current warship; banked credits buy builds sooner.
+  - War targets chosen by what a colony costs to take for what it is worth, from the nearest command home, counting
+    the rival warships seen near it; strikes count rival warships seen lately within two jumps of the target; a rival
+    running away with the game becomes the target.
+  - Banked credits above 20 count toward upkeep room like steady income, so savings become buildings and warships
+    (at the price of some debt: about 3.5 debt turns per empire per game).
+  - They come after the human player first: the player's colonies count as half the cost of any other target.
+  - Hard now plays the same way, with its bonuses on top.
+  - All of it is content: each difficulty has an `ai` block (defaults are Normal's play, unchanged).
+- How often the no-bonus stand-in empire wins all-AI sims (60 small games of 150 turns, 20 medium of 200; an even
+  share is 20%):
+
+  | | Small | Medium |
+  |---|---|---|
+  | Normal | 25.0% | 30% |
+  | Veteran | 18.3% | 25% |
+  | Hard (1.6 → 1.7) | 11.7% → 10.0% | 20% → 10% |
+
+  Without the savings rule and the focus on the player, Veteran's smarter play alone did not make it harder (the
+  stand-in won 22–33% across six variants): every AI hits the same upkeep ceiling, so better tactics mostly spend the
+  same fleet on other AIs.
+- Fix: the AI no longer orders an upgrade (mark or depot) for an outpost it is converting the same turn.
+
 ## 1.6.0
 
 - AI personalities can carry bonuses, shown in their description: raiders get one more officer per naval command (a

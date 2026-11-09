@@ -53,6 +53,11 @@ state, all changes through commands); the rules data lives in `content/default/p
   scrapping (`scrapForDebt`); outpost conversions; special weapons in designs (`weaponValue`); satellites;
   minelayers (`layMines`); cloaked raiders (Shade designs, `cloakedRaids`, `RAID_PACK_POINTS`) using
   `empire.outpostSightings` (state version 19); raider landings; planet crackers in the endgame (`SIEGE.crackPercent`).
+- **1.7 (in progress, branch `claude/v1.7`):** the Veteran difficulty (design `docs/AI_DIFFICULTY.md`): content
+  `difficulties[].ai` (`AiSkillSchema` in `schema.ts`, `ctx.skill` in the AI) shifts temperament and sets launch and
+  campaign cohesion, design switch margin, research lean, buy reserve, banked-credit runway (`runwayThreshold`,
+  `runwayCredits`), `busyQueues`, `playerTargetPercent` and `strategic` play (`strategicTarget`, `targetCost` in
+  `strategy.ts`). Hard uses the same block plus its bonuses. Normal play is unchanged (state hashes checked).
 - **Next ideas** (`docs/ROADMAP.md`): diplomacy, espionage, trade, pass-and-play multiplayer; combat terrain,
   ambush, admirals, boarding.
 
@@ -100,7 +105,7 @@ state, all changes through commands); the rules data lives in `content/default/p
 - `tests/helpers.ts` has `testPack`, `testFleet`, `relocateCapitals`, `chartAll`, and `enlist`/`enlistFor` (put a
   fleet in a naval command without the forming rules, for tests of attacks). Full AI-game tests need a
   `30_000` ms timeout.
-- AI tuning knobs: `ENDGAME` in `src/core/ai/strategy.ts`, `AI_MAX_WARSHIPS` and `AI_SHADES` in
+- AI tuning knobs: the difficulty `ai` blocks in the content pack, `ENDGAME` in `src/core/ai/strategy.ts`, `AI_MAX_WARSHIPS` and `AI_SHADES` in
   `src/core/ai/production.ts`, attack planning in `attack()` and `AI_LAUNCH_COHESION`, `CAMPAIGN`, `SIEGE` in
   `src/core/ai/operations.ts`.
 - The batch sim lists the top AI rejection reasons. For per-game comparisons a small probe script running a seed
