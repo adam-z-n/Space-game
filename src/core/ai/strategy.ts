@@ -228,7 +228,7 @@ export function nearbyRivalStrength(ctx: AiContext, systemId: SystemId, turns: n
 /**
  * What a rival colony costs to take for what it is worth (lower is better), seen from our nearest command home:
  * the distance, plus its defenses and the rival warships seen near it (a strength of 100 counts like 300 distance),
- * over its people.
+ * over its people; the human player's colonies cost `playerTargetPercent` of that.
  */
 export function targetCost(ctx: AiContext, colony: ColonySighting): number {
   const homes = ctx.empire.navalCommands.map((c) => c.homeSystemId).filter((h): h is SystemId => h !== null);
@@ -236,7 +236,15 @@ export function targetCost(ctx: AiContext, colony: ColonySighting): number {
   const distance = Math.min(...homes.map((h) => ctx.dist(h)[colony.systemId]!), Infinity);
   if (distance === Infinity) return Infinity;
   const strength = defenseStrength(colony.defenseHp) + nearbyRivalStrength(ctx, colony.systemId, 15, colony.empireId);
-  return Math.floor(((distance + strength * 3) * 10) / (colony.population + 3));
+  const cost = Math.floor(((distance + strength * 3) * 10) / (colony.population + 3));
+  // Veteran play comes after the human player first.
+  return isPlayer(ctx, colony.empireId) ? Math.floor((cost * ctx.skill.playerTargetPercent) / 100) : cost;
+}
+
+/** The human player's empire; in all-AI batch runs, empire 0 (the stand-in for a human). */
+export function isPlayer(ctx: AiContext, empireId: EmpireId): boolean {
+  const humans = ctx.state.empires.filter((e) => !e.isAI);
+  return humans.length > 0 ? humans.some((e) => e.id === empireId) : empireId === 0;
 }
 
 /**

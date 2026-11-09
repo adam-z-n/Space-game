@@ -3826,7 +3826,7 @@
     {
       "id": "veteran",
       "name": "Veteran",
-      "description": "No bonuses: AI empires play bolder and smarter, picking their wars and striking harder.",
+      "description": "No bonuses: AI empires play bolder and smarter, spend their savings, and come after you first.",
       "effects": {},
       "ai": {
         "aggression": 2,
@@ -3840,7 +3840,8 @@
         "buyReservePerColony": 5,
         "strategic": true,
         "runwayThreshold": 20,
-        "runwayCredits": 1
+        "runwayCredits": 1,
+        "playerTargetPercent": 50
       }
     },
     {
@@ -3865,7 +3866,8 @@
         "buyReservePerColony": 5,
         "strategic": true,
         "runwayThreshold": 20,
-        "runwayCredits": 1
+        "runwayCredits": 1,
+        "playerTargetPercent": 50
       }
     }
   ],

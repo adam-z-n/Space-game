@@ -523,6 +523,11 @@ export const AiSkillSchema = z.object({
   /** Credits kept back before buying builds: this much plus this much per colony. */
   buyReserve: z.number().int().nonnegative().default(30),
   buyReservePerColony: z.number().int().nonnegative().default(8),
+  /**
+   * How much the human player's colonies cost as war targets, in percent of what they would otherwise (strategic
+   * play only): below 100 the AI comes after the player first. In all-AI batch runs empire 0 stands in for the player.
+   */
+  playerTargetPercent: z.number().int().min(1).max(100).default(100),
   /** Strategic play: war targets by value and cost, strikes sized for nearby rival fleets, turning on a runaway leader. */
   strategic: z.boolean().default(false),
 });

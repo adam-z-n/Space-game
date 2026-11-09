@@ -12,7 +12,7 @@ describe("difficulty levels", () => {
     expect(pack.difficulties.map((d) => d.id)).toEqual(["easy", "normal", "veteran", "hard"]);
     const veteran = pack.difficulties.find((d) => d.id === "veteran")!;
     expect(veteran.effects).toEqual({});
-    expect(veteran.ai).toMatchObject({ aggression: 2, caution: -2, military: 1, launchCohesion: 70, strategic: true, runwayThreshold: 20, runwayCredits: 1 });
+    expect(veteran.ai).toMatchObject({ aggression: 2, caution: -2, military: 1, launchCohesion: 70, strategic: true, runwayThreshold: 20, runwayCredits: 1, playerTargetPercent: 50 });
     // Hard plays the same way, with its bonuses on top; Normal is the default play.
     expect(pack.difficulties.find((d) => d.id === "hard")!.ai).toEqual(veteran.ai);
     expect(pack.difficulties.find((d) => d.id === "normal")!.ai).toMatchObject({ aggression: 0, launchCohesion: 80, strategic: false, runwayThreshold: 60, runwayCredits: 40 });
@@ -68,6 +68,23 @@ describe("Veteran strategy", () => {
     // Rival warships seen near it make it cost more.
     ai.sightings = [{ fleetId: 990, empireId: 3, name: "Home Fleet", systemId: systems[3]!, nextSystemId: null, progress: 0, ships: 10, hull: "cruiser", strength: 2000, armed: true, turn: s.turn }];
     expect(strategicTarget(ctxOf(s), ai.colonySightings)?.colonyId).toBe(801);
+  });
+
+  it("comes after the human player first, unless another target is far cheaper", () => {
+    const { s, ai, systems, seen } = setup();
+    expect(s.empires[0]!.isAI).toBe(false);
+    // The player's colony a little farther and a little smaller than a rival's: Veteran still picks the player's.
+    const rival = seen(830, 2, systems[1]!, 8, 0);
+    const player = seen(831, 0, systems[2]!, 6, 0);
+    ai.colonySightings = [rival, player];
+    expect(strategicTarget(ctxOf(s), ai.colonySightings)?.empireId).toBe(0);
+    // Normal play doesn't single the player out.
+    ai.difficulty = "normal";
+    expect(buildContext(s, pack, 1).skill.playerTargetPercent).toBe(100);
+    ai.difficulty = "veteran";
+    // A rival colony far cheaper (big, next door, undefended) against a well-defended player colony: the rival.
+    ai.colonySightings = [seen(832, 2, systems[0]!, 14, 0), seen(833, 0, systems[systems.length - 1]!, 3, 400)];
+    expect(strategicTarget(ctxOf(s), ai.colonySightings)?.empireId).toBe(2);
   });
 
   it("turns on a rival running away with the game", () => {
