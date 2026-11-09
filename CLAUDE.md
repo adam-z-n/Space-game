@@ -12,8 +12,9 @@ state, all changes through commands); the rules data lives in `content/default/p
 
 ## Where things stand
 
-- **Released:** v1.0.0, v1.3.0 (which includes 1.1 and 1.2), v1.4.0, v1.5.0, and v1.6.0 once its release PR merges
-  and the owner tags it. The owner publishes releases through the GitHub UI.
+- **Released:** v1.0.0, v1.3.0 (which includes 1.1 and 1.2), v1.4.0, v1.5.0 and v1.6.0. The owner publishes releases
+  through the GitHub UI (in a browser, not the mobile app: https://github.com/adam-z-n/Space-game/releases/new, tag
+  `vX.Y.Z` created on publish from `main`, title `vX.Y.Z`, the changelog section as notes).
   To release: a small PR that bumps `version` (`npm version X.Y.Z --no-git-tag-version`) and retitles the changelog
   section; after it merges the owner creates the release and tag (tag pushes from sessions get a 403), and the
   deploy archives that build under `/vX.Y/`.
@@ -44,7 +45,7 @@ state, all changes through commands); the rules data lives in `content/default/p
   and dimmed destinations, placing mode in `main.ts`, help topic `fleets`) and part 5 (balance sims: conquest
   roughly halves against 1.4, accepted by the owner; numbers in `CHANGELOG.md`). Also the ship designer's part
   categories. Command points per hull stay as they are (owner's decision; see the roadmap).
-- **1.6 contents (merged):** AI personality bonuses (content `aiPersonalities[].effects`: raider
+- **1.6 contents (released):** AI personality bonuses (content `aiPersonalities[].effects`: raider
   +1 officer, warlord +4 points), no farming controls where nothing grows (`colonyCanFarm`), Advanced Hydroponics and
   the Hydroponic Complex, outpost and habitat conversions (`outpostConversionBlocker`). AI overhaul, approved design
   `docs/AI_1_6.md`: strikes from every command home with second fleets, timed to arrive together; campaigns
@@ -52,6 +53,11 @@ state, all changes through commands); the rules data lives in `content/default/p
   scrapping (`scrapForDebt`); outpost conversions; special weapons in designs (`weaponValue`); satellites;
   minelayers (`layMines`); cloaked raiders (Shade designs, `cloakedRaids`, `RAID_PACK_POINTS`) using
   `empire.outpostSightings` (state version 19); raider landings; planet crackers in the endgame (`SIEGE.crackPercent`).
+- **1.7 (in progress, branch `claude/v1.7`):** the Veteran difficulty (design `docs/AI_DIFFICULTY.md`): content
+  `difficulties[].ai` (`AiSkillSchema` in `schema.ts`, `ctx.skill` in the AI) shifts temperament and sets launch and
+  campaign cohesion, design switch margin, research lean, buy reserve, banked-credit runway (`runwayThreshold`,
+  `runwayCredits`), `busyQueues`, `playerTargetPercent` and `strategic` play (`strategicTarget`, `targetCost` in
+  `strategy.ts`). Hard uses the same block plus its bonuses. Normal play is unchanged (state hashes checked).
 - **Next ideas** (`docs/ROADMAP.md`): diplomacy, espionage, trade, pass-and-play multiplayer; combat terrain,
   ambush, admirals, boarding.
 
@@ -99,8 +105,8 @@ state, all changes through commands); the rules data lives in `content/default/p
 - `tests/helpers.ts` has `testPack`, `testFleet`, `relocateCapitals`, `chartAll`, and `enlist`/`enlistFor` (put a
   fleet in a naval command without the forming rules, for tests of attacks). Full AI-game tests need a
   `30_000` ms timeout.
-- AI tuning knobs: `ENDGAME` in `src/core/ai/strategy.ts`, `AI_MAX_WARSHIPS` and `AI_SHADES` in
-  `src/core/ai/production.ts`, attack planning in `attack()` and `AI_LAUNCH_COHESION`, `CAMPAIGN`, `SIEGE` in
+- AI tuning knobs: the difficulty `ai` blocks in the content pack, `ENDGAME` in `src/core/ai/strategy.ts`, `AI_MAX_WARSHIPS` and `AI_SHADES` in
+  `src/core/ai/production.ts`, attack planning in `attack()`, `CAMPAIGN` and `SIEGE` in
   `src/core/ai/operations.ts`.
 - The batch sim lists the top AI rejection reasons. For per-game comparisons a small probe script running a seed
   range (`sim-small-N` seeds, same settings as the sim) in two processes is much faster than a full sim.

@@ -498,12 +498,49 @@ const Personality = z.object({
 });
 export type PersonalityData = z.infer<typeof Personality>;
 
+/** How well AI empires play at a difficulty. The defaults are Normal's play. */
+export const AiSkillSchema = z.object({
+  /** Added to every personality's aggression, caution, military and expansion (each kept within 0-10). */
+  aggression: z.number().int().min(-10).max(10).default(0),
+  caution: z.number().int().min(-10).max(10).default(0),
+  military: z.number().int().min(-10).max(10).default(0),
+  expansion: z.number().int().min(-10).max(10).default(0),
+  /** Cohesion (percent) a strike fleet waits for before it launches, and a campaign fleet needs to push on. */
+  launchCohesion: z.number().int().min(0).max(100).default(80),
+  campaignCohesion: z.number().int().min(0).max(100).default(60),
+  /** A new warship design replaces the current one when it is better by this percent. */
+  designSwitchPercent: z.number().int().min(0).max(100).default(10),
+  /** Research weight added to techs that improve the current warship (a better gun, armor, shield or hull). */
+  upgradeResearch: z.number().int().min(0).max(50).default(0),
+  /**
+   * Banked credits count toward upkeep room: those above `runwayThreshold`, one upkeep per `runwayCredits` of them
+   * (a lower number spends the war chest faster; 1 counts them like steady income).
+   */
+  runwayThreshold: z.number().int().nonnegative().default(60),
+  runwayCredits: z.number().int().positive().default(40),
+  /** A colony with nothing better to build adds a warship whenever the empire can carry its upkeep (no idle industry). */
+  busyQueues: z.boolean().default(false),
+  /** Credits kept back before buying builds: this much plus this much per colony. */
+  buyReserve: z.number().int().nonnegative().default(30),
+  buyReservePerColony: z.number().int().nonnegative().default(8),
+  /**
+   * How much the human player's colonies cost as war targets, in percent of what they would otherwise (strategic
+   * play only): below 100 the AI comes after the player first. In all-AI batch runs empire 0 stands in for the player.
+   */
+  playerTargetPercent: z.number().int().min(1).max(100).default(100),
+  /** Strategic play: war targets by value and cost, strikes sized for nearby rival fleets, turning on a runaway leader. */
+  strategic: z.boolean().default(false),
+});
+export type AiSkill = z.infer<typeof AiSkillSchema>;
+
 const Difficulty = z.object({
   id,
   name: z.string().min(1),
   description: z.string(),
   /** Applied to AI empires only. */
   effects: EffectsSchema,
+  /** How AI empires play (applied to AI empires only). */
+  ai: AiSkillSchema.prefault({}),
 });
 
 /** A win condition chosen at setup. Being the last empire standing always wins too. */

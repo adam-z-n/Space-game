@@ -139,7 +139,7 @@ export function planWarship(ctx: AiContext): WarshipPlan {
   const same = empire.designs.find((d) => !d.obsolete && d.formation !== "screen" && d.hull === hull.id && d.components.join() === components.join());
   if (same) return { design: same, create: null };
 
-  // Only switch if the new design is meaningfully better per unit of cost.
+  // Only switch if the new design is meaningfully better per unit of cost (by the difficulty's margin).
   if (fallback) {
     const fx = ctx.fx;
     const worth = (d: Pick<ShipDesign, "hull" | "components">) => {
@@ -150,7 +150,7 @@ export function planWarship(ctx: AiContext): WarshipPlan {
       }, 0);
       return Math.floor((guns * (s.maxHp + s.shield * 6)) / Math.max(1, s.cost));
     };
-    if (worth({ hull: hull.id, components }) * 100 < worth(fallback) * 110) return { design: fallback, create: null };
+    if (worth({ hull: hull.id, components }) * 100 < worth(fallback) * (100 + ctx.skill.designSwitchPercent)) return { design: fallback, create: null };
   }
   const mark = empire.designs.filter((d) => d.name.startsWith(PREFIX[style])).length + 1;
   return { design: fallback, create: { name: `${PREFIX[style]}${mark}`, hull: hull.id, components, formation: "front" } };

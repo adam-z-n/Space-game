@@ -28,11 +28,11 @@ export function planProduction(ctx: AiContext, strategy: Strategy, warshipId: st
   const eco = ctx.economy;
   const steadyNet = steadyCredits(ctx);
   const margin = 2 + Math.floor(ctx.colonies.length / 3) + (empire.credits < 0 ? 4 : 0);
-  // A healthy treasury is runway: every 40 credits banked can carry one more upkeep for a long while.
-  const runway = Math.max(0, Math.floor((empire.credits - 60) / 40));
+  // A healthy treasury is runway: every 40 credits banked (fewer at Veteran) can carry one more upkeep for a long while.
+  const runway = Math.max(0, Math.floor((empire.credits - ctx.skill.runwayThreshold) / ctx.skill.runwayCredits));
   const room = { upkeep: steadyNet - margin + runway };
   // At war (or under attack) and short of warships, a big treasury pays for them faster: one more upkeep per 25 banked.
-  const warRunway = Math.max(0, Math.floor((empire.credits - 60) / 25)) - runway;
+  const warRunway = Math.max(0, Math.floor((empire.credits - ctx.skill.runwayThreshold) / Math.min(25, ctx.skill.runwayCredits)) - runway);
   // Warship upkeep may only use a share of income that depends on temperament.
   const fleetBudget = Math.floor((eco.income * (25 + p.military * 3)) / 100) + Math.floor(runway / 2);
   let fleetRoom = fleetBudget - ctx.economy.shipUpkeep;
@@ -200,7 +200,8 @@ export function planProduction(ctx: AiContext, strategy: Strategy, warshipId: st
       // Warlike temperaments short of warships keep a warship's upkeep free of new buildings.
       const keep = deficit > 0 && p.military >= 6 && warStats ? warStats.upkeep : 0;
       pick = bestBuilding(ctx, colony, options, room.upkeep - keep);
-      if (!pick && deficit > 0 && big && can(warItem)) pick = warItem;
+      // Veteran play keeps industry busy: with nothing better to build, another warship if its upkeep fits.
+      if (!pick && (deficit > 0 || ctx.skill.busyQueues) && big && can(warItem)) pick = warItem;
     }
     if (!pick) continue;
     if (pick.kind === "building") room.upkeep -= pack.buildings.find((b) => b.id === pick!.id)!.upkeep;
@@ -224,7 +225,7 @@ export function planProduction(ctx: AiContext, strategy: Strategy, warshipId: st
       (c.type === "upgradeOutpost" ? ctx.pack.outposts.depot.cost : 0),
     0,
   );
-  let spendable = empire.credits - committed - (30 + ctx.colonies.length * 8);
+  let spendable = empire.credits - committed - (ctx.skill.buyReserve + ctx.colonies.length * ctx.skill.buyReservePerColony);
   const order = [...ctx.colonies].sort((a, b) => Number(b.capital) - Number(a.capital) || a.id - b.id);
   for (const colony of order) {
     const first = colony.queue[0];

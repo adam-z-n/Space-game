@@ -102,7 +102,8 @@ AI empires use the same commands and rules as the player, with no hidden shortcu
 
 - **Structure:** a strategic layer (expansion, research, war goals) over an operational layer (fleet assignment, targets, supply).
 - **Personalities:** data-defined weights such as expansionist, turtle, raider, so opponents feel different.
-- **Difficulty:** higher levels add resource bonuses or better scouting information; none break fog-of-war rules by default.
+- **Difficulty:** Easy and Hard change the AI's production, research and income (Hard also its sensors); Veteran (1.7)
+  and Hard make it play bolder and smarter (content `difficulties[].ai`). None break fog-of-war rules.
 - **Testing:** AI-vs-AI batches are the main balance tool.
 
 ## Themes and data-driven content

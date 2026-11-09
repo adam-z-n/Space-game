@@ -3824,14 +3824,50 @@
       "effects": {}
     },
     {
+      "id": "veteran",
+      "name": "Veteran",
+      "description": "No bonuses: AI empires play bolder and smarter, spend their savings, and come after you first.",
+      "effects": {},
+      "ai": {
+        "aggression": 2,
+        "caution": -2,
+        "military": 1,
+        "launchCohesion": 70,
+        "campaignCohesion": 50,
+        "designSwitchPercent": 3,
+        "upgradeResearch": 10,
+        "buyReserve": 20,
+        "buyReservePerColony": 5,
+        "strategic": true,
+        "runwayThreshold": 20,
+        "runwayCredits": 1,
+        "playerTargetPercent": 50
+      }
+    },
+    {
       "id": "hard",
       "name": "Hard",
-      "description": "AI empires produce, research and earn 40% more and see further.",
+      "description": "AI empires play like Veterans, and produce, research and earn 40% more and see further.",
       "effects": {
         "industryPercent": 40,
         "researchPercent": 40,
         "creditsPercent": 40,
         "sensorRange": 60
+      },
+      "ai": {
+        "aggression": 2,
+        "caution": -2,
+        "military": 1,
+        "launchCohesion": 70,
+        "campaignCohesion": 50,
+        "designSwitchPercent": 3,
+        "upgradeResearch": 10,
+        "buyReserve": 20,
+        "buyReservePerColony": 5,
+        "strategic": true,
+        "runwayThreshold": 20,
+        "runwayCredits": 1,
+        "playerTargetPercent": 50
       }
     }
   ],
